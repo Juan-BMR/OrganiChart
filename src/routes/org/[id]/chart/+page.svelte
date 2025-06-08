@@ -1,6 +1,6 @@
 <script>
   // @ts-nocheck
-  import { onMount } from "svelte";
+  import { onMount, afterUpdate } from "svelte";
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
   import Header from "$lib/components/layout/Header.svelte";
@@ -28,11 +28,16 @@
   let transform = { scale: 1, x: 0, y: 0 };
   const unsubscribeCanvas = canvasStore.subscribe((t) => (transform = t));
 
+  // Track avatar centers separately to avoid reactive loops
+  let avatarCenters = new Map();
+
   // Subscribe to members store
-  const unsubscribeMembers = membersStore.subscribe(({ members: m, loading }) => {
-    members = m;
-    membersLoading = loading;
-  });
+  const unsubscribeMembers = membersStore.subscribe(
+    ({ members: m, loading }) => {
+      members = m;
+      membersLoading = loading;
+    }
+  );
 
   // Listen for auth and organization param
   onMount(() => {
@@ -102,7 +107,10 @@
     const zoomFactor = delta > 0 ? 1.1 : 0.9;
     const newScale = Math.min(Math.max(transform.scale * zoomFactor, 0.2), 3);
     const rect = containerEl.getBoundingClientRect();
-    const center = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    const center = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
     canvasStore.zoomTo(newScale, center);
   }
 
@@ -112,40 +120,105 @@
   $: nodesWithPosition = (() => {
     if (!members || !members.length) return [];
 
-    // Determine root(s) with no managerId
-    const roots = members.filter((m) => !m.managerId);
-
-    // For each root build d3 hierarchy
-    const trees = roots.map((root) => {
-      return d3.hierarchy(root, (d) => {
-        return members.filter((m) => m.managerId === d.id);
-      });
-    });
-
-    // Compute layout with d3.tree for each tree
+    // Use stored positions if they exist, otherwise calculate with d3.tree
     const positioned = [];
-    const nodeSize = [140, 140];
-    trees.forEach((rootTree, i) => {
-      const treeLayout = d3.tree().nodeSize(nodeSize);
-      const treeData = treeLayout(rootTree);
-      // Offset each tree horizontally to avoid overlap if multiple roots
-      const offsetX = i * 500;
-      treeData.each((node) => {
+
+    // Check if all members have stored positions
+    const allHavePositions = members.every(
+      (m) =>
+        m.position &&
+        typeof m.position.x === "number" &&
+        typeof m.position.y === "number"
+    );
+
+    if (allHavePositions) {
+      // Use stored positions
+      members.forEach((member) => {
         positioned.push({
-          member: node.data,
-          x: node.x + offsetX,
-          y: node.y,
+          member,
+          x: member.position.x,
+          y: member.position.y,
         });
       });
-    });
+    } else {
+      // Fall back to d3.tree layout calculation
+      const roots = members.filter((m) => !m.managerId);
+
+      // For each root build d3 hierarchy
+      const trees = roots.map((root) => {
+        return d3.hierarchy(root, (d) => {
+          return members.filter((m) => m.managerId === d.id);
+        });
+      });
+
+      // Compute layout with d3.tree for each tree
+      const nodeSize = [200, 180]; // More spacing between nodes
+      trees.forEach((rootTree, i) => {
+        const treeLayout = d3.tree().nodeSize(nodeSize);
+        const treeData = treeLayout(rootTree);
+        // Offset each tree horizontally to avoid overlap if multiple roots
+        const offsetX = i * 600;
+        treeData.each((node) => {
+          positioned.push({
+            member: node.data,
+            x: node.x + offsetX,
+            y: node.y,
+          });
+        });
+      });
+    }
+
     return positioned;
   })();
+
+  // Center content when nodes are first loaded
+  $: if (
+    nodesWithPosition.length > 0 &&
+    containerEl &&
+    transform.scale === 1 &&
+    transform.x === 0 &&
+    transform.y === 0
+  ) {
+    centerContent();
+  }
+
+  function centerContent() {
+    if (!nodesWithPosition.length || !containerEl) return;
+
+    // Calculate bounding box of all nodes
+    const minX = Math.min(...nodesWithPosition.map((n) => n.x));
+    const maxX = Math.max(...nodesWithPosition.map((n) => n.x));
+    const minY = Math.min(...nodesWithPosition.map((n) => n.y));
+    const maxY = Math.max(...nodesWithPosition.map((n) => n.y));
+
+    // Get viewport dimensions
+    const rect = containerEl.getBoundingClientRect();
+    const viewportCenterX = rect.width / 2;
+    const viewportCenterY = rect.height / 2;
+
+    // Calculate content center
+    const contentCenterX = (minX + maxX) / 2;
+    const contentCenterY = (minY + maxY) / 2;
+
+    // Calculate offset to center content
+    const offsetX = viewportCenterX - contentCenterX;
+    const offsetY = viewportCenterY - contentCenterY;
+
+    // Set transform to center the content
+    canvasStore.setTransform({
+      scale: 1,
+      x: offsetX,
+      y: offsetY,
+    });
+  }
 
   // Build lines between nodes
   $: lines = (() => {
     if (!nodesWithPosition.length) return [];
+
     const map = new Map(nodesWithPosition.map((n) => [n.member.id, n]));
     const arr = [];
+
     nodesWithPosition.forEach((n) => {
       if (n.member.managerId && map.has(n.member.managerId)) {
         const parent = map.get(n.member.managerId);
@@ -154,9 +227,12 @@
           y1: parent.y,
           x2: n.x,
           y2: n.y,
+          parentId: parent.member.id,
+          childId: n.member.id,
         });
       }
     });
+
     return arr;
   })();
 
@@ -193,10 +269,17 @@
     const canvasDiv = containerEl.querySelector(".canvas");
     const prevTransform = canvasDiv.style.transform;
     canvasDiv.style.transform = "scale(1)";
-    const canvas = await html2canvas(canvasDiv, { backgroundColor: null, allowTaint: true });
+    const canvas = await html2canvas(canvasDiv, {
+      backgroundColor: null,
+      allowTaint: true,
+    });
     canvasDiv.style.transform = prevTransform;
     const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF({ orientation: "landscape", unit: "px", format: [canvas.width, canvas.height] });
+    const pdf = new jsPDF({
+      orientation: "landscape",
+      unit: "px",
+      format: [canvas.width, canvas.height],
+    });
     pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
     pdf.save(`${organization?.name || "orgchart"}.pdf`);
   }
@@ -239,90 +322,257 @@
 </script>
 
 <svelte:head>
-  <title>{organization ? organization.name + " Chart" : "Org Chart"} - OrganiChart</title>
+  <title
+    >{organization ? organization.name + " Chart" : "Org Chart"} - OrganiChart</title
+  >
 </svelte:head>
 
 <Header {user} />
 
 {#if user}
-  <div
-    bind:this={containerEl}
-    class="chart-container"
-    on:pointerdown={handlePointerDown}
-    on:pointermove={handlePointerMove}
-    on:pointerup={handlePointerUp}
-    on:wheel={handleWheel}
-  >
+  <!-- Main container with proper spacing from header -->
+  <div class="page-container">
+    <!-- Chart viewport -->
     <div
-      class="canvas"
-      style="transform: translate({transform.x}px, {transform.y}px) scale({transform.scale});"
+      bind:this={containerEl}
+      class="chart-container"
+      on:pointerdown={handlePointerDown}
+      on:pointermove={handlePointerMove}
+      on:pointerup={handlePointerUp}
+      on:wheel={handleWheel}
     >
-      <!-- Lines -->
-      <svg class="lines-layer" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-        {#each lines as l}
-          <line
-            x1={l.x1 + 45}
-            y1={l.y1 + 45}
-            x2={l.x2 + 45}
-            y2={l.y2 + 45}
-            stroke="var(--border)"
-            stroke-width="2"
+      <div
+        class="canvas"
+        style="transform: translate({transform.x}px, {transform.y}px) scale({transform.scale});"
+      >
+        <!-- Organizational Connection Lines (Figma-style elbow connectors) -->
+        {#each lines as l, i}
+          <!-- Calculate avatar centers using fixed node width -->
+          {@const fixedNodeWidth = 160}
+          <!-- Fixed width from MemberNode CSS -->
+          {@const avatarSize = 100}
+          {@const borderWidth = 4}
+
+          <!-- Avatar is centered within the fixed-width node -->
+          {@const parentCenterX = l.x1 + fixedNodeWidth / 2}
+          {@const parentBottomY = l.y1 + avatarSize + borderWidth * 2 + 50}
+          {@const childCenterX = l.x2 + fixedNodeWidth / 2}
+          {@const childTopY = l.y2 - 4}
+
+          <!-- Calculate midpoint for elbow connector -->
+          {@const midY = parentBottomY + (childTopY - parentBottomY) / 2}
+
+          <!-- Container for this specific connector -->
+          {@const minX = Math.min(parentCenterX, childCenterX) - 10}
+          {@const maxX = Math.max(parentCenterX, childCenterX) + 10}
+          {@const minY = Math.min(parentBottomY, childTopY) - 10}
+          {@const maxY = Math.max(parentBottomY, childTopY) + 10}
+
+          <div
+            style="position: absolute; left: {minX}px; top: {minY}px; width: {maxX -
+              minX}px; height: {maxY -
+              minY}px; z-index: 1; pointer-events: none;"
+          >
+            <svg
+              width="100%"
+              height="100%"
+              style="position: absolute; top: 0; left: 0;"
+            >
+              <!-- Elbow connector path: down → horizontal → down -->
+              <path
+                d="M {parentCenterX - minX} {parentBottomY - minY}
+                   L {parentCenterX - minX} {midY - minY}
+                   L {childCenterX - minX} {midY - minY}
+                   L {childCenterX - minX} {childTopY - minY}"
+                stroke="#6366f1"
+                stroke-width="2"
+                fill="none"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                opacity="0.7"
+              />
+            </svg>
+          </div>
+        {/each}
+
+        <!-- Nodes -->
+        {#each nodesWithPosition as n (n.member.id)}
+          <MemberNode
+            member={n.member}
+            x={n.x}
+            y={n.y}
+            size={100}
+            on:edit={handleEditMember}
+            on:delete={handleDeleteMember}
           />
         {/each}
-      </svg>
+      </div>
 
-      <!-- Nodes -->
-      {#each nodesWithPosition as n (n.member.id)}
-        <MemberNode member={n.member} x={n.x} y={n.y} 
-          on:edit={handleEditMember} on:delete={handleDeleteMember} />
-      {/each}
+      <!-- Loading state -->
+      {#if membersLoading}
+        <div class="loading-overlay">
+          <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p>Loading organization chart...</p>
+          </div>
+        </div>
+      {/if}
+
+      <!-- Empty state -->
+      {#if !membersLoading && members.length === 0}
+        <div class="empty-state">
+          <div class="empty-content">
+            <svg
+              class="empty-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+              />
+            </svg>
+            <h3>No team members yet</h3>
+            <p>
+              Get started by adding your first team member to the organization
+              chart.
+            </p>
+            <button class="empty-action-btn" on:click={openAddMember}>
+              <svg
+                class="button-icon"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
+              </svg>
+              Add first member
+            </button>
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Floating action buttons -->
+    <div class="floating-controls">
+      <!-- Zoom controls -->
+      <div class="zoom-controls">
+        <button
+          class="zoom-btn"
+          aria-label="Zoom in"
+          on:click={zoomIn}
+          title="Zoom in"
+        >
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+            />
+          </svg>
+        </button>
+        <button
+          class="zoom-btn"
+          aria-label="Zoom out"
+          on:click={zoomOut}
+          title="Zoom out"
+        >
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M20 12H4"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="action-controls">
+        <button class="action-btn secondary" on:click={exportAsPDF}>
+          <svg
+            class="button-icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
+          Export PDF
+        </button>
+
+        <button class="action-btn primary" on:click={openAddMember}>
+          <svg
+            class="button-icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+            />
+          </svg>
+          Add member
+        </button>
+      </div>
     </div>
   </div>
 
-  {#if membersLoading}
-    <div class="loading-overlay">Loading members...</div>
-  {/if}
-
-  {#if !membersLoading && members.length === 0}
-    <div class="empty-state">No members yet. Use + Add member to begin.</div>
-  {/if}
-
-  <button class="add-member-btn" on:click={openAddMember}>+ Add member</button>
-
-  <button class="export-btn" on:click={exportAsPDF}>Export PDF</button>
-
-  <button class="zoom-btn zoom-in" aria-label="Zoom in" on:click={zoomIn}>+</button>
-  <button class="zoom-btn zoom-out" aria-label="Zoom out" on:click={zoomOut}>−</button>
-
+  <!-- Modals -->
   <AddMemberModal
     bind:open={showAddMember}
     {organizationId}
-    members={members}
+    {members}
     on:close={closeAddMember}
   />
 
   <EditMemberModal
     bind:open={showEditMember}
     member={editingMember}
-    organizationId={organizationId}
+    {organizationId}
     {members}
     on:close={closeEditMember}
   />
 {/if}
 
 <style>
-  :global(body) {
-    overflow: hidden;
+  .page-container {
+    min-height: calc(100vh - var(--header-height));
+    margin-top: var(--header-height);
+    background: var(--background);
+    position: relative;
   }
 
   .chart-container {
-    position: fixed;
-    inset: 0;
-    top: calc(var(--spacing-4) + 72px); /* header height approx */
-    background: var(--surface);
+    width: 100%;
+    height: calc(100vh - var(--header-height));
+    background: var(--background);
     cursor: grab;
     user-select: none;
     overflow: hidden;
+    position: relative;
+  }
+
+  .chart-container:active {
+    cursor: grabbing;
   }
 
   .canvas {
@@ -335,72 +585,225 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
+    z-index: 1;
+    overflow: visible;
   }
 
+  /* Loading state */
   .loading-overlay {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.5);
-    color: white;
-    padding: var(--spacing-4) var(--spacing-6);
-    border-radius: var(--radius-md);
-  }
-
-  .add-member-btn {
-    position: fixed;
-    bottom: var(--spacing-8);
-    right: var(--spacing-8);
-    background: var(--primary);
-    color: white;
-    padding: var(--spacing-3) var(--spacing-5);
-    font-size: var(--font-size-sm);
-    border-radius: var(--radius-full);
-    box-shadow: var(--shadow-md);
-    z-index: 1500;
-  }
-
-  .export-btn {
-    position: fixed;
-    bottom: var(--spacing-8);
-    right: calc(var(--spacing-8) + 160px);
-    background: var(--surface);
-    color: var(--text-primary);
-    padding: var(--spacing-3) var(--spacing-5);
-    font-size: var(--font-size-sm);
-    border-radius: var(--radius-full);
-    box-shadow: var(--shadow-md);
-    z-index: 1500;
-  }
-
-  .empty-state {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: var(--font-size-lg);
-    color: var(--text-secondary);
-  }
-
-  .zoom-btn {
-    position: fixed;
-    bottom: var(--spacing-8);
-    left: var(--spacing-8);
-    background: var(--surface);
-    color: var(--text-primary);
-    border-radius: var(--radius-full);
-    width: 48px;
-    height: 48px;
-    font-size: 1.25rem;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.9);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: var(--shadow-md);
-    z-index: 1500;
+    z-index: 100;
   }
 
-  .zoom-out {
-    bottom: calc(var(--spacing-8) + 60px);
+  [data-theme="dark"] .loading-overlay {
+    background: rgba(17, 24, 39, 0.9);
+  }
+
+  .loading-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-4);
+    text-align: center;
+  }
+
+  .loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-radius: 50%;
+    border-top-color: var(--primary);
+    animation: spin 1s ease-in-out infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .loading-content p {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  /* Empty state */
+  .empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+
+  .empty-content {
+    text-align: center;
+    max-width: 400px;
+    padding: var(--spacing-8);
+  }
+
+  .empty-icon {
+    width: 64px;
+    height: 64px;
+    color: var(--text-secondary);
+    margin: 0 auto var(--spacing-6);
+  }
+
+  .empty-content h3 {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-3);
+  }
+
+  .empty-content p {
+    font-size: var(--font-size-base);
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-6);
+    line-height: 1.6;
+  }
+
+  .empty-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    background: var(--primary);
+    color: white;
+    padding: var(--spacing-3) var(--spacing-6);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+  }
+
+  .empty-action-btn:hover {
+    background: var(--primary-dark);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+
+  /* Floating controls */
+  .floating-controls {
+    position: absolute;
+    bottom: var(--spacing-6);
+    right: var(--spacing-6);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--spacing-4);
+    z-index: 200;
+  }
+
+  .zoom-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-1);
+    box-shadow: var(--shadow-md);
+    width: fit-content;
+  }
+
+  .zoom-btn {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    color: var(--text-primary);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    position: relative;
+  }
+
+  .zoom-btn:hover {
+    background: var(--primary);
+    color: white;
+    transform: scale(1.05);
+  }
+
+  .zoom-btn:active {
+    transform: scale(0.95);
+  }
+
+  .zoom-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .action-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+  }
+
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-3) var(--spacing-4);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .action-btn.primary {
+    background: var(--primary);
+    color: white;
+  }
+
+  .action-btn.primary:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .action-btn.secondary {
+    background: var(--surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+
+  .action-btn.secondary:hover {
+    background: var(--secondary);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .button-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Responsive design */
+  @media (max-width: 768px) {
+    .floating-controls {
+      bottom: var(--spacing-4);
+      right: var(--spacing-4);
+      gap: var(--spacing-3);
+    }
+
+    .action-btn {
+      padding: var(--spacing-2) var(--spacing-3);
+      font-size: var(--font-size-xs);
+    }
+
+    .zoom-btn {
+      width: 36px;
+      height: 36px;
+    }
   }
 </style>
