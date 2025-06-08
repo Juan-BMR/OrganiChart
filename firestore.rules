@@ -23,8 +23,13 @@ service cloud.firestore {
     
     // Members collection
     match /members/{memberId} {
-      // Organization owner can do everything
-      allow read, write, delete: if request.auth != null && 
+      // Allow creating members if user owns the organization
+      allow create: if request.auth != null && 
+        exists(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)) &&
+        get(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)).data.ownerId == request.auth.uid;
+      
+      // Allow reading/updating/deleting if user owns the organization
+      allow read, update, delete: if request.auth != null && 
         exists(/databases/$(database)/documents/organizations/$(resource.data.organizationId)) &&
         get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.ownerId == request.auth.uid;
       
