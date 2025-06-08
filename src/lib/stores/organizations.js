@@ -122,24 +122,24 @@ function createOrganizationsStore() {
 
     let orgRef;
     try {
-      // Create organization document
+    // Create organization document
       console.log("Creating organization document...");
       orgRef = await addDoc(collection(db, COLLECTIONS.ORGANIZATIONS), orgData);
       console.log("Organization created with ID:", orgRef.id);
 
-      // Create permission document with owner role
-      const permId = getPermissionDocId(currentUser.uid, orgRef.id);
-      const permData = createPermissionData(
-        orgRef.id,
-        currentUser.uid,
-        PERMISSION_ROLES.OWNER,
-        null,
-      );
+    // Create permission document with owner role
+    const permId = getPermissionDocId(currentUser.uid, orgRef.id);
+    const permData = createPermissionData(
+      orgRef.id,
+      currentUser.uid,
+      PERMISSION_ROLES.OWNER,
+      null,
+    );
       console.log("Permission data:", permData);
       console.log("Permission ID:", permId);
       
       console.log("Creating permission document...");
-      await setDoc(doc(db, COLLECTIONS.ORGANIZATION_PERMISSIONS, permId), permData);
+    await setDoc(doc(db, COLLECTIONS.ORGANIZATION_PERMISSIONS, permId), permData);
       console.log("Permission created successfully");
     } catch (error) {
       console.error("Detailed error during creation:", error);
