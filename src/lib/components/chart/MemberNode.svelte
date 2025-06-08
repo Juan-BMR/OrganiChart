@@ -165,6 +165,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     backdrop-filter: blur(4px);
+    width: fit-content;
   }
 
   /* Dark mode support */

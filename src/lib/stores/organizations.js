@@ -80,10 +80,34 @@ function createOrganizationsStore() {
             const orgDocs = await Promise.all(
               orgIds.map((id) => getDoc(doc(db, COLLECTIONS.ORGANIZATIONS, id))),
             );
-            const organizations = orgDocs
+            const orgsWithoutCount = orgDocs
               .filter((d) => d.exists())
               .map((d) => ({ id: d.id, ...d.data() }));
-            set({ organizations, loading: false, error: null });
+            
+            // Count members for each organization
+            const orgsWithMemberCount = await Promise.all(
+              orgsWithoutCount.map(async (org) => {
+                try {
+                  const membersQuery = query(
+                    collection(db, COLLECTIONS.MEMBERS),
+                    where("organizationId", "==", org.id)
+                  );
+                  const membersSnapshot = await getDocs(membersQuery);
+                  return {
+                    ...org,
+                    memberCount: membersSnapshot.size
+                  };
+                } catch (err) {
+                  console.error(`Failed to count members for org ${org.id}:`, err);
+                  return {
+                    ...org,
+                    memberCount: 0
+                  };
+                }
+              })
+            );
+            
+            set({ organizations: orgsWithMemberCount, loading: false, error: null });
           } catch (err) {
             console.error("Failed to load organizations", err);
             set({ organizations: [], loading: false, error: err.message });

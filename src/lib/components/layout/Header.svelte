@@ -1,7 +1,8 @@
 <script>
   import { authStore } from "$lib/stores/auth.js";
   import { themeStore } from "$lib/stores/theme.js";
-  import { Moon, Sun } from "lucide-svelte";
+  import { Moon, Sun, Network } from "lucide-svelte";
+  import { goto } from "$app/navigation";
 
   export let user = null;
 
@@ -24,6 +25,10 @@
   function toggleTheme() {
     themeStore.toggle();
   }
+
+  function goToDashboard() {
+    goto("/dashboard");
+  }
 </script>
 
 {#if user}
@@ -32,6 +37,17 @@
       <img src={user.photoURL} alt={user.displayName} class="avatar" />
       <span class="user-name">{user.displayName}</span>
     </div>
+
+    <!-- Logo in center -->
+    <button
+      class="logo-button"
+      on:click={goToDashboard}
+      title="Go to Dashboard"
+    >
+      <Network size={28} />
+      <span class="logo-text">OrganiChart</span>
+    </button>
+
     <div class="header-actions">
       <button
         class="theme-toggle"
@@ -85,6 +101,35 @@
   .user-name {
     font-weight: 500;
     font-size: var(--font-size-sm);
+  }
+
+  .logo-button {
+    background: none;
+    border: none;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    cursor: pointer;
+    padding: var(--spacing-2) var(--spacing-3);
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+  }
+
+  .logo-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: scale(1.02);
+  }
+
+  .logo-text {
+    font-family:
+      "Inter",
+      system-ui,
+      -apple-system,
+      sans-serif;
+    letter-spacing: -0.02em;
   }
 
   .header-actions {

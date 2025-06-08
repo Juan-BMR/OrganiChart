@@ -95,6 +95,107 @@ function createMembersStore() {
       return ref.id;
     },
 
+    // Add member "in between" existing hierarchy
+    addMemberBetween: async (
+      organizationId,
+      name,
+      email,
+      role,
+      newManagerId,
+      subordinateId,
+      photoFile = null,
+    ) => {
+      // We don't need to check the subordinate here since we trust the UI validation
+      // The key operation is: new member gets newManagerId, subordinate gets new member as manager
+
+      // Create the new member
+      const data = createMemberData(
+        organizationId,
+        name,
+        email,
+        role,
+        null,
+        newManagerId, // Manager ID passed or subordinate's current manager
+      );
+      const newMemberRef = await addDoc(collection(db, COLLECTIONS.MEMBERS), data);
+      const newMemberId = newMemberRef.id;
+
+      // Update the subordinate to report to the new member
+      const subordinateRef = doc(db, COLLECTIONS.MEMBERS, subordinateId);
+      await updateDoc(subordinateRef, {
+        managerId: newMemberId,
+        updatedAt: new Date(),
+      });
+
+      // Handle photo upload if provided
+      if (photoFile) {
+        try {
+          const { compressImage } = await import("$lib/utils/image.js");
+          const compressed = await compressImage(photoFile, 0.7, 1024);
+          const path = `organizations/${organizationId}/members/${newMemberId}.jpg`;
+          const fileRef = storageRef(storage, path);
+          await uploadBytes(fileRef, compressed);
+          const url = await getDownloadURL(fileRef);
+          await updateDoc(newMemberRef, { photoURL: url });
+        } catch (err) {
+          console.error("Photo upload failed", err);
+        }
+      }
+
+      return newMemberId;
+    },
+
+    // Add member "in between" existing hierarchy with multiple subordinates
+    addMemberBetweenMultiple: async (
+      organizationId,
+      name,
+      email,
+      role,
+      newManagerId,
+      subordinateIds,
+      photoFile = null,
+    ) => {
+      // Create the new member
+      const data = createMemberData(
+        organizationId,
+        name,
+        email,
+        role,
+        null,
+        newManagerId,
+      );
+      const newMemberRef = await addDoc(collection(db, COLLECTIONS.MEMBERS), data);
+      const newMemberId = newMemberRef.id;
+
+      // Update all subordinates to report to the new member
+      const updatePromises = subordinateIds.map(subordinateId => {
+        const subordinateRef = doc(db, COLLECTIONS.MEMBERS, subordinateId);
+        return updateDoc(subordinateRef, {
+          managerId: newMemberId,
+          updatedAt: new Date(),
+        });
+      });
+      
+      await Promise.all(updatePromises);
+
+      // Handle photo upload if provided
+      if (photoFile) {
+        try {
+          const { compressImage } = await import("$lib/utils/image.js");
+          const compressed = await compressImage(photoFile, 0.7, 1024);
+          const path = `organizations/${organizationId}/members/${newMemberId}.jpg`;
+          const fileRef = storageRef(storage, path);
+          await uploadBytes(fileRef, compressed);
+          const url = await getDownloadURL(fileRef);
+          await updateDoc(newMemberRef, { photoURL: url });
+        } catch (err) {
+          console.error("Photo upload failed", err);
+        }
+      }
+
+      return newMemberId;
+    },
+
     // Update node position (x,y values)
     updatePosition: async (memberId, position) => {
       try {

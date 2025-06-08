@@ -17,6 +17,45 @@
   let error = "";
   let loading = false;
   let fileInput;
+  let subordinateIds = [];
+  let dropdownOpen = false;
+
+  // Computed properties for subordinate functionality
+  $: selectedSubordinates = subordinateIds
+    .map((id) => members.find((m) => m.id === id))
+    .filter(Boolean);
+  $: willInsertBetween =
+    selectedSubordinates.length > 0 && selectedSubordinates[0]?.managerId;
+
+  // If subordinates are selected and have a common manager, auto-set the manager
+  $: if (willInsertBetween && selectedSubordinates.length > 0) {
+    const commonManagerId = selectedSubordinates[0].managerId;
+    // Verify all selected subordinates have the same manager
+    const allHaveSameManager = selectedSubordinates.every(
+      (s) => s.managerId === commonManagerId
+    );
+    if (allHaveSameManager) {
+      managerId = commonManagerId || "";
+    }
+  }
+
+  // Helper function to check if memberId is a descendant of potentialAncestorId
+  function isDescendantOf(potentialAncestorId, memberId) {
+    if (!potentialAncestorId || !memberId) return false;
+
+    let current = members.find((m) => m.id === potentialAncestorId);
+    while (current && current.managerId) {
+      if (current.managerId === memberId) return true;
+      current = members.find((m) => m.id === current.managerId);
+    }
+    return false;
+  }
+
+  // Helper function to get direct reports of a member (one level down only)
+  function getDirectReports(memberId) {
+    if (!memberId) return [];
+    return members.filter((m) => m.managerId === memberId);
+  }
 
   // Handle file selection
   function handleFileChange(event) {
@@ -53,14 +92,28 @@
 
     loading = true;
     try {
-      await membersStore.addMember(
-        organizationId,
-        name,
-        email,
-        role,
-        managerId || null,
-        photoFile
-      );
+      if (willInsertBetween && selectedSubordinates.length > 0) {
+        // Adding member "in between" - use special method with multiple subordinates
+        await membersStore.addMemberBetweenMultiple(
+          organizationId,
+          name,
+          email,
+          role,
+          managerId || null,
+          subordinateIds,
+          photoFile
+        );
+      } else {
+        // Regular add member
+        await membersStore.addMember(
+          organizationId,
+          name,
+          email,
+          role,
+          managerId || null,
+          photoFile
+        );
+      }
       dispatch("close");
       handleClose();
     } catch (err) {
@@ -77,11 +130,19 @@
     email = "";
     role = "";
     managerId = "";
+    subordinateIds = [];
+    dropdownOpen = false;
     photoFile = null;
     photoPreviewUrl = null;
     error = "";
     open = false;
     dispatch("close");
+  }
+
+  function handleClickOutside(event) {
+    if (dropdownOpen && !event.target.closest(".custom-dropdown")) {
+      dropdownOpen = false;
+    }
   }
 
   function handleKeyDown(event) {
@@ -93,7 +154,12 @@
 
 {#if open}
   <div class="modal-overlay" on:click|self={handleClose}>
-    <div class="modal" on:keydown={handleKeyDown} tabindex="-1">
+    <div
+      class="modal"
+      on:keydown={handleKeyDown}
+      on:click={handleClickOutside}
+      tabindex="-1"
+    >
       <header class="modal-header">
         <h2>Add Member</h2>
         <button class="close-btn" on:click={handleClose}>×</button>
@@ -130,12 +196,104 @@
         />
 
         <label class="input-label" for="member-manager">Manager</label>
-        <select id="member-manager" bind:value={managerId} disabled={loading}>
+        <select
+          id="member-manager"
+          bind:value={managerId}
+          disabled={loading || willInsertBetween}
+        >
           <option value="">-- None (top) --</option>
-          {#each members as member}
+          {#each members.filter((m) => !subordinateIds.includes(m.id)) as member}
             <option value={member.id}>{member.name}</option>
           {/each}
         </select>
+
+        <label class="input-label" for="member-subordinate">
+          Subordinates
+          <span class="help-text"
+            >Optional: Select who will report to this new member</span
+          >
+        </label>
+
+        <!-- Custom Dropdown with Checkboxes -->
+        <div class="custom-dropdown" class:open={dropdownOpen}>
+          <button
+            type="button"
+            class="dropdown-trigger"
+            on:click={() => (dropdownOpen = !dropdownOpen)}
+            disabled={loading}
+          >
+            <span class="selected-text">
+              {#if subordinateIds.length === 0}
+                Select subordinates...
+              {:else if subordinateIds.length === 1}
+                {selectedSubordinates[0]?.name}
+              {:else}
+                {subordinateIds.length} selected
+              {/if}
+            </span>
+            <svg
+              class="dropdown-arrow"
+              class:rotated={dropdownOpen}
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </button>
+
+          {#if dropdownOpen}
+            <div class="dropdown-menu">
+              {#each managerId ? getDirectReports(managerId) : members.filter((m) => m.id !== managerId) as member}
+                <label class="checkbox-item">
+                  <input
+                    type="checkbox"
+                    value={member.id}
+                    bind:group={subordinateIds}
+                  />
+                  <span class="checkbox-custom"></span>
+                  <div class="member-details">
+                    <span class="member-name">{member.name}</span>
+                    <span class="member-status">
+                      {member.managerId
+                        ? `currently reports to ${
+                            members.find((mgr) => mgr.id === member.managerId)
+                              ?.name || "Unknown"
+                          }`
+                        : "top level"}
+                    </span>
+                  </div>
+                </label>
+              {:else}
+                {#if managerId}
+                  <div class="no-options">
+                    No subordinates available in this branch
+                  </div>
+                {:else}
+                  <div class="no-options">
+                    Select a manager first to see available subordinates
+                  </div>
+                {/if}
+              {/each}
+            </div>
+          {/if}
+        </div>
+
+        {#if willInsertBetween && selectedSubordinates.length > 0}
+          <div class="insert-preview">
+            <p><strong>Hierarchy Preview:</strong></p>
+            <p>
+              {members.find(
+                (mgr) => mgr.id === selectedSubordinates[0].managerId
+              )?.name || "Top Level"}
+              → <strong>{name || "New Member"}</strong>
+              → {selectedSubordinates.map((s) => s.name).join(", ")}
+            </p>
+          </div>
+        {/if}
 
         <label class="input-label" for="photo-upload">Photo</label>
         <div class="upload-area" on:click={() => fileInput.click()}>
@@ -303,6 +461,170 @@
   .upload-hint {
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
+  }
+
+  .help-text {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    font-weight: 400;
+    margin-top: var(--spacing-1);
+  }
+
+  /* Custom Dropdown Styles */
+  .custom-dropdown {
+    position: relative;
+  }
+
+  .dropdown-trigger {
+    width: 100%;
+    padding: var(--spacing-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    background: var(--background);
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .dropdown-trigger:hover {
+    border-color: var(--primary);
+  }
+
+  .dropdown-trigger:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    outline: none;
+  }
+
+  .dropdown-trigger:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .selected-text {
+    flex: 1;
+    text-align: left;
+    color: var(--text-primary);
+  }
+
+  .dropdown-arrow {
+    width: 20px;
+    height: 20px;
+    color: var(--text-secondary);
+    transition: transform 0.2s ease;
+  }
+
+  .dropdown-arrow.rotated {
+    transform: rotate(180deg);
+  }
+
+  .dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 4px;
+  }
+
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-3);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    border: none;
+  }
+
+  .checkbox-item:hover {
+    background: var(--surface);
+  }
+
+  .checkbox-item input[type="checkbox"] {
+    display: none;
+  }
+
+  .checkbox-custom {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-right: var(--spacing-3);
+    position: relative;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .checkbox-item input[type="checkbox"]:checked + .checkbox-custom {
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+
+  .checkbox-item input[type="checkbox"]:checked + .checkbox-custom::after {
+    content: "✓";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+  }
+
+  .member-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+  }
+
+  .member-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+  }
+
+  .member-status {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
+  .no-options {
+    padding: var(--spacing-3);
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    font-style: italic;
+  }
+
+  .insert-preview {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-3);
+    font-size: var(--font-size-sm);
+  }
+
+  .insert-preview p {
+    margin: 0;
+    color: var(--text-primary);
+  }
+
+  .insert-preview p:first-child {
+    margin-bottom: var(--spacing-2);
   }
 
   .error-message {
