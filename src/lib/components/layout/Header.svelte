@@ -1,7 +1,16 @@
 <script>
   import { authStore } from "$lib/stores/auth.js";
+  import { themeStore } from "$lib/stores/theme.js";
+  import { Moon, Sun } from "lucide-svelte";
 
   export let user = null;
+
+  let currentTheme = "light";
+
+  // Subscribe to theme changes
+  themeStore.subscribe((theme) => {
+    currentTheme = theme;
+  });
 
   async function handleSignOut() {
     try {
@@ -11,6 +20,10 @@
       console.error("Sign out failed:", error);
     }
   }
+
+  function toggleTheme() {
+    themeStore.toggle();
+  }
 </script>
 
 {#if user}
@@ -19,7 +32,20 @@
       <img src={user.photoURL} alt={user.displayName} class="avatar" />
       <span class="user-name">{user.displayName}</span>
     </div>
-    <button class="logout-btn" on:click={handleSignOut}>Logout</button>
+    <div class="header-actions">
+      <button
+        class="theme-toggle"
+        on:click={toggleTheme}
+        title="Toggle {currentTheme === 'light' ? 'dark' : 'light'} mode"
+      >
+        {#if currentTheme === "light"}
+          <Moon size={18} />
+        {:else}
+          <Sun size={18} />
+        {/if}
+      </button>
+      <button class="logout-btn" on:click={handleSignOut}>Logout</button>
+    </div>
   </header>
 {/if}
 
@@ -59,6 +85,31 @@
   .user-name {
     font-weight: 500;
     font-size: var(--font-size-sm);
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+  }
+
+  .theme-toggle {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: var(--spacing-2);
+    border-radius: var(--radius-md);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .theme-toggle:hover {
+    background: rgba(255, 255, 255, 0.3);
   }
 
   .logout-btn {
