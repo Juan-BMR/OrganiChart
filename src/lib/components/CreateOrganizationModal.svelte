@@ -176,7 +176,7 @@
     padding: var(--spacing-3);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-sm);
   }
 
   .upload-area {
@@ -190,6 +190,7 @@
     align-items: center;
     justify-content: center;
     min-height: 120px;
+    font-size: var(--font-size-sm);
   }
 
   .upload-area img {
@@ -219,6 +220,7 @@
     border-radius: var(--radius-md);
     font-weight: 600;
     transition: background 0.2s ease;
+    width: 100%;
   }
 
   .create-btn:disabled {
