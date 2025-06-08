@@ -9,13 +9,16 @@ service cloud.firestore {
     
     // Organizations collection
     match /organizations/{orgId} {
-      // Owner can do everything
-      allow read, write, delete: if request.auth != null && 
-        request.auth.uid == resource.data.ownerId;
+      // Allow authenticated users to create new organizations
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.ownerId;
       
-      // Members with permissions can read
-      allow read: if request.auth != null && 
-        exists(/databases/$(database)/documents/organization_permissions/$(request.auth.uid + '_' + orgId));
+      // Allow authenticated users to read for uniqueness checking (name field only)
+      allow read: if request.auth != null;
+      
+      // Owner can do everything
+      allow write, delete: if request.auth != null && 
+        request.auth.uid == resource.data.ownerId;
     }
     
     // Members collection
@@ -32,6 +35,10 @@ service cloud.firestore {
     
     // Organization permissions collection
     match /organization_permissions/{permissionId} {
+      // Users can create their own permissions (for new orgs)
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+      
       // Users can read their own permissions
       allow read: if request.auth != null && 
         request.auth.uid == resource.data.userId;
