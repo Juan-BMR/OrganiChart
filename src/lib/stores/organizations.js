@@ -1,0 +1,153 @@
+// @ts-nocheck
+import { writable } from "svelte/store";
+import { authStore } from "$lib/stores/auth.js";
+import { db, storage } from "$lib/firebase.js";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  getDocs,
+  addDoc,
+  doc,
+  setDoc,
+  updateDoc,
+  getDoc,
+} from "firebase/firestore";
+import {
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage";
+import {
+  COLLECTIONS,
+  createOrganizationData,
+  createPermissionData,
+  getPermissionDocId,
+  PERMISSION_ROLES,
+} from "$lib/db/collections.js";
+
+// Helper to extract file extension
+const getFileExtension = (file) => {
+  const parts = file.name.split(".");
+  return parts.length > 1 ? parts.pop() : "";
+};
+
+function createOrganizationsStore() {
+  const { subscribe, set } = writable({
+    organizations: [],
+    loading: true,
+    error: null,
+  });
+
+  let unsubscribePerms = null;
+  let currentUser = null;
+
+  // Listen for auth changes
+  authStore.subscribe(({ user, loading }) => {
+    if (loading) return; // ignore until auth ready
+
+    // Cleanup previous listeners
+    if (unsubscribePerms) {
+      unsubscribePerms();
+      unsubscribePerms = null;
+    }
+
+    if (!user) {
+      currentUser = null;
+      set({ organizations: [], loading: false, error: null });
+    } else {
+      currentUser = user;
+      // Fetch organizations for this user via permissions collection
+      const permsQuery = query(
+        collection(db, COLLECTIONS.ORGANIZATION_PERMISSIONS),
+        where("userId", "==", user.uid),
+      );
+
+      // Start loading
+      set({ organizations: [], loading: true, error: null });
+
+      unsubscribePerms = onSnapshot(
+        permsQuery,
+        async (snapshot) => {
+          try {
+            const orgIds = snapshot.docs.map((d) => d.data().organizationId);
+            if (!orgIds.length) {
+              set({ organizations: [], loading: false, error: null });
+              return;
+            }
+            // Fetch organizations in parallel using ids
+            const orgDocs = await Promise.all(
+              orgIds.map((id) => getDoc(doc(db, COLLECTIONS.ORGANIZATIONS, id))),
+            );
+            const organizations = orgDocs
+              .filter((d) => d.exists())
+              .map((d) => ({ id: d.id, ...d.data() }));
+            set({ organizations, loading: false, error: null });
+          } catch (err) {
+            console.error("Failed to load organizations", err);
+            set({ organizations: [], loading: false, error: err.message });
+          }
+        },
+        (error) => {
+          console.error("Permissions listener error", error);
+          set({ organizations: [], loading: false, error: error.message });
+        },
+      );
+    }
+  });
+
+  // Create organization function
+  const createOrganization = async (name, logoFile = null) => {
+    if (!currentUser) throw new Error("Not authenticated");
+    const trimmedName = name?.trim();
+    if (!trimmedName) throw new Error("Organization name is required");
+
+    // Check uniqueness
+    const existingSnap = await getDocs(
+      query(
+        collection(db, COLLECTIONS.ORGANIZATIONS),
+        where("name", "==", trimmedName),
+      ),
+    );
+    if (!existingSnap.empty) {
+      throw new Error("Organization name already exists");
+    }
+
+    // Prepare org data
+    const orgData = createOrganizationData(trimmedName, null, currentUser.uid);
+
+    // Create organization document
+    const orgRef = await addDoc(collection(db, COLLECTIONS.ORGANIZATIONS), orgData);
+
+    // Create permission document with owner role
+    const permId = getPermissionDocId(currentUser.uid, orgRef.id);
+    const permData = createPermissionData(
+      orgRef.id,
+      currentUser.uid,
+      PERMISSION_ROLES.OWNER,
+      null,
+    );
+    await setDoc(doc(db, COLLECTIONS.ORGANIZATION_PERMISSIONS, permId), permData);
+
+    // Handle logo upload if provided
+    if (logoFile) {
+      const ext = getFileExtension(logoFile);
+      const path = `organizations/${orgRef.id}/logo.${ext}`;
+      const fileRef = storageRef(storage, path);
+      await uploadBytes(fileRef, logoFile);
+      const downloadURL = await getDownloadURL(fileRef);
+      // Update organization with logoURL
+      await updateDoc(orgRef, { logoURL: downloadURL, updatedAt: new Date() });
+    }
+
+    return orgRef.id;
+  };
+
+  return {
+    subscribe,
+    createOrganization,
+  };
+}
+
+export const organizationsStore = createOrganizationsStore();

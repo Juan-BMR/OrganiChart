@@ -1,9 +1,22 @@
 <script>
+  // @ts-nocheck
   import { authStore } from "$lib/stores/auth.js";
+  import { organizationsStore } from "$lib/stores/organizations.js";
+  import CreateOrganizationModal from "$lib/components/CreateOrganizationModal.svelte";
   import { goto } from "$app/navigation";
   import { onMount } from "svelte";
 
   let user = null;
+  let showCreateModal = false;
+
+  // Organizations data
+  let organizations = [];
+  let orgsLoading = true;
+
+  const unsubscribeOrgs = organizationsStore.subscribe(({ organizations: orgs, loading }) => {
+    organizations = orgs;
+    orgsLoading = loading;
+  });
 
   // Redirect if not authenticated
   onMount(() => {
@@ -19,7 +32,10 @@
       }
     );
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      unsubscribeOrgs();
+    };
   });
 
   async function handleSignOut() {
@@ -29,6 +45,14 @@
     } catch (error) {
       console.error("Sign out failed:", error);
     }
+  }
+
+  function openCreateModal() {
+    showCreateModal = true;
+  }
+
+  function closeCreateModal() {
+    showCreateModal = false;
   }
 </script>
 
@@ -51,16 +75,35 @@
     <div class="content">
       <h1>Your organizations</h1>
 
-      <div class="organizations-grid">
-        <!-- Placeholder for organizations -->
-        <div class="org-card add-new">
-          <div class="add-icon">+</div>
-          <p>Create new organization</p>
+      {#if orgsLoading}
+        <p>Loading...</p>
+      {:else}
+        <div class="organizations-grid">
+          <!-- Add new organization card -->
+          <div class="org-card add-new" on:click={openCreateModal}>
+            <div class="add-icon">+</div>
+            <p>Create new organization</p>
+          </div>
+
+          <!-- Existing organizations -->
+          {#each organizations as org}
+            <div class="org-card">
+              {#if org.logoURL}
+                <img src={org.logoURL} alt={org.name} class="org-logo" />
+              {/if}
+              <p>{org.name}</p>
+            </div>
+          {/each}
         </div>
-      </div>
+      {/if}
     </div>
   </div>
 {/if}
+
+<CreateOrganizationModal
+  bind:open={showCreateModal}
+  on:close={closeCreateModal}
+/>
 
 <style>
   .floating-header {
@@ -169,5 +212,11 @@
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
     margin: 0;
+  }
+
+  .org-logo {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
   }
 </style>
