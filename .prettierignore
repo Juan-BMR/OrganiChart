@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# SvelteKit generated files
+.svelte-kit/
+build/
+dist/
+
+# Environment variables
+.env
+.env.*
+
+# Package lock file
+package-lock.json
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db 

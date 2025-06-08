@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# SvelteKit generated files
+.svelte-kit/
+build/
+dist/
+
+# Package lock file
+package-lock.json 
