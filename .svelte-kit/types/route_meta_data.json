@@ -1,5 +1,6 @@
 {
 	"/": [],
 	"/dashboard": [],
-	"/login": []
+	"/login": [],
+	"/org/[id]/chart": []
 }
