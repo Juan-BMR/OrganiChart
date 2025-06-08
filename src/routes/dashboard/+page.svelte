@@ -83,11 +83,23 @@
 
           <!-- Existing organizations -->
           {#each organizations as org}
-            <div class="org-card">
-              {#if org.logoURL}
-                <img src={org.logoURL} alt={org.name} class="org-logo" />
-              {/if}
-              <p>{org.name}</p>
+            <div
+              class="org-card existing"
+              on:click={() => {
+                /* TODO: Navigate to org chart */
+              }}
+            >
+              <div class="org-content">
+                {#if org.logoURL}
+                  <img src={org.logoURL} alt={org.name} class="org-logo" />
+                {:else}
+                  <div class="org-logo-placeholder">
+                    {org.name.charAt(0).toUpperCase()}
+                  </div>
+                {/if}
+                <h3 class="org-name">{org.name}</h3>
+                <span class="org-members">{org.memberCount || 0} members</span>
+              </div>
             </div>
           {/each}
         </div>
@@ -129,7 +141,6 @@
 
   .org-card {
     background: var(--background);
-    border: 2px dashed var(--border);
     border-radius: var(--radius-lg);
     padding: var(--spacing-8);
     text-align: center;
@@ -143,9 +154,35 @@
     gap: var(--spacing-3);
   }
 
+  /* Create new card styling */
+  .org-card.add-new {
+    border: 2px dashed var(--border);
+  }
+
   .org-card.add-new:hover {
     border-color: var(--primary);
     background: var(--surface);
+  }
+
+  /* Existing organization card styling */
+  .org-card.existing {
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    background: var(--background);
+  }
+
+  .org-card.existing:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary-light);
+    transform: translateY(-2px);
+  }
+
+  .org-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-3);
+    width: 100%;
   }
 
   .add-icon {
@@ -154,15 +191,43 @@
     font-weight: 300;
   }
 
-  .org-card p {
+  .org-card.add-new p {
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
     margin: 0;
   }
 
   .org-logo {
-    width: 40px;
-    height: 40px;
+    width: 64px;
+    height: 64px;
     object-fit: contain;
+    border-radius: var(--radius-md);
+  }
+
+  .org-logo-placeholder {
+    width: 64px;
+    height: 64px;
+    background: var(--primary);
+    color: white;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+  }
+
+  .org-name {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .org-members {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin: 0;
   }
 </style>
