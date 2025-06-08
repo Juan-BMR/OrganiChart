@@ -1,6 +1,7 @@
 <script>
   export let member;
   import { spring } from "svelte/motion";
+  import { scale } from "svelte/transition";
   export let x = 0;
   export let y = 0;
   export let size = 90; // diameter of avatar circle
@@ -85,10 +86,11 @@
 
 <div
   class="member-node"
-  style="left: {$xSpring}px; top: {$ySpring}px; width:{size}px; height:{size + 40}px" 
+  style="left: {$xSpring}px; top: {$ySpring}px;"
   on:pointerdown={handlePointerDown}
   on:contextmenu={handleContextMenu}
-  in:scale={{ duration: 200 }} out:scale={{ duration: 150 }}
+  in:scale={{ duration: 200 }}
+  out:scale={{ duration: 150 }}
 >
   <div class="avatar" style="width:{size}px; height:{size}px">
     {#if member.photoURL}
@@ -97,12 +99,20 @@
       <span>{initials}</span>
     {/if}
   </div>
-  <div class="label name">{member.name}</div>
-  {#if member.role}
-    <div class="label role">{member.role}</div>
-  {/if}
+  <div class="member-info">
+    <div class="name">{member.name}</div>
+    {#if member.role}
+      <div class="role">{member.role}</div>
+    {/if}
+  </div>
   {#if showMenu}
-    <NodeContextMenu {member} x={menuX} y={menuY} on:edit={onMenuEdit} on:delete={onMenuDelete} />
+    <NodeContextMenu
+      {member}
+      x={menuX}
+      y={menuY}
+      on:edit={onMenuEdit}
+      on:delete={onMenuDelete}
+    />
   {/if}
 </div>
 
@@ -115,6 +125,8 @@
     cursor: grab;
     user-select: none;
     touch-action: none;
+    z-index: 2;
+    width: 160px; /* Fixed width for consistent positioning */
   }
 
   .avatar {
@@ -140,16 +152,38 @@
     font-size: 1.25rem;
   }
 
-  .label {
+  .member-info {
+    margin-top: var(--spacing-2);
     text-align: center;
-    line-height: 1.2;
+    max-width: 200px; /* Fixed width slightly smaller than node width */
+    padding: var(--spacing-1) var(--spacing-2);
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    backdrop-filter: blur(4px);
   }
-  .label.name {
-    margin-top: 0.4rem;
+
+  /* Dark mode support */
+  :global([data-theme="dark"]) .member-info {
+    background: rgba(17, 24, 39, 0.9);
+  }
+
+  .name {
     font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    line-height: 1.3;
+    margin-bottom: var(--spacing-1);
   }
-  .label.role {
-    font-size: 0.8rem;
+
+  .role {
+    font-size: var(--font-size-xs);
     color: var(--text-secondary);
+    line-height: 1.2;
+    font-weight: 500;
   }
 </style>
