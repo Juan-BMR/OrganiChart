@@ -103,6 +103,8 @@ function createOrganizationsStore() {
     const trimmedName = name?.trim();
     if (!trimmedName) throw new Error("Organization name is required");
 
+    console.log("Creating organization with user:", currentUser.uid);
+
     // Check uniqueness
     const existingSnap = await getDocs(
       query(
@@ -116,19 +118,35 @@ function createOrganizationsStore() {
 
     // Prepare org data
     const orgData = createOrganizationData(trimmedName, null, currentUser.uid);
+    console.log("Organization data:", orgData);
 
-    // Create organization document
-    const orgRef = await addDoc(collection(db, COLLECTIONS.ORGANIZATIONS), orgData);
+    let orgRef;
+    try {
+      // Create organization document
+      console.log("Creating organization document...");
+      orgRef = await addDoc(collection(db, COLLECTIONS.ORGANIZATIONS), orgData);
+      console.log("Organization created with ID:", orgRef.id);
 
-    // Create permission document with owner role
-    const permId = getPermissionDocId(currentUser.uid, orgRef.id);
-    const permData = createPermissionData(
-      orgRef.id,
-      currentUser.uid,
-      PERMISSION_ROLES.OWNER,
-      null,
-    );
-    await setDoc(doc(db, COLLECTIONS.ORGANIZATION_PERMISSIONS, permId), permData);
+      // Create permission document with owner role
+      const permId = getPermissionDocId(currentUser.uid, orgRef.id);
+      const permData = createPermissionData(
+        orgRef.id,
+        currentUser.uid,
+        PERMISSION_ROLES.OWNER,
+        null,
+      );
+      console.log("Permission data:", permData);
+      console.log("Permission ID:", permId);
+      
+      console.log("Creating permission document...");
+      await setDoc(doc(db, COLLECTIONS.ORGANIZATION_PERMISSIONS, permId), permData);
+      console.log("Permission created successfully");
+    } catch (error) {
+      console.error("Detailed error during creation:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+      throw error;
+    }
 
     // Handle logo upload if provided
     if (logoFile) {
