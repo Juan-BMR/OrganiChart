@@ -5,6 +5,7 @@
   import CreateOrganizationModal from "$lib/components/CreateOrganizationModal.svelte";
   import { goto } from "$app/navigation";
   import { onMount } from "svelte";
+  import Header from "$lib/components/layout/Header.svelte";
 
   let user = null;
   let showCreateModal = false;
@@ -13,10 +14,12 @@
   let organizations = [];
   let orgsLoading = true;
 
-  const unsubscribeOrgs = organizationsStore.subscribe(({ organizations: orgs, loading }) => {
-    organizations = orgs;
-    orgsLoading = loading;
-  });
+  const unsubscribeOrgs = organizationsStore.subscribe(
+    ({ organizations: orgs, loading }) => {
+      organizations = orgs;
+      orgsLoading = loading;
+    }
+  );
 
   // Redirect if not authenticated
   onMount(() => {
@@ -60,16 +63,9 @@
   <title>Dashboard - OrganiChart</title>
 </svelte:head>
 
-{#if user}
-  <!-- Floating Header -->
-  <header class="floating-header">
-    <div class="user-info">
-      <img src={user.photoURL} alt={user.displayName} class="avatar" />
-      <span class="user-name">{user.displayName}</span>
-    </div>
-    <button class="logout-btn" on:click={handleSignOut}> Logout </button>
-  </header>
+<Header {user} />
 
+{#if user}
   <!-- Main Content -->
   <div class="dashboard-container">
     <div class="content">
@@ -106,61 +102,11 @@
 />
 
 <style>
-  .floating-header {
-    position: fixed;
-    top: var(--spacing-4);
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--primary);
-    color: white;
-    padding: var(--spacing-3) var(--spacing-6);
-    border-radius: var(--radius-xl);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--spacing-6);
-    box-shadow: var(--shadow-lg);
-    z-index: 1000;
-    min-width: 300px;
-  }
-
-  .user-info {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-3);
-  }
-
-  .avatar {
-    width: 2rem;
-    height: 2rem;
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-  }
-
-  .user-name {
-    font-weight: 500;
-    font-size: var(--font-size-sm);
-  }
-
-  .logout-btn {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    padding: var(--spacing-2) var(--spacing-4);
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s ease;
-  }
-
-  .logout-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
-  }
-
   .dashboard-container {
     min-height: 100vh;
     background-color: var(--surface);
-    padding: var(--spacing-16) var(--spacing-4) var(--spacing-8);
+    padding: calc(var(--spacing-16) + var(--spacing-4) + 48px) var(--spacing-4)
+      var(--spacing-8);
   }
 
   .content {
