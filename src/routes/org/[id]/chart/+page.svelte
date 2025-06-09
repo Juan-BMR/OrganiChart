@@ -265,23 +265,213 @@
 
   async function exportAsPDF() {
     if (!containerEl) return;
-    // temporarily reset transform to capture full canvas
-    const canvasDiv = containerEl.querySelector(".canvas");
-    const prevTransform = canvasDiv.style.transform;
-    canvasDiv.style.transform = "scale(1)";
-    const canvas = await html2canvas(canvasDiv, {
-      backgroundColor: null,
-      allowTaint: true,
-    });
-    canvasDiv.style.transform = prevTransform;
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF({
-      orientation: "landscape",
-      unit: "px",
-      format: [canvas.width, canvas.height],
-    });
-    pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
-    pdf.save(`${organization?.name || "orgchart"}.pdf`);
+
+    try {
+      if (!nodesWithPosition.length) {
+        alert("No chart content to export. Please add members first.");
+        return;
+      }
+
+      console.log("Starting PDF export...");
+
+      // Find the exact bounds of the actual chart elements (no padding)
+      const nodeWidth = 160;
+      const nodeHeight = 160; // Increased to capture full text below avatars
+
+      // Get the absolute positions of the leftmost, rightmost, topmost, and bottommost elements
+      const leftmostX = Math.min(...nodesWithPosition.map((n) => n.x));
+      const rightmostX =
+        Math.max(...nodesWithPosition.map((n) => n.x)) + nodeWidth;
+      const topmostY = Math.min(...nodesWithPosition.map((n) => n.y));
+      const bottommostY =
+        Math.max(...nodesWithPosition.map((n) => n.y)) + nodeHeight;
+
+      // Calculate exact content dimensions
+      const contentWidth = rightmostX - leftmostX;
+      const contentHeight = bottommostY - topmostY;
+
+      console.log("Exact chart bounds:", {
+        leftmostX,
+        topmostY,
+        rightmostX,
+        bottommostY,
+        contentWidth,
+        contentHeight,
+      });
+
+      // Capture the container element at high scale for better quality
+      const captureScale = 2; // Higher scale for better definition
+      const canvas = await html2canvas(containerEl, {
+        backgroundColor: null, // Use natural background
+        scale: captureScale,
+        logging: false,
+        useCORS: true,
+        allowTaint: true,
+        ignoreElements: (element) => {
+          // Skip Firebase storage images to avoid CORS issues
+          if (
+            element.tagName === "IMG" &&
+            element.src.includes("firebasestorage")
+          ) {
+            return true;
+          }
+          return false;
+        },
+      });
+
+      console.log("Canvas captured:", canvas.width, "x", canvas.height);
+
+      if (canvas.width === 0 || canvas.height === 0) {
+        alert("Export failed - captured canvas has zero dimensions.");
+        return;
+      }
+
+      // Create a high-resolution canvas for the final output
+      const croppedCanvas = document.createElement("canvas");
+
+      // Set canvas to high resolution (scale up for quality, then we'll scale down for PDF)
+      croppedCanvas.width = contentWidth * captureScale;
+      croppedCanvas.height = contentHeight * captureScale;
+      const ctx = croppedCanvas.getContext("2d");
+
+      // Get the canvas div to read its transform
+      const canvasDiv = containerEl.querySelector(".canvas");
+      const computedStyle = window.getComputedStyle(canvasDiv);
+      const transform = computedStyle.transform;
+
+      // Extract translate values from transform matrix
+      let translateX = 0,
+        translateY = 0;
+      if (transform && transform !== "none") {
+        const matrix = transform.match(/matrix\(([^)]+)\)/);
+        if (matrix) {
+          const values = matrix[1].split(",").map(Number);
+          translateX = values[4] || 0;
+          translateY = values[5] || 0;
+        }
+      }
+
+      // Get container position to calculate offset from captured area
+      const containerRect = containerEl.getBoundingClientRect();
+
+      // Calculate the exact source position in the high-scale captured canvas
+      const sourceX = Math.max(0, (translateX + leftmostX) * captureScale);
+      const sourceY = Math.max(0, (translateY + topmostY) * captureScale);
+      const sourceWidth = Math.min(
+        contentWidth * captureScale,
+        canvas.width - sourceX
+      );
+      const sourceHeight = Math.min(
+        contentHeight * captureScale,
+        canvas.height - sourceY
+      );
+
+      console.log("Cropping details:", {
+        chartBounds: { leftmostX, topmostY, rightmostX, bottommostY },
+        transform: { translateX, translateY },
+        sourceRect: { sourceX, sourceY, sourceWidth, sourceHeight },
+        canvasSize: `${canvas.width}x${canvas.height}`,
+        targetSize: `${croppedCanvas.width}x${croppedCanvas.height}`,
+      });
+
+      // Draw the high-resolution portion to the high-resolution canvas
+      ctx.drawImage(
+        canvas,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight, // source rectangle (high-res)
+        0,
+        0,
+        sourceWidth,
+        sourceHeight // destination rectangle (same high-res size)
+      );
+
+      // Convert cropped canvas to image data
+      const imgData = croppedCanvas.toDataURL("image/png");
+      console.log(
+        "Final canvas dimensions:",
+        croppedCanvas.width,
+        "x",
+        croppedCanvas.height
+      );
+      console.log("Image data length:", imgData.length);
+
+      // Check if we actually got image data (not just a white canvas)
+      if (imgData.length < 1000) {
+        console.error("Image data too small, likely empty");
+        alert("Export failed - captured image appears to be empty.");
+        return;
+      }
+
+      // Debug: Show what dimensions we're about to use for PDF
+      console.log(
+        "PDF will be created with dimensions:",
+        contentWidth,
+        "x",
+        contentHeight
+      );
+
+      // Create PDF with custom dimensions that exactly match the chart
+      const pdf = new jsPDF({
+        // orientation: "portrait", // We'll handle orientation with custom format
+        unit: "px",
+        format: [contentWidth, contentHeight], // Custom format exactly matching chart
+      });
+
+      console.log(
+        "PDF internal dimensions:",
+        pdf.internal.pageSize.getWidth(),
+        "x",
+        pdf.internal.pageSize.getHeight()
+      );
+
+      // Add the high-resolution image to PDF, scaling down to exact content dimensions
+      pdf.addImage(
+        imgData,
+        "PNG",
+        0,
+        0,
+        contentWidth,
+        contentHeight,
+        "",
+        "SLOW" // Use SLOW for better quality rendering
+      );
+
+      // Save with file picker
+      const fileName = `${organization?.name || "orgchart"}.pdf`;
+
+      if ("showSaveFilePicker" in window) {
+        try {
+          const fileHandle = await window.showSaveFilePicker({
+            suggestedName: fileName,
+            types: [
+              {
+                description: "PDF files",
+                accept: { "application/pdf": [".pdf"] },
+              },
+            ],
+          });
+
+          const writableStream = await fileHandle.createWritable();
+          const pdfBlob = pdf.output("blob");
+          await writableStream.write(pdfBlob);
+          await writableStream.close();
+
+          console.log("PDF saved successfully");
+        } catch (err) {
+          if (err.name !== "AbortError") {
+            console.error("Save failed:", err);
+            pdf.save(fileName);
+          }
+        }
+      } else {
+        pdf.save(fileName);
+      }
+    } catch (error) {
+      console.error("PDF export failed:", error);
+      alert("Failed to export PDF: " + error.message);
+    }
   }
 
   // Zoom controls & keyboard shortcuts

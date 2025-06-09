@@ -1,16 +1,11 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    
-    // Organization logos - allow organization owners to upload/read/delete
-    match /organizations/{orgId}/{allPaths=**} {
-      // Allow authenticated users to upload logos for organizations they own
-      allow read, write, delete: if request.auth != null && 
-        firestore.exists(/databases/(default)/documents/organizations/$(orgId)) &&
-        firestore.get(/databases/(default)/documents/organizations/$(orgId)).data.ownerId == request.auth.uid;
-      
-      // Allow anyone to read organization logos (for public viewing)  
-      allow read: if true;
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
     }
   }
-} 
+}
+
+// Note: CORS configuration needs to be set via gsutil command or Firebase Console
+// See instructions below for proper CORS setup 
