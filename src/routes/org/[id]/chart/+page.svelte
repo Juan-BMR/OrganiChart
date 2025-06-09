@@ -11,6 +11,7 @@
   import MemberNode from "$lib/components/chart/MemberNode.svelte";
   import AddMemberModal from "$lib/components/AddMemberModal.svelte";
   import EditMemberModal from "$lib/components/EditMemberModal.svelte";
+  import PDFExportModal from "$lib/components/PDFExportModal.svelte";
 
   import * as d3 from "d3";
   import html2canvas from "html2canvas";
@@ -240,6 +241,13 @@
   let showEditMember = false;
   let editingMember = null;
 
+  // PDF Export Modal State
+  let showPDFModal = false;
+  let pdfProgress = 0;
+  let pdfCurrentStage = "";
+  let pdfStageNumber = 0;
+  const pdfTotalStages = 6;
+
   function openAddMember() {
     showAddMember = true;
   }
@@ -272,7 +280,86 @@
         return;
       }
 
+      // Show modal and start progress
+      showPDFModal = true;
+      pdfProgress = 0;
+      pdfStageNumber = 1;
+      pdfCurrentStage = "Initializing export...";
+
       console.log("Starting PDF export...");
+
+      // Convert Firebase images to use proxy URLs to avoid CORS issues
+      const firebaseImages = containerEl.querySelectorAll(
+        'img[src*="firebasestorage"]'
+      );
+      const imageReplacements = [];
+
+      console.log(`Found ${firebaseImages.length} Firebase images to process`);
+
+      // Update progress
+      pdfProgress = 15;
+      pdfStageNumber = 2;
+      pdfCurrentStage = `Processing ${firebaseImages.length} profile images...`;
+
+      for (const img of firebaseImages) {
+        try {
+          const originalUrl = img.src;
+
+          // Use our proxy API to avoid CORS issues
+          const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(originalUrl)}`;
+
+          // Create a new image element to test loading through proxy
+          const testImg = new Image();
+          testImg.crossOrigin = "anonymous";
+
+          await new Promise((resolve, reject) => {
+            testImg.onload = () => {
+              // Successfully loaded through proxy, now convert to data URL
+              const canvas = document.createElement("canvas");
+              const ctx = canvas.getContext("2d");
+
+              canvas.width = testImg.naturalWidth;
+              canvas.height = testImg.naturalHeight;
+
+              ctx.drawImage(testImg, 0, 0);
+              const dataURL = canvas.toDataURL("image/png");
+
+              // Store replacement info
+              imageReplacements.push({
+                img: img,
+                originalSrc: originalUrl,
+                dataURL: dataURL,
+              });
+
+              // Replace the image src with data URL
+              img.src = dataURL;
+              console.log(
+                `Successfully proxied and converted image for ${img.alt || "user"}`
+              );
+              resolve();
+            };
+
+            testImg.onerror = () => {
+              console.warn(
+                `Failed to load image through proxy: ${originalUrl}`
+              );
+              // Keep original - will likely be replaced with initials placeholder
+              resolve();
+            };
+
+            testImg.src = proxyUrl;
+          });
+        } catch (error) {
+          console.warn("Failed to process image:", img.src, error);
+        }
+      }
+
+      console.log(`Successfully processed ${imageReplacements.length} images`);
+
+      // Update progress
+      pdfProgress = 40;
+      pdfStageNumber = 3;
+      pdfCurrentStage = "Calculating chart boundaries...";
 
       // Find the exact bounds of the actual chart elements (no padding)
       const nodeWidth = 160;
@@ -299,27 +386,28 @@
         contentHeight,
       });
 
+      // Update progress
+      pdfProgress = 60;
+      pdfStageNumber = 4;
+      pdfCurrentStage = "Capturing high-resolution chart...";
+
       // Capture the container element at high scale for better quality
-      const captureScale = 2; // Higher scale for better definition
+      const captureScale = 3; // Higher scale for better definition
       const canvas = await html2canvas(containerEl, {
         backgroundColor: null, // Use natural background
         scale: captureScale,
         logging: false,
         useCORS: true,
-        allowTaint: true,
-        ignoreElements: (element) => {
-          // Skip Firebase storage images to avoid CORS issues
-          if (
-            element.tagName === "IMG" &&
-            element.src.includes("firebasestorage")
-          ) {
-            return true;
-          }
-          return false;
-        },
+        allowTaint: false, // Safe since we're using data URLs
+        // No ignoreElements needed - all images are now data URLs
       });
 
       console.log("Canvas captured:", canvas.width, "x", canvas.height);
+
+      // Update progress
+      pdfProgress = 80;
+      pdfStageNumber = 5;
+      pdfCurrentStage = "Processing and cropping image...";
 
       if (canvas.width === 0 || canvas.height === 0) {
         alert("Export failed - captured canvas has zero dimensions.");
@@ -387,6 +475,12 @@
         sourceHeight // destination rectangle (same high-res size)
       );
 
+      // Restore original image sources
+      for (const replacement of imageReplacements) {
+        replacement.img.src = replacement.originalSrc;
+      }
+      console.log(`Restored ${imageReplacements.length} image sources`);
+
       // Convert cropped canvas to image data
       const imgData = croppedCanvas.toDataURL("image/png");
       console.log(
@@ -411,6 +505,11 @@
         "x",
         contentHeight
       );
+
+      // Update progress
+      pdfProgress = 95;
+      pdfStageNumber = 6;
+      pdfCurrentStage = "Creating PDF document...";
 
       // Create PDF with custom dimensions that exactly match the chart
       const pdf = new jsPDF({
@@ -438,6 +537,10 @@
         "SLOW" // Use SLOW for better quality rendering
       );
 
+      // Final progress update
+      pdfProgress = 100;
+      pdfCurrentStage = "Downloading PDF...";
+
       // Save with file picker
       const fileName = `${organization?.name || "orgchart"}.pdf`;
 
@@ -459,6 +562,11 @@
           await writableStream.close();
 
           console.log("PDF saved successfully");
+
+          // Close modal after a brief delay to show completion
+          setTimeout(() => {
+            showPDFModal = false;
+          }, 500);
         } catch (err) {
           if (err.name !== "AbortError") {
             console.error("Save failed:", err);
@@ -467,10 +575,28 @@
         }
       } else {
         pdf.save(fileName);
+
+        // Close modal after a brief delay to show completion
+        setTimeout(() => {
+          showPDFModal = false;
+        }, 500);
       }
     } catch (error) {
+      // Restore image sources in case of error
+      if (typeof imageReplacements !== "undefined") {
+        for (const replacement of imageReplacements) {
+          replacement.img.src = replacement.originalSrc;
+        }
+        console.log(
+          `Restored ${imageReplacements.length} image sources after error`
+        );
+      }
+
       console.error("PDF export failed:", error);
       alert("Failed to export PDF: " + error.message);
+
+      // Close modal on error
+      showPDFModal = false;
     }
   }
 
@@ -740,6 +866,14 @@
     {organizationId}
     {members}
     on:close={closeEditMember}
+  />
+
+  <PDFExportModal
+    isVisible={showPDFModal}
+    progress={pdfProgress}
+    currentStage={pdfCurrentStage}
+    currentStageNumber={pdfStageNumber}
+    totalStages={pdfTotalStages}
   />
 {/if}
 
