@@ -917,15 +917,12 @@
   .loading-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(255, 255, 255, 0.9);
+    background: color-mix(in srgb, var(--background) 90%, transparent);
+    backdrop-filter: blur(2px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
-  }
-
-  [data-theme="dark"] .loading-overlay {
-    background: rgba(17, 24, 39, 0.9);
   }
 
   .loading-content {
