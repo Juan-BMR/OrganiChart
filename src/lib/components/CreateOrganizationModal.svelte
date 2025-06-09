@@ -131,7 +131,7 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -177,6 +177,8 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     font-size: var(--font-size-sm);
+    background: var(--background);
+    color: var(--text-primary);
   }
 
   .upload-area {
@@ -215,7 +217,7 @@
 
   .create-btn {
     background: var(--primary);
-    color: white;
+    color: var(--primary-text);
     padding: var(--spacing-3) var(--spacing-6);
     border-radius: var(--radius-md);
     font-weight: 600;
@@ -235,8 +237,8 @@
   .spinner {
     width: 1rem;
     height: 1rem;
-    border: 2px solid rgba(255, 255, 255, 0.4);
-    border-top-color: white;
+    border: 2px solid color-mix(in srgb, var(--primary-text) 40%, transparent);
+    border-top-color: var(--primary-text);
     border-radius: 50%;
     display: inline-block;
     animation: spin 1s linear infinite;

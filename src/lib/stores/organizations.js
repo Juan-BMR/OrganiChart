@@ -80,10 +80,34 @@ function createOrganizationsStore() {
             const orgDocs = await Promise.all(
               orgIds.map((id) => getDoc(doc(db, COLLECTIONS.ORGANIZATIONS, id))),
             );
-            const organizations = orgDocs
+            const orgsWithoutCount = orgDocs
               .filter((d) => d.exists())
               .map((d) => ({ id: d.id, ...d.data() }));
-            set({ organizations, loading: false, error: null });
+            
+            // Count members for each organization
+            const orgsWithMemberCount = await Promise.all(
+              orgsWithoutCount.map(async (org) => {
+                try {
+                  const membersQuery = query(
+                    collection(db, COLLECTIONS.MEMBERS),
+                    where("organizationId", "==", org.id)
+                  );
+                  const membersSnapshot = await getDocs(membersQuery);
+                  return {
+                    ...org,
+                    memberCount: membersSnapshot.size
+                  };
+                } catch (err) {
+                  console.error(`Failed to count members for org ${org.id}:`, err);
+                  return {
+                    ...org,
+                    memberCount: 0
+                  };
+                }
+              })
+            );
+            
+            set({ organizations: orgsWithMemberCount, loading: false, error: null });
           } catch (err) {
             console.error("Failed to load organizations", err);
             set({ organizations: [], loading: false, error: err.message });
@@ -122,24 +146,24 @@ function createOrganizationsStore() {
 
     let orgRef;
     try {
-      // Create organization document
+    // Create organization document
       console.log("Creating organization document...");
       orgRef = await addDoc(collection(db, COLLECTIONS.ORGANIZATIONS), orgData);
       console.log("Organization created with ID:", orgRef.id);
 
-      // Create permission document with owner role
-      const permId = getPermissionDocId(currentUser.uid, orgRef.id);
-      const permData = createPermissionData(
-        orgRef.id,
-        currentUser.uid,
-        PERMISSION_ROLES.OWNER,
-        null,
-      );
+    // Create permission document with owner role
+    const permId = getPermissionDocId(currentUser.uid, orgRef.id);
+    const permData = createPermissionData(
+      orgRef.id,
+      currentUser.uid,
+      PERMISSION_ROLES.OWNER,
+      null,
+    );
       console.log("Permission data:", permData);
       console.log("Permission ID:", permId);
       
       console.log("Creating permission document...");
-      await setDoc(doc(db, COLLECTIONS.ORGANIZATION_PERMISSIONS, permId), permData);
+    await setDoc(doc(db, COLLECTIONS.ORGANIZATION_PERMISSIONS, permId), permData);
       console.log("Permission created successfully");
     } catch (error) {
       console.error("Detailed error during creation:", error);

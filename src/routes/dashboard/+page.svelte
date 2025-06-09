@@ -86,7 +86,7 @@
             <div
               class="org-card existing"
               on:click={() => {
-                /* TODO: Navigate to org chart */
+                goto(`/org/${org.id}/chart`);
               }}
             >
               <div class="org-content">
