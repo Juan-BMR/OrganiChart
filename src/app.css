@@ -4,7 +4,22 @@
 @import "@fontsource/inter/600.css";
 
 :root {
-  /* Colors - Purple theme from wireframes */
+  /* Colors - Dark theme as default */
+  --primary: #8b5cf6; /* Purple primary */
+  --primary-dark: #7c3aed; /* Darker purple for hover */
+  --primary-light: #a78bfa; /* Lighter purple */
+  --secondary: #374151; /* Dark gray */
+  --background: #111827; /* Dark background */
+  --surface: #1f2937; /* Dark surface */
+  --text-primary: #f9fafb; /* Light text */
+  --text-secondary: #9ca3af; /* Light gray text */
+  --border: #374151; /* Dark border */
+  --error: #f87171; /* Lighter red for dark mode */
+  --success: #34d399; /* Lighter green for dark mode */
+}
+
+/* Light theme */
+:root[data-theme="light"] {
   --primary: #8b5cf6; /* Purple primary */
   --primary-dark: #7c3aed; /* Darker purple for hover */
   --primary-light: #a78bfa; /* Lighter purple */
@@ -16,21 +31,6 @@
   --border: #e5e7eb; /* Light border */
   --error: #ef4444; /* Red for errors */
   --success: #10b981; /* Green for success */
-}
-
-/* Dark theme */
-:root[data-theme="dark"] {
-  --primary: #8b5cf6; /* Keep purple primary */
-  --primary-dark: #7c3aed; /* Keep darker purple for hover */
-  --primary-light: #a78bfa; /* Keep lighter purple */
-  --secondary: #374151; /* Dark gray */
-  --background: #111827; /* Dark background */
-  --surface: #1f2937; /* Dark surface */
-  --text-primary: #f9fafb; /* Light text */
-  --text-secondary: #9ca3af; /* Light gray text */
-  --border: #374151; /* Dark border */
-  --error: #f87171; /* Lighter red for dark mode */
-  --success: #34d399; /* Lighter green for dark mode */
 }
 
 :root {

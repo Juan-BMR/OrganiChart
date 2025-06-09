@@ -77,6 +77,19 @@
     photoPreviewUrl = URL.createObjectURL(file);
   }
 
+  // Handle removing selected photo
+  function handleRemovePhoto() {
+    if (photoPreviewUrl) {
+      URL.revokeObjectURL(photoPreviewUrl);
+    }
+    photoFile = null;
+    photoPreviewUrl = null;
+    // Reset the file input
+    if (fileInput) {
+      fileInput.value = "";
+    }
+  }
+
   async function handleSubmit() {
     error = "";
 
@@ -125,6 +138,11 @@
   }
 
   function handleClose() {
+    // Clean up photo URL to prevent memory leaks
+    if (photoPreviewUrl) {
+      URL.revokeObjectURL(photoPreviewUrl);
+    }
+
     // Reset state
     name = "";
     email = "";
@@ -136,6 +154,12 @@
     photoPreviewUrl = null;
     error = "";
     open = false;
+
+    // Reset file input
+    if (fileInput) {
+      fileInput.value = "";
+    }
+
     dispatch("close");
   }
 
@@ -296,11 +320,38 @@
         {/if}
 
         <label class="input-label" for="photo-upload">Photo</label>
-        <div class="upload-area" on:click={() => fileInput.click()}>
+        <div class="photo-upload-container">
+          <div class="upload-area" on:click={() => fileInput.click()}>
+            {#if photoPreviewUrl}
+              <img src={photoPreviewUrl} alt="Photo preview" />
+            {:else}
+              <p>
+                Upload photo <span class="upload-hint">(click or drag)</span>
+              </p>
+            {/if}
+          </div>
           {#if photoPreviewUrl}
-            <img src={photoPreviewUrl} alt="Photo preview" />
-          {:else}
-            <p>Upload photo <span class="upload-hint">(click or drag)</span></p>
+            <button
+              type="button"
+              class="remove-photo-btn"
+              on:click={handleRemovePhoto}
+              title="Remove photo"
+            >
+              <svg
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
+              </svg>
+              Remove Photo
+            </button>
           {/if}
         </div>
         <input
@@ -461,6 +512,39 @@
   .upload-hint {
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
+  }
+
+  .photo-upload-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+  }
+
+  .remove-photo-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-2) var(--spacing-3);
+    background: var(--error);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    align-self: flex-start;
+  }
+
+  .remove-photo-btn:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+  }
+
+  .remove-photo-btn svg {
+    width: 14px;
+    height: 14px;
   }
 
   .help-text {

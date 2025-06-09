@@ -130,7 +130,7 @@
   }
 
   .avatar {
-    background: white;
+    background: var(--background);
     border: 4px solid var(--primary);
     border-radius: 50%;
     overflow: hidden;
@@ -157,7 +157,7 @@
     text-align: center;
     max-width: 200px; /* Fixed width slightly smaller than node width */
     padding: var(--spacing-1) var(--spacing-2);
-    background: rgba(255, 255, 255, 0.9);
+    background: color-mix(in srgb, var(--background) 90%, transparent);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
     border: 1px solid var(--border);
@@ -166,11 +166,6 @@
     text-overflow: ellipsis;
     backdrop-filter: blur(4px);
     width: fit-content;
-  }
-
-  /* Dark mode support */
-  :global([data-theme="dark"]) .member-info {
-    background: rgba(17, 24, 39, 0.9);
   }
 
   .name {
