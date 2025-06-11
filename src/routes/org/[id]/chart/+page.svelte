@@ -105,7 +105,7 @@
   function handleWheel(event) {
     event.preventDefault();
     const delta = -event.deltaY;
-    const zoomFactor = delta > 0 ? 1.1 : 0.9;
+    const zoomFactor = delta > 0 ? 1.05 : 0.95; // Reduced from 1.1/0.9 to 1.05/0.95
     const newScale = Math.min(Math.max(transform.scale * zoomFactor, 0.2), 3);
     const rect = containerEl.getBoundingClientRect();
     const center = {
@@ -602,10 +602,10 @@
 
   // Zoom controls & keyboard shortcuts
   function zoomIn() {
-    canvasStore.zoomTo(Math.min(transform.scale * 1.1, 3));
+    canvasStore.zoomTo(Math.min(transform.scale * 1.05, 3)); // Reduced from 1.1 to 1.05
   }
   function zoomOut() {
-    canvasStore.zoomTo(Math.max(transform.scale * 0.9, 0.2));
+    canvasStore.zoomTo(Math.max(transform.scale * 0.95, 0.2)); // Reduced from 0.9 to 0.95
   }
 
   function keyHandler(e) {
@@ -903,6 +903,12 @@
     position: absolute;
     transform-origin: 0 0;
     will-change: transform;
+    /* Improve rendering quality */
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    backface-visibility: hidden;
+    -webkit-font-smoothing: subpixel-antialiased;
+    font-smooth: always;
   }
 
   .lines-layer {
