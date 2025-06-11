@@ -66,6 +66,7 @@ function createMembersStore() {
       role,
       managerId = null,
       photoFile = null,
+      subordinateIds = [],
     ) => {
       const data = createMemberData(
         organizationId,
@@ -76,13 +77,27 @@ function createMembersStore() {
         managerId,
       );
       const ref = await addDoc(collection(db, COLLECTIONS.MEMBERS), data);
+      const newMemberId = ref.id;
+
+      // If subordinates are specified, update them to report to the new member
+      if (subordinateIds.length > 0) {
+        const updatePromises = subordinateIds.map(subordinateId => {
+          const subordinateRef = doc(db, COLLECTIONS.MEMBERS, subordinateId);
+          return updateDoc(subordinateRef, {
+            managerId: newMemberId,
+            updatedAt: new Date(),
+          });
+        });
+        
+        await Promise.all(updatePromises);
+      }
 
       // handle photo upload if provided
       if (photoFile) {
         try {
           const { compressImage } = await import("$lib/utils/image.js");
           const compressed = await compressImage(photoFile, 0.7, 1024);
-          const path = `organizations/${organizationId}/members/${ref.id}.jpg`;
+          const path = `organizations/${organizationId}/members/${newMemberId}.jpg`;
           const fileRef = storageRef(storage, path);
           await uploadBytes(fileRef, compressed);
           const url = await getDownloadURL(fileRef);
@@ -92,7 +107,7 @@ function createMembersStore() {
         }
       }
 
-      return ref.id;
+      return newMemberId;
     },
 
     // Add member "in between" existing hierarchy

@@ -117,14 +117,15 @@
           photoFile
         );
       } else {
-        // Regular add member
+        // Regular add member (now with subordinate support)
         await membersStore.addMember(
           organizationId,
           name,
           email,
           role,
           managerId || null,
-          photoFile
+          photoFile,
+          subordinateIds
         );
       }
       dispatch("close");
@@ -271,7 +272,7 @@
 
           {#if dropdownOpen}
             <div class="dropdown-menu">
-              {#each managerId ? getDirectReports(managerId) : members.filter((m) => m.id !== managerId) as member}
+              {#each managerId ? getDirectReports(managerId) : members.filter((m) => !m.managerId) as member}
                 <label class="checkbox-item">
                   <input
                     type="checkbox"
@@ -298,7 +299,7 @@
                   </div>
                 {:else}
                   <div class="no-options">
-                    Select a manager first to see available subordinates
+                    No top-level employees available as subordinates
                   </div>
                 {/if}
               {/each}
