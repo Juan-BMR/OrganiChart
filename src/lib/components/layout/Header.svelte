@@ -7,11 +7,60 @@
   export let user = null;
 
   let currentTheme = "light";
+  let imageLoadError = false;
 
   // Subscribe to theme changes
   themeStore.subscribe((theme) => {
     currentTheme = theme;
   });
+
+  // Compute initials if no photo (similar to MemberNode.svelte)
+  $: initials = user?.displayName
+    ? user.displayName
+        .split(" ")
+        .slice(0, 2)
+        .map((n) => n.charAt(0).toUpperCase())
+        .join("")
+    : "";
+
+  // Google-like avatar colors
+  const avatarColors = [
+    '#1a73e8', // Google Blue
+    '#137333', // Google Green  
+    '#d93025', // Google Red
+    '#f9ab00', // Google Yellow
+    '#9aa0a6', // Google Grey
+    '#673ab7', // Purple
+    '#ff6d00', // Orange
+    '#00acc1', // Cyan
+    '#689f38', // Light Green
+    '#e91e63'  // Pink
+  ];
+
+  // Generate consistent color based on user email
+  function getAvatarColor(user) {
+    if (!user?.email) return avatarColors[0];
+    
+    let hash = 0;
+    for (let i = 0; i < user.email.length; i++) {
+      const char = user.email.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    
+    return avatarColors[Math.abs(hash) % avatarColors.length];
+  }
+
+  $: avatarColor = getAvatarColor(user);
+
+  // Reset image error when user changes
+  $: if (user) {
+    imageLoadError = false;
+  }
+
+  function handleImageError() {
+    imageLoadError = true;
+  }
 
   async function handleSignOut() {
     try {
@@ -34,7 +83,17 @@
 {#if user}
   <header class="floating-header">
     <div class="user-info">
-      <img src={user.photoURL} alt={user.displayName} class="avatar" />
+      <div class="avatar" style="background-color: {avatarColor};">
+        {#if user.photoURL && !imageLoadError}
+          <img 
+            src={user.photoURL} 
+            alt={user.displayName} 
+            on:error={handleImageError}
+          />
+        {:else}
+          <span class="initials">{initials}</span>
+        {/if}
+      </div>
       <span class="user-name">{user.displayName}</span>
     </div>
 
@@ -96,6 +155,24 @@
     height: 2rem;
     border-radius: 50%;
     border: 2px solid rgba(255, 255, 255, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Background color set dynamically via style attribute */
+    overflow: hidden;
+  }
+
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .initials {
+    color: white;
+    font-weight: 600;
+    font-size: 0.75rem;
+    line-height: 1;
   }
 
   .user-name {
