@@ -83,23 +83,124 @@
   let isPanning = false;
   let panStart = { x: 0, y: 0 };
 
+  // ADD SELECTION TOOL STATE AND HELPERS
+  let selectionToolActive = false;
+  let isSelecting = false;
+  let selectionStart = { x: 0, y: 0 };
+  let selectionRect = null; // { left, top, width, height }
+
+  function toggleSelectionTool() {
+    selectionToolActive = !selectionToolActive;
+    if (selectionToolActive) {
+      clearSelection();
+      containerEl && (containerEl.style.cursor = "crosshair");
+    } else {
+      deactivateSelectionTool();
+    }
+  }
+
+  function clearSelection() {
+    selectionRect = null;
+    isSelecting = false;
+  }
+
+  function deactivateSelectionTool() {
+    selectionToolActive = false;
+    clearSelection();
+    containerEl && (containerEl.style.cursor = "grab");
+  }
+
+  function zoomToSelection() {
+    if (!selectionRect || !containerEl) return;
+    const MIN_SIZE = 10;
+    if (
+      selectionRect.width < MIN_SIZE ||
+      selectionRect.height < MIN_SIZE
+    ) {
+      deactivateSelectionTool();
+      return;
+    }
+
+    const rect = containerEl.getBoundingClientRect();
+    const viewportCenterX = rect.width / 2;
+    const viewportCenterY = rect.height / 2;
+
+    // Convert selection rectangle to canvas coordinates
+    const selCanvasLeft = (selectionRect.left - transform.x) / transform.scale;
+    const selCanvasTop = (selectionRect.top - transform.y) / transform.scale;
+    const selCanvasWidth = selectionRect.width / transform.scale;
+    const selCanvasHeight = selectionRect.height / transform.scale;
+
+    const selCanvasCenterX = selCanvasLeft + selCanvasWidth / 2;
+    const selCanvasCenterY = selCanvasTop + selCanvasHeight / 2;
+
+    const PADDING_FACTOR = 0.9;
+    const maxScale = 3;
+    const minScale = 0.2;
+
+    const scaleX = (rect.width * PADDING_FACTOR) / selCanvasWidth;
+    const scaleY = (rect.height * PADDING_FACTOR) / selCanvasHeight;
+    let newScale = Math.min(scaleX, scaleY);
+    newScale = Math.max(Math.min(newScale, maxScale), minScale);
+
+    const newX = viewportCenterX - selCanvasCenterX * newScale;
+    const newY = viewportCenterY - selCanvasCenterY * newScale;
+
+    canvasStore.setTransform({ scale: newScale, x: newX, y: newY });
+
+    // Clean up
+    deactivateSelectionTool();
+  }
+
   function handlePointerDown(event) {
-    isPanning = true;
-    panStart = { x: event.clientX, y: event.clientY };
-    containerEl.style.cursor = "grabbing";
+    const rect = containerEl.getBoundingClientRect();
+    if (selectionToolActive) {
+      isSelecting = true;
+      const offsetX = event.clientX - rect.left;
+      const offsetY = event.clientY - rect.top;
+      selectionStart = { x: offsetX, y: offsetY };
+      selectionRect = {
+        left: offsetX,
+        top: offsetY,
+        width: 0,
+        height: 0,
+      };
+    } else {
+      isPanning = true;
+      panStart = { x: event.clientX, y: event.clientY };
+      containerEl.style.cursor = "grabbing";
+    }
   }
 
   function handlePointerMove(event) {
-    if (!isPanning) return;
-    const dx = event.clientX - panStart.x;
-    const dy = event.clientY - panStart.y;
-    panStart = { x: event.clientX, y: event.clientY };
-    canvasStore.panBy(dx, dy);
+    const rect = containerEl.getBoundingClientRect();
+    if (isSelecting) {
+      const offsetX = event.clientX - rect.left;
+      const offsetY = event.clientY - rect.top;
+      selectionRect = {
+        left: Math.min(selectionStart.x, offsetX),
+        top: Math.min(selectionStart.y, offsetY),
+        width: Math.abs(offsetX - selectionStart.x),
+        height: Math.abs(offsetY - selectionStart.y),
+      };
+    } else if (isPanning) {
+      const dx = event.clientX - panStart.x;
+      const dy = event.clientY - panStart.y;
+      panStart = { x: event.clientX, y: event.clientY };
+      canvasStore.panBy(dx, dy);
+    }
   }
 
-  function handlePointerUp() {
-    isPanning = false;
-    containerEl.style.cursor = "grab";
+  function handlePointerUp(event) {
+    if (isSelecting) {
+      isSelecting = false;
+      zoomToSelection();
+      return;
+    }
+    if (isPanning) {
+      isPanning = false;
+      containerEl.style.cursor = "grab";
+    }
   }
 
   function handleWheel(event) {
@@ -602,10 +703,12 @@
 
   // Zoom controls & keyboard shortcuts
   function zoomIn() {
-    canvasStore.zoomTo(Math.min(transform.scale * 1.05, 3)); // Reduced from 1.1 to 1.05
+    deactivateSelectionTool();
+    canvasStore.zoomTo(Math.min(transform.scale * 1.05, 3));
   }
   function zoomOut() {
-    canvasStore.zoomTo(Math.max(transform.scale * 0.95, 0.2)); // Reduced from 0.9 to 0.95
+    deactivateSelectionTool();
+    canvasStore.zoomTo(Math.max(transform.scale * 0.95, 0.2));
   }
 
   function keyHandler(e) {
@@ -628,6 +731,11 @@
         break;
       case "ArrowRight":
         canvasStore.panBy(-50, 0);
+        break;
+      case "Escape":
+        if (selectionToolActive) {
+          deactivateSelectionTool();
+        }
         break;
     }
   }
@@ -652,7 +760,8 @@
     <div
       bind:this={containerEl}
       class="chart-container"
-      on:pointerdown={handlePointerDown}
+      class:selection-mode={selectionToolActive}
+      on:pointerdown|capture={handlePointerDown}
       on:pointermove={handlePointerMove}
       on:pointerup={handlePointerUp}
       on:wheel={handleWheel}
@@ -722,7 +831,17 @@
             on:delete={handleDeleteMember}
           />
         {/each}
+
+        <!-- nodes loop end -->
       </div>
+
+      <!-- Selection rectangle overlay -->
+      {#if selectionRect}
+        <div
+          class="selection-rect"
+          style="left:{selectionRect.left}px; top:{selectionRect.top}px; width:{selectionRect.width}px; height:{selectionRect.height}px;"
+        ></div>
+      {/if}
 
       <!-- Loading state -->
       {#if membersLoading}
@@ -781,6 +900,18 @@
     <div class="floating-controls">
       <!-- Zoom controls -->
       <div class="zoom-controls">
+        <button
+          class="zoom-btn"
+          class:active={selectionToolActive}
+          aria-label="Zoom to selection"
+          title="Zoom to selection"
+          on:click={toggleSelectionTool}
+        >
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="12" height="12" rx="1" ry="1" stroke-dasharray="2 2" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 16l5 5" />
+          </svg>
+        </button>
         <button
           class="zoom-btn"
           aria-label="Zoom in"
@@ -1132,5 +1263,24 @@
       width: 36px;
       height: 36px;
     }
+  }
+
+  /* Selection rectangle */
+  .selection-rect {
+    position: absolute;
+    border: 2px dashed var(--primary);
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    pointer-events: none;
+    z-index: 120;
+  }
+
+  /* Disable pointer events on canvas while selecting */
+  .chart-container.selection-mode .canvas {
+    pointer-events: none;
+  }
+
+  .zoom-btn.active {
+    background: var(--primary);
+    color: white;
   }
 </style>

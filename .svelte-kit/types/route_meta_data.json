@@ -1,5 +1,8 @@
 {
 	"/": [],
+	"/api/proxy-image": [
+		"src/routes/api/proxy-image/+server.js"
+	],
 	"/dashboard": [],
 	"/login": [],
 	"/org/[id]/chart": []
