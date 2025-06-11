@@ -701,14 +701,39 @@
     }
   }
 
+  // Helper function to get chart content center
+  function getChartCenter() {
+    if (!nodesWithPosition.length || !containerEl) {
+      return { x: 0, y: 0 }; // Fallback to top-left if no content
+    }
+
+    // Calculate bounding box of all nodes (same as centerContent function)
+    const minX = Math.min(...nodesWithPosition.map((n) => n.x));
+    const maxX = Math.max(...nodesWithPosition.map((n) => n.x));
+    const minY = Math.min(...nodesWithPosition.map((n) => n.y));
+    const maxY = Math.max(...nodesWithPosition.map((n) => n.y));
+
+    // Calculate content center in canvas coordinates
+    const contentCenterX = (minX + maxX) / 2;
+    const contentCenterY = (minY + maxY) / 2;
+
+    // Convert to screen coordinates by applying current transform
+    const screenCenterX = contentCenterX * transform.scale + transform.x;
+    const screenCenterY = contentCenterY * transform.scale + transform.y;
+
+    return { x: screenCenterX, y: screenCenterY };
+  }
+
   // Zoom controls & keyboard shortcuts
   function zoomIn() {
     deactivateSelectionTool();
-    canvasStore.zoomTo(Math.min(transform.scale * 1.05, 3));
+    const center = getChartCenter();
+    canvasStore.zoomTo(Math.min(transform.scale * 1.2, 3), center);
   }
   function zoomOut() {
     deactivateSelectionTool();
-    canvasStore.zoomTo(Math.max(transform.scale * 0.95, 0.2));
+    const center = getChartCenter();
+    canvasStore.zoomTo(Math.max(transform.scale * 0.8, 0.2), center);
   }
 
   function keyHandler(e) {
