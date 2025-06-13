@@ -31,16 +31,16 @@
   • viewInChart    – emitted when the View in Chart action is pressed.
 -->
 
-<script lang="ts">
+<script>
   import { createEventDispatcher, onMount, onDestroy } from "svelte";
   import { fly, fade } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
   import { browser } from "$app/environment";
 
   export let open = false;
-  export let member: any = null; // loosely-typed – adjust according to your data model
-  export let loading: boolean = false; // show skeleton shimmer while loading
-  export let error: string | null = null; // non-null means data load failed and retry offered
+  export let member = null; // data object
+  export let loading = false; // show skeleton shimmer while loading
+  export let error = null; // non-null means data load failed and retry offered
 
   const dispatch = createEventDispatcher();
 
@@ -49,7 +49,7 @@
     ? member.name
         .split(" ")
         .slice(0, 2)
-        .map((part: string) => part.charAt(0).toUpperCase())
+        .map((part) => part.charAt(0).toUpperCase())
         .join("")
     : "";
 
@@ -62,7 +62,7 @@
     dispatch("retry");
   }
 
-  function handleKeyDown(e: KeyboardEvent) {
+  function handleKeyDown(e) {
     if (e.key === "Escape") {
       closeSidebar();
     }
@@ -98,13 +98,13 @@
   let touchStartY = 0;
   const SWIPE_THRESHOLD = 80;
 
-  function handleTouchStart(e: TouchEvent) {
+  function handleTouchStart(e) {
     const t = e.touches[0];
     touchStartX = t.clientX;
     touchStartY = t.clientY;
   }
 
-  function handleTouchMove(e: TouchEvent) {
+  function handleTouchMove(e) {
     const t = e.touches[0];
     const dx = t.clientX - touchStartX;
     const dy = t.clientY - touchStartY;
