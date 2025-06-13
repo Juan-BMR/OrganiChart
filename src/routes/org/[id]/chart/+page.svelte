@@ -12,6 +12,7 @@
   import AddMemberModal from "$lib/components/AddMemberModal.svelte";
   import EditMemberModal from "$lib/components/EditMemberModal.svelte";
   import PDFExportModal from "$lib/components/PDFExportModal.svelte";
+  import UserInfoSidebar from "$lib/components/UserInfoSidebar.svelte";
 
   import * as d3 from "d3";
   import html2canvas from "html2canvas";
@@ -347,7 +348,13 @@
   let pdfProgress = 0;
   let pdfCurrentStage = "";
   let pdfStageNumber = 0;
-  const pdfTotalStages = 6;
+  let pdfTotalStages = 0;
+
+  // Sidebar state
+  let sidebarOpen = false;
+  let selectedMember = null;
+  let sidebarLoading = false;
+  let sidebarError = null;
 
   function openAddMember() {
     showAddMember = true;
@@ -768,6 +775,47 @@
     window.addEventListener("keydown", keyHandler);
     return () => window.removeEventListener("keydown", keyHandler);
   });
+
+  // Handler when a node is clicked
+  async function handleSelectMember(event) {
+    const { member } = event.detail;
+    // For now, we have member data already. If additional fetch needed, set loading.
+    sidebarLoading = true;
+    sidebarError = null;
+    sidebarOpen = true;
+
+    try {
+      // Placeholder for async fetch of detailed data, e.g. via store or API
+      // const data = await membersStore.fetchDetailed(member.id);
+      // selectedMember = data;
+      selectedMember = member;
+      sidebarLoading = false;
+    } catch (err) {
+      console.error(err);
+      sidebarError = "Failed to load member details.";
+      sidebarLoading = false;
+    }
+  }
+
+  function closeSidebar() {
+    sidebarOpen = false;
+  }
+
+  // Retry fetch after error
+  async function retrySidebar() {
+    if (!selectedMember) return;
+    sidebarError = null;
+    sidebarLoading = true;
+    try {
+      // const data = await membersStore.fetchDetailed(selectedMember.id);
+      // selectedMember = data;
+      sidebarLoading = false;
+    } catch (err) {
+      console.error(err);
+      sidebarError = "Failed to load member details.";
+      sidebarLoading = false;
+    }
+  }
 </script>
 
 <svelte:head>
@@ -854,6 +902,7 @@
             size={100}
             on:edit={handleEditMember}
             on:delete={handleDeleteMember}
+            on:select={handleSelectMember}
           />
         {/each}
 
@@ -1030,6 +1079,25 @@
     currentStage={pdfCurrentStage}
     currentStageNumber={pdfStageNumber}
     totalStages={pdfTotalStages}
+  />
+
+  <!-- User info sidebar -->
+  <UserInfoSidebar
+    open={sidebarOpen}
+    member={selectedMember}
+    loading={sidebarLoading}
+    error={sidebarError}
+    on:close={closeSidebar}
+    on:retry={retrySidebar}
+    on:edit={(e) => {
+      editingMember = e.detail.member;
+      showEditMember = true;
+    }}
+    on:delete={(e) => handleDeleteMember(e)}
+    on:viewInChart={() => {
+      // sidebar already open on the member's position; close?
+      sidebarOpen = false;
+    }}
   />
 {/if}
 

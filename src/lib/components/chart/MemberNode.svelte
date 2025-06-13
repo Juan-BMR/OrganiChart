@@ -82,6 +82,12 @@
     dispatch("delete", { member });
     closeMenu();
   }
+
+  // Emit select when user taps/clicks the node (excluding dragging scenario)
+  function handleClick(event) {
+    if (isDragging) return;
+    dispatch("select", { member });
+  }
 </script>
 
 <div
@@ -89,6 +95,7 @@
   style="left: {$xSpring}px; top: {$ySpring}px;"
   on:pointerdown={handlePointerDown}
   on:contextmenu={handleContextMenu}
+  on:click|stopPropagation={handleClick}
   in:scale={{ duration: 200 }}
   out:scale={{ duration: 150 }}
 >
