@@ -39,6 +39,8 @@
 
   export let open = false;
   export let member: any = null; // loosely-typed – adjust according to your data model
+  export let loading: boolean = false; // show skeleton shimmer while loading
+  export let error: string | null = null; // non-null means data load failed and retry offered
 
   const dispatch = createEventDispatcher();
 
@@ -53,6 +55,11 @@
 
   function closeSidebar() {
     dispatch("close");
+  }
+
+  // Retry helper – surfaces intent to parent to trigger data fetch again
+  function retry() {
+    dispatch("retry");
   }
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -83,6 +90,30 @@
       document.removeEventListener("keydown", handleKeyDown);
     }
   });
+
+  /*****************************
+   * Swipe-to-close (mobile)
+   *****************************/
+  let touchStartX = 0;
+  let touchStartY = 0;
+  const SWIPE_THRESHOLD = 80;
+
+  function handleTouchStart(e: TouchEvent) {
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+  }
+
+  function handleTouchMove(e: TouchEvent) {
+    const t = e.touches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+
+    // Horizontal swipe with right direction & dominant over vertical movement
+    if (dx > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+      closeSidebar();
+    }
+  }
 </script>
 
 {#if open}
@@ -100,98 +131,120 @@
     aria-labelledby="sidebar-title"
     tabindex="-1"
     transition:fly={{ x: 460, duration: 250, easing: cubicOut }}
+    on:touchstart={handleTouchStart}
+    on:touchmove={handleTouchMove}
   >
     <!-- Close button -->
     <button class="close-btn" aria-label="Close sidebar" on:click={closeSidebar}>
       ×
     </button>
 
-    <!-- Header section -->
-    <div class="header">
-      <div class="avatar">
-        {#if member?.photoURL}
-          <img src={member.photoURL} alt={member.name} />
-        {:else if initials}
-          <span>{initials}</span>
+    {#if loading}
+      <!-- Loading skeleton -->
+      <div class="skeleton-wrapper">
+        <div class="avatar-skeleton shimmer"></div>
+        <div class="line-skeleton name shimmer"></div>
+        <div class="line-skeleton role shimmer"></div>
+        <div class="skeleton-list">
+          {#each Array(6) as _}
+            <div class="line-skeleton shimmer"></div>
+          {/each}
+        </div>
+      </div>
+    {:else if error}
+      <!-- Error state with retry -->
+      <div class="error-state">
+        <p>{error}</p>
+        <button class="primary" on:click={retry}>Retry</button>
+      </div>
+    {:else}
+      <!-- Header section -->
+      <div class="header">
+        <div class="avatar">
+          {#if member?.photoURL}
+            <img src={member.photoURL} alt={member.name} />
+          {:else if initials}
+            <span>{initials}</span>
+          {/if}
+        </div>
+        <h2 id="sidebar-title" class="name">{member?.name}</h2>
+        {#if member?.role}
+          <p class="role">{member.role}</p>
         {/if}
       </div>
-      <h2 id="sidebar-title" class="name">{member?.name}</h2>
-      {#if member?.role}
-        <p class="role">{member.role}</p>
-      {/if}
-    </div>
 
-    <div class="content">
-      <!-- Personal Details -->
-      <section>
-        <h3>Personal Details</h3>
-        <ul>
-          {#if member?.email}
-            <li><span>Email:</span><a href={`mailto:${member.email}`}>{member.email}</a></li>
-          {/if}
-          {#if member?.department}
-            <li><span>Department:</span>{member.department}</li>
-          {/if}
-          {#if member?.phone}
-            <li><span>Phone:</span><a href={`tel:${member.phone}`}>{member.phone}</a></li>
-          {/if}
-          {#if member?.location}
-            <li><span>Location:</span>{member.location}</li>
-          {/if}
-          {#if member?.timeZone}
-            <li><span>Time Zone:</span>{member.timeZone}</li>
-          {/if}
-        </ul>
-      </section>
-
-      <!-- Organizational context -->
-      {#if member?.manager || member?.directReports?.length || member?.level || member?.createdAt}
+      <div class="content">
+        <!-- Personal Details -->
         <section>
-          <h3>Organizational Context</h3>
+          <h3>Personal Details</h3>
           <ul>
-            {#if member?.manager}
-              <li>
-                <span>Manager:</span>
-                <div class="manager-info">
-                  {#if member.manager.photoURL}
-                    <img src={member.manager.photoURL} alt={member.manager.name} />
-                  {/if}
-                  {member.manager.name}
-                </div>
-              </li>
+            {#if member?.email}
+              <li><span>Email:</span><a href={`mailto:${member.email}`}>{member.email}</a></li>
             {/if}
-            {#if member?.directReports?.length}
-              <li>
-                <span>Direct Reports:</span>
-                {member.directReports.length}
-              </li>
+            {#if member?.department}
+              <li><span>Department:</span>{member.department}</li>
             {/if}
-            {#if member?.level}
-              <li><span>Level:</span>{member.level}</li>
+            {#if member?.phone}
+              <li><span>Phone:</span><a href={`tel:${member.phone}`}>{member.phone}</a></li>
             {/if}
-            {#if member?.createdAt}
-              <li>
-                <span>Member Since:</span>
-                {new Date(member.createdAt).toLocaleDateString(undefined, {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                })}
-              </li>
+            {#if member?.location}
+              <li><span>Location:</span>{member.location}</li>
+            {/if}
+            {#if member?.timeZone}
+              <li><span>Time Zone:</span>{member.timeZone}</li>
             {/if}
           </ul>
         </section>
-      {/if}
-    </div>
 
-    <!-- Action buttons -->
-    <div class="actions">
-      <button class="primary" on:click={() => dispatch("edit", { member })}>Edit</button>
-      <button class="danger" on:click={() => dispatch("delete", { member })}>Delete</button>
-      <button class="secondary" on:click={() => dispatch("viewInChart", { member })}>
-        View in Chart
-      </button>
-    </div>
+        <!-- Organizational context -->
+        {#if member?.manager || member?.directReports?.length || member?.level || member?.createdAt}
+          <section>
+            <h3>Organizational Context</h3>
+            <ul>
+              {#if member?.manager}
+                <li>
+                  <span>Manager:</span>
+                  <div class="manager-info">
+                    {#if member.manager.photoURL}
+                      <img src={member.manager.photoURL} alt={member.manager.name} />
+                    {/if}
+                    {member.manager.name}
+                  </div>
+                </li>
+              {/if}
+              {#if member?.directReports?.length}
+                <li>
+                  <span>Direct Reports:</span>
+                  {member.directReports.length}
+                </li>
+              {/if}
+              {#if member?.level}
+                <li><span>Level:</span>{member.level}</li>
+              {/if}
+              {#if member?.createdAt}
+                <li>
+                  <span>Member Since:</span>
+                  {new Date(member.createdAt).toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </li>
+              {/if}
+            </ul>
+          </section>
+        {/if}
+      </div>
+
+      <!-- Action buttons -->
+      <div class="actions">
+        <button class="primary" on:click={() => dispatch("edit", { member })}>Edit</button>
+        <button class="danger" on:click={() => dispatch("delete", { member })}>Delete</button>
+        <button class="secondary" on:click={() => dispatch("viewInChart", { member })}>
+          View in Chart
+        </button>
+      </div>
+    {/if}
   </aside>
 {/if}
 
@@ -387,6 +440,72 @@
 
   .danger:hover {
     background: color-mix(in srgb, var(--error) 80%, #000 20%);
+  }
+
+  /************* Shimmer Skeleton *************/
+  @keyframes shimmer {
+    0% {
+      background-position: -400px 0;
+    }
+    100% {
+      background-position: 400px 0;
+    }
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--surface) 80%, transparent) 0%,
+      color-mix(in srgb, var(--surface) 60%, var(--primary-light) 20%) 50%,
+      color-mix(in srgb, var(--surface) 80%, transparent) 100%
+    );
+    background-size: 400px 100%;
+    animation: shimmer 1.2s infinite;
+  }
+
+  .skeleton-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-4);
+  }
+
+  .avatar-skeleton {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+  }
+
+  .line-skeleton {
+    height: 16px;
+    width: 80%;
+    border-radius: var(--radius-md);
+  }
+
+  .line-skeleton.name {
+    height: 24px;
+  }
+
+  .skeleton-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    margin-top: var(--spacing-4);
+  }
+
+  /************* Error State *************/
+  .error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-4);
+    text-align: center;
+    padding: var(--spacing-6);
+    color: var(--error);
+  }
+  .error-state p {
+    font-size: var(--font-size-base);
   }
 
   @media (max-width: 600px) {
