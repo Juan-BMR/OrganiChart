@@ -32,288 +32,352 @@
 -->
 
 <script>
-  import { createEventDispatcher, onMount, onDestroy } from "svelte";
+  import { createEventDispatcher } from "svelte";
   import { fly, fade } from "svelte/transition";
-  import { cubicOut } from "svelte/easing";
-  import { browser } from "$app/environment";
 
   export let open = false;
-  export let member = null; // data object
-  export let loading = false; // show skeleton shimmer while loading
-  export let error = null; // non-null means data load failed and retry offered
+  export let member = null;
+  export let members = [];
+  export let organizationId = "";
+  export let navigationHistory = []; // Array of member objects for back navigation
 
   const dispatch = createEventDispatcher();
 
-  // Compute member initials for avatar fallback
+  // Compute initials for avatar fallback
   $: initials = member?.name
     ? member.name
         .split(" ")
         .slice(0, 2)
-        .map((part) => part.charAt(0).toUpperCase())
+        .map((n) => n.charAt(0).toUpperCase())
         .join("")
     : "";
 
-  function closeSidebar() {
+  // Find manager
+  $: manager = member?.managerId
+    ? members.find((m) => m.id === member.managerId)
+    : null;
+
+  // Find direct reports
+  $: directReports = members.filter((m) => m.managerId === member?.id) || [];
+
+  // Format date
+  $: joinDate = member?.createdAt
+    ? new Date(
+        member.createdAt.toDate ? member.createdAt.toDate() : member.createdAt
+      ).toLocaleDateString()
+    : "N/A";
+
+  function handleClose() {
     dispatch("close");
   }
 
-  // Retry helper – surfaces intent to parent to trigger data fetch again
-  function retry() {
-    dispatch("retry");
+  function handleEdit() {
+    dispatch("edit", { member });
   }
 
-  function handleKeyDown(e) {
-    if (e.key === "Escape") {
-      closeSidebar();
-    }
+  function handleDelete() {
+    dispatch("delete", { member });
   }
 
-  // Manage global key listener only while sidebar is open
-  onMount(() => {
-    if (!browser) return;
-    if (open) document.addEventListener("keydown", handleKeyDown);
-  });
-
-  $: if (browser) {
-    if (open) {
-      document.body.style.overflow = "hidden"; // prevent body scroll while sidebar open
-      document.addEventListener("keydown", handleKeyDown);
-    } else {
-      document.body.style.overflow = "";
-      document.removeEventListener("keydown", handleKeyDown);
-    }
+  function handleBack() {
+    dispatch("back");
   }
 
-  onDestroy(() => {
-    if (browser) {
-      document.body.style.overflow = "";
-      document.removeEventListener("keydown", handleKeyDown);
-    }
-  });
-
-  /*****************************
-   * Swipe-to-close (mobile)
-   *****************************/
-  let touchStartX = 0;
-  let touchStartY = 0;
-  const SWIPE_THRESHOLD = 80;
-
-  function handleTouchStart(e) {
-    const t = e.touches[0];
-    touchStartX = t.clientX;
-    touchStartY = t.clientY;
+  function handleNavigateToMember(targetMember) {
+    dispatch("navigate", { member: targetMember });
   }
 
-  function handleTouchMove(e) {
-    const t = e.touches[0];
-    const dx = t.clientX - touchStartX;
-    const dy = t.clientY - touchStartY;
-
-    // Horizontal swipe with right direction & dominant over vertical movement
-    if (dx > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
-      closeSidebar();
+  function handleKeyDown(event) {
+    if (event.key === "Escape") {
+      handleClose();
     }
   }
 </script>
 
 {#if open}
-  <!-- Backdrop overlay -->
   <div
-    class="overlay"
-    on:click|self={closeSidebar}
+    class="modal-overlay"
+    on:click|self={handleClose}
     transition:fade={{ duration: 200 }}
-  ></div>
-
-  <!-- Sidebar panel -->
-  <aside
-    class="sidebar"
-    role="dialog"
-    aria-labelledby="sidebar-title"
-    tabindex="-1"
-    transition:fly={{ x: 460, duration: 250, easing: cubicOut }}
-    on:touchstart={handleTouchStart}
-    on:touchmove={handleTouchMove}
   >
-    <!-- Close button -->
-    <button class="close-btn" aria-label="Close sidebar" on:click={closeSidebar}>
-      ×
-    </button>
-
-    {#if loading}
-      <!-- Loading skeleton -->
-      <div class="skeleton-wrapper">
-        <div class="avatar-skeleton shimmer"></div>
-        <div class="line-skeleton name shimmer"></div>
-        <div class="line-skeleton role shimmer"></div>
-        <div class="skeleton-list">
-          {#each Array(6) as _}
-            <div class="line-skeleton shimmer"></div>
-          {/each}
-        </div>
-      </div>
-    {:else if error}
-      <!-- Error state with retry -->
-      <div class="error-state">
-        <p>{error}</p>
-        <button class="primary" on:click={retry}>Retry</button>
-      </div>
-    {:else}
-      <!-- Header section -->
-      <div class="header">
-        <div class="avatar">
-          {#if member?.photoURL}
-            <img src={member.photoURL} alt={member.name} />
-          {:else if initials}
-            <span>{initials}</span>
+    <div
+      class="modal"
+      on:keydown={handleKeyDown}
+      tabindex="-1"
+      transition:fly={{ x: 400, duration: 300 }}
+    >
+      <header class="modal-header">
+        <div class="header-left">
+          {#if navigationHistory.length > 0}
+            <button class="back-btn" on:click={handleBack} title="Go back">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
           {/if}
+          <h2>Member Information</h2>
         </div>
-        <h2 id="sidebar-title" class="name">{member?.name}</h2>
-        {#if member?.role}
-          <p class="role">{member.role}</p>
-        {/if}
-      </div>
+        <button class="close-btn" on:click={handleClose}>×</button>
+      </header>
 
-      <div class="content">
-        <!-- Personal Details -->
-        <section>
-          <h3>Personal Details</h3>
-          <ul>
-            {#if member?.email}
-              <li><span>Email:</span><a href={`mailto:${member.email}`}>{member.email}</a></li>
+      <div class="modal-body">
+        <!-- User Header -->
+        <div class="user-header">
+          <div class="avatar">
+            {#if member?.photoURL}
+              <img src={member.photoURL} alt={member.name} />
+            {:else}
+              <span>{initials}</span>
             {/if}
-            {#if member?.department}
-              <li><span>Department:</span>{member.department}</li>
-            {/if}
-            {#if member?.phone}
-              <li><span>Phone:</span><a href={`tel:${member.phone}`}>{member.phone}</a></li>
-            {/if}
-            {#if member?.location}
-              <li><span>Location:</span>{member.location}</li>
-            {/if}
-            {#if member?.timeZone}
-              <li><span>Time Zone:</span>{member.timeZone}</li>
-            {/if}
-          </ul>
-        </section>
+          </div>
+          <div class="user-info">
+            <h3 class="user-name">{member?.name || "Unknown"}</h3>
+            <p class="user-role">{member?.role || "No role specified"}</p>
+          </div>
+        </div>
 
-        <!-- Organizational context -->
-        {#if member?.manager || member?.directReports?.length || member?.level || member?.createdAt}
-          <section>
-            <h3>Organizational Context</h3>
-            <ul>
-              {#if member?.manager}
-                <li>
-                  <span>Manager:</span>
+        <!-- Personal Details Section -->
+        <div class="info-section">
+          <h4 class="section-title">Personal Details</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Full Name:</span>
+              <span class="info-value">{member?.name || "N/A"}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Email:</span>
+              <span class="info-value">
+                {#if member?.email}
+                  <a href="mailto:{member.email}" class="email-link"
+                    >{member.email}</a
+                  >
+                {:else}
+                  N/A
+                {/if}
+              </span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Role:</span>
+              <span class="info-value">{member?.role || "N/A"}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Organizational Context Section -->
+        <div class="info-section">
+          <h4 class="section-title">Organizational Context</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Reports to:</span>
+              <span class="info-value">
+                {#if manager}
                   <div class="manager-info">
-                    {#if member.manager.photoURL}
-                      <img src={member.manager.photoURL} alt={member.manager.name} />
+                    {#if manager.photoURL}
+                      <img
+                        src={manager.photoURL}
+                        alt={manager.name}
+                        class="manager-avatar"
+                      />
                     {/if}
-                    {member.manager.name}
+                    {manager.name}
                   </div>
-                </li>
-              {/if}
-              {#if member?.directReports?.length}
-                <li>
-                  <span>Direct Reports:</span>
-                  {member.directReports.length}
-                </li>
-              {/if}
-              {#if member?.level}
-                <li><span>Level:</span>{member.level}</li>
-              {/if}
-              {#if member?.createdAt}
-                <li>
-                  <span>Member Since:</span>
-                  {new Date(member.createdAt).toLocaleDateString(undefined, {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </li>
-              {/if}
-            </ul>
-          </section>
-        {/if}
+                {:else}
+                  Top Level
+                {/if}
+              </span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Direct Reports:</span>
+              <span class="info-value">{directReports.length}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Member Since:</span>
+              <span class="info-value">{joinDate}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <!-- Action buttons -->
-      <div class="actions">
-        <button class="primary" on:click={() => dispatch("edit", { member })}>Edit</button>
-        <button class="danger" on:click={() => dispatch("delete", { member })}>Delete</button>
-        <button class="secondary" on:click={() => dispatch("viewInChart", { member })}>
-          View in Chart
-        </button>
-      </div>
-    {/if}
-  </aside>
+      <!-- Subordinates Section -->
+      {#if directReports.length > 0}
+        <div class="info-section">
+          <h4 class="section-title">Subordinates ({directReports.length})</h4>
+          <div class="subordinates-container">
+            <div class="subordinates-list">
+              {#each directReports as subordinate}
+                <button
+                  class="subordinate-item"
+                  on:click={() => handleNavigateToMember(subordinate)}
+                  title="View {subordinate.name}'s details"
+                >
+                  <div class="subordinate-avatar">
+                    {#if subordinate.photoURL}
+                      <img src={subordinate.photoURL} alt={subordinate.name} />
+                    {:else}
+                      <span
+                        >{subordinate.name
+                          .split(" ")
+                          .slice(0, 2)
+                          .map((n) => n.charAt(0).toUpperCase())
+                          .join("")}</span
+                      >
+                    {/if}
+                  </div>
+                  <div class="subordinate-info">
+                    <div class="subordinate-name">{subordinate.name}</div>
+                    <div class="subordinate-role">
+                      {subordinate.role || "No role specified"}
+                    </div>
+                  </div>
+                  <div class="subordinate-arrow">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </div>
+                </button>
+              {/each}
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      <footer class="modal-footer">
+        <div class="action-buttons">
+          <button class="edit-btn" on:click={handleEdit}>Edit</button>
+          <button class="delete-btn" on:click={handleDelete}>Delete</button>
+        </div>
+      </footer>
+    </div>
+  </div>
 {/if}
 
 <style>
-  .overlay {
+  .modal-overlay {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(2px);
-    z-index: 3000; /* above modals (2000) */
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    z-index: 2000;
+    padding-right: 24px;
   }
 
-  .sidebar {
-    position: fixed;
-    right: 0;
-    top: 0;
-    height: 100vh;
-    width: min(420px, 100%);
-    background: var(--surface);
-    box-shadow: -4px 0 10px rgba(0, 0, 0, 0.4);
+  .modal {
+    background: var(--background);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 420px;
+    box-shadow: var(--shadow-lg);
+    padding: var(--spacing-6);
     display: flex;
     flex-direction: column;
-    z-index: 3001;
-    overflow-y: auto;
-    padding: var(--spacing-6) var(--spacing-6) var(--spacing-8);
+    gap: var(--spacing-4);
+    height: 85vh;
+    max-height: 85vh;
+    overflow: hidden;
   }
 
-  /* Close button */
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+  }
+
+  .back-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-1);
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+  }
+
+  .back-btn:hover {
+    background: var(--secondary);
+    color: var(--text-primary);
+  }
+
+  .back-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .modal-header h2 {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
   .close-btn {
-    position: absolute;
-    top: var(--spacing-4);
-    right: var(--spacing-4);
-    font-size: 1.5rem;
+    font-size: var(--font-size-xl);
     color: var(--text-secondary);
     background: none;
     border: none;
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    transition: background-color 0.2s ease, transform 0.2s ease;
+    cursor: pointer;
+    padding: var(--spacing-1);
+    border-radius: var(--radius-md);
+    transition: background-color 0.2s ease;
   }
 
   .close-btn:hover {
-    background: color-mix(in srgb, var(--primary) 20%, transparent);
-    transform: scale(1.05);
+    background: var(--secondary);
   }
 
-  /* Header */
-  .header {
+  .modal-body {
     display: flex;
     flex-direction: column;
+    gap: var(--spacing-5);
+    flex: 1;
+    overflow-y: auto;
+    padding-right: var(--spacing-1);
+  }
+
+  .user-header {
+    display: flex;
     align-items: center;
-    gap: var(--spacing-3);
-    margin-bottom: var(--spacing-6);
+    gap: var(--spacing-4);
+    padding: var(--spacing-4);
+    background: var(--surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
   }
 
   .avatar {
-    width: 96px;
-    height: 96px;
+    width: 80px;
+    height: 80px;
+    background: var(--background);
+    border: 4px solid var(--primary);
     border-radius: 50%;
     overflow: hidden;
-    border: 4px solid var(--primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--background);
+    flex-shrink: 0;
   }
 
   .avatar img {
@@ -323,196 +387,280 @@
   }
 
   .avatar span {
+    color: var(--primary);
+    font-weight: 600;
+    font-size: var(--font-size-xl);
+  }
+
+  .user-info {
+    flex: 1;
+  }
+
+  .user-name {
     font-size: var(--font-size-xl);
     font-weight: 600;
-    color: var(--primary);
-  }
-
-  .name {
-    font-size: var(--font-size-3xl);
-    font-weight: 600;
     color: var(--text-primary);
-    text-align: center;
+    margin: 0 0 var(--spacing-1) 0;
   }
 
-  .role {
+  .user-role {
     font-size: var(--font-size-base);
     color: var(--text-secondary);
-    text-align: center;
+    margin: 0;
   }
 
-  /* Sections */
-  section {
-    margin-bottom: var(--spacing-6);
+  .info-section {
+    background: var(--surface);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-4);
+    border: 1px solid var(--border);
   }
 
-  section h3 {
+  .section-title {
     font-size: var(--font-size-sm);
-    font-weight: 700;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-3) 0;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--text-secondary);
-    margin-bottom: var(--spacing-2);
   }
 
-  ul {
-    list-style: none;
+  .info-grid {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-2);
+    gap: var(--spacing-3);
   }
 
-  li {
+  .info-item {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: var(--spacing-2);
+    padding: var(--spacing-2) 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .info-item:last-child {
+    border-bottom: none;
+  }
+
+  .info-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-secondary);
+    min-width: 120px;
+  }
+
+  .info-value {
     font-size: var(--font-size-sm);
     color: var(--text-primary);
+    text-align: right;
   }
 
-  li span {
-    font-weight: 600;
-    min-width: 130px;
-    color: var(--text-secondary);
+  .email-link {
+    color: var(--primary);
+    text-decoration: none;
+    transition: color 0.2s ease;
   }
 
-  li a:hover {
+  .email-link:hover {
+    color: var(--primary-dark);
     text-decoration: underline;
-    color: var(--primary-light);
   }
 
-  /* Manager info */
   .manager-info {
     display: flex;
     align-items: center;
     gap: var(--spacing-2);
+    justify-content: flex-end;
   }
 
-  .manager-info img {
+  .manager-avatar {
     width: 24px;
     height: 24px;
     border-radius: 50%;
     object-fit: cover;
   }
 
-  /* Action buttons */
-  .actions {
-    margin-top: auto;
+  .subordinates-container {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--background);
+  }
+
+  .subordinates-list {
     display: flex;
     flex-direction: column;
+    gap: 1px;
+  }
+
+  .subordinate-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    padding: var(--spacing-3);
+    background: var(--background);
+    border: none;
+    border-bottom: 1px solid var(--border);
+    transition: all 0.2s ease;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+  }
+
+  .subordinate-item:last-child {
+    border-bottom: none;
+  }
+
+  .subordinate-item:hover {
+    background: var(--secondary);
+  }
+
+  .subordinate-item:active {
+    background: var(--primary);
+    color: white;
+  }
+
+  .subordinate-item:active .subordinate-name,
+  .subordinate-item:active .subordinate-role {
+    color: white;
+  }
+
+  .subordinate-arrow {
+    margin-left: auto;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+  }
+
+  .subordinate-arrow svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .subordinate-item:hover .subordinate-arrow {
+    color: var(--primary);
+    transform: translateX(2px);
+  }
+
+  .subordinate-avatar {
+    width: 40px;
+    height: 40px;
+    background: var(--background);
+    border: 2px solid var(--primary);
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .subordinate-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .subordinate-avatar span {
+    color: var(--primary);
+    font-weight: 600;
+    font-size: var(--font-size-xs);
+  }
+
+  .subordinate-info {
+    flex: 1;
+  }
+
+  .subordinate-name {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-1);
+  }
+
+  .subordinate-role {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
+  .modal-footer {
+    padding-top: var(--spacing-2);
+    flex-shrink: 0;
+  }
+
+  .action-buttons {
+    display: flex;
     gap: var(--spacing-3);
   }
 
-  .actions button {
-    padding: var(--spacing-3) var(--spacing-4);
+  .edit-btn {
+    background: var(--primary);
+    color: white;
+    padding: var(--spacing-3) var(--spacing-5);
+    border: none;
     border-radius: var(--radius-md);
     font-size: var(--font-size-sm);
-    font-weight: 600;
-    transition: background-color 0.2s ease, transform 0.1s ease;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
   }
 
-  .actions button:hover {
-    transform: translateY(-1px);
-  }
-
-  .primary {
-    background: var(--primary);
-    color: #fff;
-  }
-
-  .primary:hover {
+  .edit-btn:hover {
     background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
   }
 
-  .secondary {
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
-    color: var(--primary-light);
-  }
-
-  .secondary:hover {
-    background: color-mix(in srgb, var(--primary) 20%, transparent);
-  }
-
-  .danger {
+  .delete-btn {
     background: var(--error);
-    color: #fff;
-  }
-
-  .danger:hover {
-    background: color-mix(in srgb, var(--error) 80%, #000 20%);
-  }
-
-  /************* Shimmer Skeleton *************/
-  @keyframes shimmer {
-    0% {
-      background-position: -400px 0;
-    }
-    100% {
-      background-position: 400px 0;
-    }
-  }
-
-  .shimmer {
-    background: linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--surface) 80%, transparent) 0%,
-      color-mix(in srgb, var(--surface) 60%, var(--primary-light) 20%) 50%,
-      color-mix(in srgb, var(--surface) 80%, transparent) 100%
-    );
-    background-size: 400px 100%;
-    animation: shimmer 1.2s infinite;
-  }
-
-  .skeleton-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--spacing-4);
-  }
-
-  .avatar-skeleton {
-    width: 96px;
-    height: 96px;
-    border-radius: 50%;
-  }
-
-  .line-skeleton {
-    height: 16px;
-    width: 80%;
+    color: white;
+    padding: var(--spacing-3) var(--spacing-5);
+    border: none;
     border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
   }
 
-  .line-skeleton.name {
-    height: 24px;
+  .delete-btn:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
   }
 
-  .skeleton-list {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-2);
-    margin-top: var(--spacing-4);
-  }
+  /* Responsive design */
+  @media (max-width: 768px) {
+    .modal-overlay {
+      padding-right: 16px;
+      padding-left: 16px;
+    }
 
-  /************* Error State *************/
-  .error-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--spacing-4);
-    text-align: center;
-    padding: var(--spacing-6);
-    color: var(--error);
-  }
-  .error-state p {
-    font-size: var(--font-size-base);
-  }
+    .modal {
+      max-width: none;
+    }
 
-  @media (max-width: 600px) {
-    .sidebar {
-      width: 100%;
-      padding-left: var(--spacing-4);
-      padding-right: var(--spacing-4);
+    .user-header {
+      flex-direction: column;
+      text-align: center;
+      gap: var(--spacing-3);
+    }
+
+    .info-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--spacing-1);
+    }
+
+    .info-value {
+      text-align: left;
+    }
+
+    .manager-info {
+      justify-content: flex-start;
     }
   }
 </style>
