@@ -114,10 +114,7 @@
   function zoomToSelection() {
     if (!selectionRect || !containerEl) return;
     const MIN_SIZE = 10;
-    if (
-      selectionRect.width < MIN_SIZE ||
-      selectionRect.height < MIN_SIZE
-    ) {
+    if (selectionRect.width < MIN_SIZE || selectionRect.height < MIN_SIZE) {
       deactivateSelectionTool();
       return;
     }
@@ -207,7 +204,7 @@
   function handleWheel(event) {
     event.preventDefault();
     const delta = -event.deltaY;
-    const zoomFactor = delta > 0 ? 1.05 : 0.95; // Reduced from 1.1/0.9 to 1.05/0.95
+    const zoomFactor = delta > 0 ? 1.02 : 0.98; // Reduced from 1.1/0.9 to 1.05/0.95
     const newScale = Math.min(Math.max(transform.scale * zoomFactor, 0.2), 3);
     const rect = containerEl.getBoundingClientRect();
     const center = {
@@ -355,6 +352,7 @@
   let selectedMember = null;
   let sidebarLoading = false;
   let sidebarError = null;
+  let navigationHistory = []; // Stack of previous members for back navigation
 
   function openAddMember() {
     showAddMember = true;
@@ -765,7 +763,9 @@
         canvasStore.panBy(-50, 0);
         break;
       case "Escape":
-        if (selectionToolActive) {
+        if (sidebarOpen) {
+          closeSidebar();
+        } else if (selectionToolActive) {
           deactivateSelectionTool();
         }
         break;
@@ -799,6 +799,25 @@
 
   function closeSidebar() {
     sidebarOpen = false;
+    navigationHistory = []; // Clear navigation history when closing
+  }
+
+  function handleSidebarBack() {
+    if (navigationHistory.length > 0) {
+      const previousMember = navigationHistory.pop();
+      selectedMember = previousMember;
+      // Don't add to history since we're going back
+      navigationHistory = [...navigationHistory]; // Trigger reactivity
+    }
+  }
+
+  function handleSidebarNavigate(event) {
+    const { member: targetMember } = event.detail;
+    // Add current member to history before navigating
+    if (selectedMember) {
+      navigationHistory = [...navigationHistory, selectedMember];
+    }
+    selectedMember = targetMember;
   }
 
   // Retry fetch after error
@@ -982,8 +1001,21 @@
           on:click={toggleSelectionTool}
         >
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <rect x="3" y="3" width="12" height="12" rx="1" ry="1" stroke-dasharray="2 2" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 16l5 5" />
+            <rect
+              x="3"
+              y="3"
+              width="12"
+              height="12"
+              rx="1"
+              ry="1"
+              stroke-dasharray="2 2"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M16 16l5 5"
+            />
           </svg>
         </button>
         <button
@@ -1085,9 +1117,14 @@
   <UserInfoSidebar
     open={sidebarOpen}
     member={selectedMember}
+    {members}
+    {organizationId}
+    {navigationHistory}
     loading={sidebarLoading}
     error={sidebarError}
     on:close={closeSidebar}
+    on:back={handleSidebarBack}
+    on:navigate={handleSidebarNavigate}
     on:retry={retrySidebar}
     on:edit={(e) => {
       editingMember = e.detail.member;
