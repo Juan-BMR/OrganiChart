@@ -13,6 +13,7 @@
   import EditMemberModal from "$lib/components/EditMemberModal.svelte";
   import PDFExportModal from "$lib/components/PDFExportModal.svelte";
   import UserInfoSidebar from "$lib/components/UserInfoSidebar.svelte";
+  import ChartColorPicker from "$lib/components/ChartColorPicker.svelte";
 
   import * as d3 from "d3";
   import html2canvas from "html2canvas";
@@ -936,7 +937,7 @@
                    L {parentCenterX - minX} {midY - minY}
                    L {childCenterX - minX} {midY - minY}
                    L {childCenterX - minX} {childTopY - minY}"
-                stroke="#6366f1"
+                stroke="var(--primary)"
                 stroke-width="2"
                 fill="none"
                 stroke-linecap="round"
@@ -1171,6 +1172,8 @@
       sidebarOpen = false;
     }}
   />
+
+  <ChartColorPicker />
 {/if}
 
 <style>
