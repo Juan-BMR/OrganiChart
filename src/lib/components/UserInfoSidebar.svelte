@@ -165,42 +165,56 @@
               <span class="info-label">Role:</span>
               <span class="info-value">{member?.role || "N/A"}</span>
             </div>
-          </div>
-        </div>
-
-        <!-- Organizational Context Section -->
-        <div class="info-section">
-          <h4 class="section-title">Organizational Context</h4>
-          <div class="info-grid">
-            <div class="info-item">
-              <span class="info-label">Reports to:</span>
-              <span class="info-value">
-                {#if manager}
-                  <div class="manager-info">
-                    {#if manager.photoURL}
-                      <img
-                        src={manager.photoURL}
-                        alt={manager.name}
-                        class="manager-avatar"
-                      />
-                    {/if}
-                    {manager.name}
-                  </div>
-                {:else}
-                  Top Level
-                {/if}
-              </span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Direct Reports:</span>
-              <span class="info-value">{directReports.length}</span>
-            </div>
             <div class="info-item">
               <span class="info-label">Member Since:</span>
               <span class="info-value">{joinDate}</span>
             </div>
           </div>
         </div>
+
+        <!-- Reports To Section -->
+        {#if manager}
+          <div class="info-section">
+            <h4 class="section-title">Reports To</h4>
+            <div class="reports-to-container">
+              <button
+                class="manager-item"
+                on:click={() => handleNavigateToMember(manager)}
+                title="View {manager.name}'s details"
+              >
+                <div class="manager-avatar">
+                  {#if manager.photoURL}
+                    <img src={manager.photoURL} alt={manager.name} />
+                  {:else}
+                    <span
+                      >{manager.name
+                        .split(" ")
+                        .slice(0, 2)
+                        .map((n) => n.charAt(0).toUpperCase())
+                        .join("")}</span
+                    >
+                  {/if}
+                </div>
+                <div class="manager-info">
+                  <div class="manager-name">{manager.name}</div>
+                  <div class="manager-role">
+                    {manager.role || "No role specified"}
+                  </div>
+                </div>
+                <div class="manager-arrow">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </div>
+              </button>
+            </div>
+          </div>
+        {/if}
       </div>
 
       <!-- Subordinates Section -->
@@ -467,18 +481,95 @@
     text-decoration: underline;
   }
 
-  .manager-info {
+  .reports-to-container {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--background);
+  }
+
+  .manager-item {
     display: flex;
     align-items: center;
-    gap: var(--spacing-2);
-    justify-content: flex-end;
+    gap: var(--spacing-3);
+    padding: var(--spacing-3);
+    background: var(--background);
+    border: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    border-radius: var(--radius-md);
+  }
+
+  .manager-item:hover {
+    background: var(--secondary);
+  }
+
+  .manager-item:active {
+    background: var(--primary);
+    color: white;
+  }
+
+  .manager-item:active .manager-name,
+  .manager-item:active .manager-role {
+    color: white;
   }
 
   .manager-avatar {
-    width: 24px;
-    height: 24px;
+    width: 40px;
+    height: 40px;
+    background: var(--background);
+    border: 2px solid var(--primary);
     border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .manager-avatar img {
+    width: 100%;
+    height: 100%;
     object-fit: cover;
+  }
+
+  .manager-avatar span {
+    color: var(--primary);
+    font-weight: 600;
+    font-size: var(--font-size-xs);
+  }
+
+  .manager-info {
+    flex: 1;
+  }
+
+  .manager-name {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-1);
+  }
+
+  .manager-role {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
+  .manager-arrow {
+    margin-left: auto;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+  }
+
+  .manager-arrow svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .manager-item:hover .manager-arrow {
+    color: var(--primary);
+    transform: translateX(2px);
   }
 
   .subordinates-container {
