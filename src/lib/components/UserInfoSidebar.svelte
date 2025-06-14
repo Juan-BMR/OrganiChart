@@ -43,6 +43,9 @@
 
   const dispatch = createEventDispatcher();
 
+  // Delete confirmation state
+  let showDeleteConfirmation = false;
+
   // Compute initials for avatar fallback
   $: initials = member?.name
     ? member.name
@@ -76,7 +79,16 @@
   }
 
   function handleDelete() {
+    showDeleteConfirmation = true;
+  }
+
+  function confirmDelete() {
+    showDeleteConfirmation = false;
     dispatch("delete", { member });
+  }
+
+  function cancelDelete() {
+    showDeleteConfirmation = false;
   }
 
   function handleBack() {
@@ -215,55 +227,62 @@
             </div>
           </div>
         {/if}
-      </div>
 
-      <!-- Subordinates Section -->
-      {#if directReports.length > 0}
-        <div class="info-section">
-          <h4 class="section-title">Subordinates ({directReports.length})</h4>
-          <div class="subordinates-container">
-            <div class="subordinates-list">
-              {#each directReports as subordinate}
-                <button
-                  class="subordinate-item"
-                  on:click={() => handleNavigateToMember(subordinate)}
-                  title="View {subordinate.name}'s details"
-                >
-                  <div class="subordinate-avatar">
-                    {#if subordinate.photoURL}
-                      <img src={subordinate.photoURL} alt={subordinate.name} />
-                    {:else}
-                      <span
-                        >{subordinate.name
-                          .split(" ")
-                          .slice(0, 2)
-                          .map((n) => n.charAt(0).toUpperCase())
-                          .join("")}</span
-                      >
-                    {/if}
-                  </div>
-                  <div class="subordinate-info">
-                    <div class="subordinate-name">{subordinate.name}</div>
-                    <div class="subordinate-role">
-                      {subordinate.role || "No role specified"}
+        <!-- Subordinates Section -->
+        {#if directReports.length > 0}
+          <div class="info-section">
+            <h4 class="section-title">Subordinates ({directReports.length})</h4>
+            <div class="subordinates-container">
+              <div class="subordinates-list">
+                {#each directReports as subordinate}
+                  <button
+                    class="subordinate-item"
+                    on:click={() => handleNavigateToMember(subordinate)}
+                    title="View {subordinate.name}'s details"
+                  >
+                    <div class="subordinate-avatar">
+                      {#if subordinate.photoURL}
+                        <img
+                          src={subordinate.photoURL}
+                          alt={subordinate.name}
+                        />
+                      {:else}
+                        <span
+                          >{subordinate.name
+                            .split(" ")
+                            .slice(0, 2)
+                            .map((n) => n.charAt(0).toUpperCase())
+                            .join("")}</span
+                        >
+                      {/if}
                     </div>
-                  </div>
-                  <div class="subordinate-arrow">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </button>
-              {/each}
+                    <div class="subordinate-info">
+                      <div class="subordinate-name">{subordinate.name}</div>
+                      <div class="subordinate-role">
+                        {subordinate.role || "No role specified"}
+                      </div>
+                    </div>
+                    <div class="subordinate-arrow">
+                      <svg
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </div>
+                  </button>
+                {/each}
+              </div>
             </div>
           </div>
-        </div>
-      {/if}
+        {/if}
+      </div>
 
       <footer class="modal-footer">
         <div class="action-buttons">
@@ -273,6 +292,79 @@
       </footer>
     </div>
   </div>
+
+  <!-- Delete Confirmation Modal -->
+  {#if showDeleteConfirmation}
+    <div
+      class="confirmation-overlay"
+      on:click|self={cancelDelete}
+      transition:fade={{ duration: 200 }}
+    >
+      <div
+        class="confirmation-modal"
+        transition:fly={{ y: -20, duration: 300 }}
+      >
+        <div class="confirmation-header">
+          <div class="warning-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"
+              />
+            </svg>
+          </div>
+          <h3>Delete Member</h3>
+        </div>
+
+        <div class="confirmation-body">
+          <p>
+            Are you sure you want to delete <strong>{member?.name}</strong>?
+          </p>
+
+          {#if directReports.length > 0}
+            <div class="subordinates-warning">
+              <p class="subordinates-info">
+                <strong
+                  >⚠️ This member has {directReports.length} subordinate{directReports.length ===
+                  1
+                    ? ""
+                    : "s"}:</strong
+                >
+              </p>
+              <ul class="subordinates-list-warning">
+                {#each directReports as subordinate}
+                  <li>{subordinate.name}</li>
+                {/each}
+              </ul>
+              <p class="reassignment-info">
+                {#if manager}
+                  These subordinates will be reassigned to <strong
+                    >{manager.name}</strong
+                  >.
+                {:else}
+                  These subordinates will become top-level members (no manager).
+                {/if}
+              </p>
+            </div>
+          {/if}
+
+          <p class="warning-text">
+            This action cannot be undone. The member will be permanently removed
+            from the organization chart.
+          </p>
+        </div>
+
+        <div class="confirmation-footer">
+          <button class="confirm-delete-btn" on:click={confirmDelete}>
+            Delete Member
+          </button>
+          <button class="cancel-btn" on:click={cancelDelete}> Cancel </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -723,6 +815,158 @@
     box-shadow: var(--shadow-md);
   }
 
+  /* Delete Confirmation Modal */
+  .confirmation-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    backdrop-filter: blur(4px);
+  }
+
+  .confirmation-modal {
+    background: var(--background);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 400px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    margin: var(--spacing-4);
+    padding: var(--spacing-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-4);
+  }
+
+  .confirmation-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+  }
+
+  .warning-icon {
+    width: 48px;
+    height: 48px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--error);
+    flex-shrink: 0;
+  }
+
+  .warning-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .confirmation-header h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .confirmation-body {
+    padding: 0;
+  }
+
+  .confirmation-body p {
+    margin: 0 0 var(--spacing-3) 0;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+  }
+
+  .confirmation-body p:last-child {
+    margin-bottom: 0;
+  }
+
+  .warning-text {
+    color: var(--text-secondary) !important;
+    font-size: var(--font-size-xs) !important;
+  }
+
+  .subordinates-warning {
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-3);
+    margin: var(--spacing-3) 0;
+  }
+
+  .subordinates-info {
+    color: var(--error) !important;
+    font-size: var(--font-size-sm) !important;
+    margin: 0 0 var(--spacing-2) 0 !important;
+  }
+
+  .subordinates-list-warning {
+    margin: var(--spacing-2) 0;
+    padding-left: var(--spacing-4);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+  }
+
+  .subordinates-list-warning li {
+    margin: var(--spacing-1) 0;
+  }
+
+  .reassignment-info {
+    color: var(--text-primary) !important;
+    font-size: var(--font-size-sm) !important;
+    margin: var(--spacing-2) 0 0 0 !important;
+    font-weight: 500;
+  }
+
+  .confirmation-footer {
+    display: flex;
+    gap: var(--spacing-3);
+    padding: 0;
+  }
+
+  .cancel-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    padding: var(--spacing-3) var(--spacing-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+  }
+
+  .cancel-btn:hover {
+    background: var(--secondary);
+    color: var(--text-primary);
+    border-color: var(--primary);
+  }
+
+  .confirm-delete-btn {
+    background: var(--error);
+    color: white;
+    padding: var(--spacing-3) var(--spacing-4);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+  }
+
+  .confirm-delete-btn:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
   /* Responsive design */
   @media (max-width: 768px) {
     .modal-overlay {
@@ -752,6 +996,15 @@
 
     .manager-info {
       justify-content: flex-start;
+    }
+
+    .confirmation-footer {
+      flex-direction: column-reverse;
+    }
+
+    .cancel-btn,
+    .confirm-delete-btn {
+      width: 100%;
     }
   }
 </style>

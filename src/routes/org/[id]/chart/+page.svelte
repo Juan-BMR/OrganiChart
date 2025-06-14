@@ -33,11 +33,37 @@
   // Track avatar centers separately to avoid reactive loops
   let avatarCenters = new Map();
 
+  // Sidebar state - declare before store subscription
+  let selectedMember = null;
+
+  // Modal state - declare before store subscription
+  let editingMember = null;
+
   // Subscribe to members store
   const unsubscribeMembers = membersStore.subscribe(
     ({ members: m, loading }) => {
       members = m;
       membersLoading = loading;
+
+      // Update selectedMember reference if it exists and members changed
+      if (selectedMember && m.length > 0) {
+        const updatedMember = m.find(
+          (member) => member.id === selectedMember.id
+        );
+        if (updatedMember) {
+          selectedMember = updatedMember;
+        }
+      }
+
+      // Update editingMember reference if it exists and members changed
+      if (editingMember && m.length > 0) {
+        const updatedEditingMember = m.find(
+          (member) => member.id === editingMember.id
+        );
+        if (updatedEditingMember) {
+          editingMember = updatedEditingMember;
+        }
+      }
     }
   );
 
@@ -338,7 +364,6 @@
 
   let showAddMember = false;
   let showEditMember = false;
-  let editingMember = null;
 
   // PDF Export Modal State
   let showPDFModal = false;
@@ -349,7 +374,6 @@
 
   // Sidebar state
   let sidebarOpen = false;
-  let selectedMember = null;
   let sidebarLoading = false;
   let sidebarError = null;
   let navigationHistory = []; // Stack of previous members for back navigation
@@ -372,8 +396,19 @@
 
   async function handleDeleteMember(event) {
     const member = event.detail.member;
-    if (confirm(`Delete ${member.name}?`)) {
+    try {
       await membersStore.deleteMember(member.id, organizationId);
+
+      // Close sidebar if the deleted member was selected
+      if (selectedMember?.id === member.id) {
+        sidebarOpen = false;
+        selectedMember = null;
+      }
+
+      console.log(`Successfully deleted member: ${member.name}`);
+    } catch (error) {
+      console.error("Failed to delete member:", error);
+      alert(`Failed to delete ${member.name}: ${error.message}`);
     }
   }
 

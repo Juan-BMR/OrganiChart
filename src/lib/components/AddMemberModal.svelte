@@ -63,12 +63,32 @@
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      error = "Please upload an image file";
+      error = "Please upload an image file (JPG, PNG, GIF, WebP)";
+      // Reset the file input
+      if (fileInput) {
+        fileInput.value = "";
+      }
+      return;
+    }
+
+    // Check for unsupported image formats (HEIC, HEIF, etc.)
+    const unsupportedTypes = ["image/heic", "image/heif"];
+    if (unsupportedTypes.includes(file.type.toLowerCase())) {
+      error =
+        "HEIC/HEIF files are not supported. Please convert to JPG or PNG first.";
+      // Reset the file input
+      if (fileInput) {
+        fileInput.value = "";
+      }
       return;
     }
 
     if (file.size > 2 * 1024 * 1024) {
       error = "File size must be below 2MB";
+      // Reset the file input
+      if (fileInput) {
+        fileInput.value = "";
+      }
       return;
     }
 
