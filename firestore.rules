@@ -32,10 +32,6 @@ service cloud.firestore {
       allow read, update, delete: if request.auth != null && 
         exists(/databases/$(database)/documents/organizations/$(resource.data.organizationId)) &&
         get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.ownerId == request.auth.uid;
-      
-      // Users with org permissions can read
-      allow read: if request.auth != null && 
-        exists(/databases/$(database)/documents/organization_permissions/$(request.auth.uid + '_' + resource.data.organizationId));
     }
     
     // Organization permissions collection
