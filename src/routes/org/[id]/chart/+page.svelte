@@ -12,6 +12,7 @@
   import AddMemberModal from "$lib/components/AddMemberModal.svelte";
   import EditMemberModal from "$lib/components/EditMemberModal.svelte";
   import PDFExportModal from "$lib/components/PDFExportModal.svelte";
+  import UserInfoSidebar from "$lib/components/UserInfoSidebar.svelte";
 
   import * as d3 from "d3";
   import html2canvas from "html2canvas";
@@ -32,11 +33,37 @@
   // Track avatar centers separately to avoid reactive loops
   let avatarCenters = new Map();
 
+  // Sidebar state - declare before store subscription
+  let selectedMember = null;
+
+  // Modal state - declare before store subscription
+  let editingMember = null;
+
   // Subscribe to members store
   const unsubscribeMembers = membersStore.subscribe(
     ({ members: m, loading }) => {
       members = m;
       membersLoading = loading;
+
+      // Update selectedMember reference if it exists and members changed
+      if (selectedMember && m.length > 0) {
+        const updatedMember = m.find(
+          (member) => member.id === selectedMember.id
+        );
+        if (updatedMember) {
+          selectedMember = updatedMember;
+        }
+      }
+
+      // Update editingMember reference if it exists and members changed
+      if (editingMember && m.length > 0) {
+        const updatedEditingMember = m.find(
+          (member) => member.id === editingMember.id
+        );
+        if (updatedEditingMember) {
+          editingMember = updatedEditingMember;
+        }
+      }
     }
   );
 
@@ -113,10 +140,7 @@
   function zoomToSelection() {
     if (!selectionRect || !containerEl) return;
     const MIN_SIZE = 10;
-    if (
-      selectionRect.width < MIN_SIZE ||
-      selectionRect.height < MIN_SIZE
-    ) {
+    if (selectionRect.width < MIN_SIZE || selectionRect.height < MIN_SIZE) {
       deactivateSelectionTool();
       return;
     }
@@ -206,7 +230,7 @@
   function handleWheel(event) {
     event.preventDefault();
     const delta = -event.deltaY;
-    const zoomFactor = delta > 0 ? 1.05 : 0.95; // Reduced from 1.1/0.9 to 1.05/0.95
+    const zoomFactor = delta > 0 ? 1.02 : 0.98; // Reduced from 1.1/0.9 to 1.05/0.95
     const newScale = Math.min(Math.max(transform.scale * zoomFactor, 0.2), 3);
     const rect = containerEl.getBoundingClientRect();
     const center = {
@@ -340,14 +364,19 @@
 
   let showAddMember = false;
   let showEditMember = false;
-  let editingMember = null;
 
   // PDF Export Modal State
   let showPDFModal = false;
   let pdfProgress = 0;
   let pdfCurrentStage = "";
   let pdfStageNumber = 0;
-  const pdfTotalStages = 6;
+  let pdfTotalStages = 0;
+
+  // Sidebar state
+  let sidebarOpen = false;
+  let sidebarLoading = false;
+  let sidebarError = null;
+  let navigationHistory = []; // Stack of previous members for back navigation
 
   function openAddMember() {
     showAddMember = true;
@@ -367,8 +396,19 @@
 
   async function handleDeleteMember(event) {
     const member = event.detail.member;
-    if (confirm(`Delete ${member.name}?`)) {
+    try {
       await membersStore.deleteMember(member.id, organizationId);
+
+      // Close sidebar if the deleted member was selected
+      if (selectedMember?.id === member.id) {
+        sidebarOpen = false;
+        selectedMember = null;
+      }
+
+      console.log(`Successfully deleted member: ${member.name}`);
+    } catch (error) {
+      console.error("Failed to delete member:", error);
+      alert(`Failed to delete ${member.name}: ${error.message}`);
     }
   }
 
@@ -758,7 +798,9 @@
         canvasStore.panBy(-50, 0);
         break;
       case "Escape":
-        if (selectionToolActive) {
+        if (sidebarOpen) {
+          closeSidebar();
+        } else if (selectionToolActive) {
           deactivateSelectionTool();
         }
         break;
@@ -768,6 +810,66 @@
     window.addEventListener("keydown", keyHandler);
     return () => window.removeEventListener("keydown", keyHandler);
   });
+
+  // Handler when a node is clicked
+  async function handleSelectMember(event) {
+    const { member } = event.detail;
+    // For now, we have member data already. If additional fetch needed, set loading.
+    sidebarLoading = true;
+    sidebarError = null;
+    sidebarOpen = true;
+
+    try {
+      // Placeholder for async fetch of detailed data, e.g. via store or API
+      // const data = await membersStore.fetchDetailed(member.id);
+      // selectedMember = data;
+      selectedMember = member;
+      sidebarLoading = false;
+    } catch (err) {
+      console.error(err);
+      sidebarError = "Failed to load member details.";
+      sidebarLoading = false;
+    }
+  }
+
+  function closeSidebar() {
+    sidebarOpen = false;
+    navigationHistory = []; // Clear navigation history when closing
+  }
+
+  function handleSidebarBack() {
+    if (navigationHistory.length > 0) {
+      const previousMember = navigationHistory.pop();
+      selectedMember = previousMember;
+      // Don't add to history since we're going back
+      navigationHistory = [...navigationHistory]; // Trigger reactivity
+    }
+  }
+
+  function handleSidebarNavigate(event) {
+    const { member: targetMember } = event.detail;
+    // Add current member to history before navigating
+    if (selectedMember) {
+      navigationHistory = [...navigationHistory, selectedMember];
+    }
+    selectedMember = targetMember;
+  }
+
+  // Retry fetch after error
+  async function retrySidebar() {
+    if (!selectedMember) return;
+    sidebarError = null;
+    sidebarLoading = true;
+    try {
+      // const data = await membersStore.fetchDetailed(selectedMember.id);
+      // selectedMember = data;
+      sidebarLoading = false;
+    } catch (err) {
+      console.error(err);
+      sidebarError = "Failed to load member details.";
+      sidebarLoading = false;
+    }
+  }
 </script>
 
 <svelte:head>
@@ -854,6 +956,7 @@
             size={100}
             on:edit={handleEditMember}
             on:delete={handleDeleteMember}
+            on:select={handleSelectMember}
           />
         {/each}
 
@@ -933,8 +1036,21 @@
           on:click={toggleSelectionTool}
         >
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <rect x="3" y="3" width="12" height="12" rx="1" ry="1" stroke-dasharray="2 2" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 16l5 5" />
+            <rect
+              x="3"
+              y="3"
+              width="12"
+              height="12"
+              rx="1"
+              ry="1"
+              stroke-dasharray="2 2"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M16 16l5 5"
+            />
           </svg>
         </button>
         <button
@@ -1030,6 +1146,30 @@
     currentStage={pdfCurrentStage}
     currentStageNumber={pdfStageNumber}
     totalStages={pdfTotalStages}
+  />
+
+  <!-- User info sidebar -->
+  <UserInfoSidebar
+    open={sidebarOpen}
+    member={selectedMember}
+    {members}
+    {organizationId}
+    {navigationHistory}
+    loading={sidebarLoading}
+    error={sidebarError}
+    on:close={closeSidebar}
+    on:back={handleSidebarBack}
+    on:navigate={handleSidebarNavigate}
+    on:retry={retrySidebar}
+    on:edit={(e) => {
+      editingMember = e.detail.member;
+      showEditMember = true;
+    }}
+    on:delete={(e) => handleDeleteMember(e)}
+    on:viewInChart={() => {
+      // sidebar already open on the member's position; close?
+      sidebarOpen = false;
+    }}
   />
 {/if}
 

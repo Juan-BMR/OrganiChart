@@ -9,6 +9,8 @@ import {
   updateDoc,
   doc,
   deleteDoc,
+  getDocs,
+  getDoc,
 } from "firebase/firestore";
 import { COLLECTIONS, createMemberData } from "$lib/db/collections.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
@@ -224,8 +226,8 @@ function createMembersStore() {
       }
     },
 
-    // Update member fields (name, role, managerId, etc.)
-    updateMember: async (memberId, updates, photoFile = null) => {
+    // Update member fields (name, role, email, etc.)
+    updateMember: async (memberId, updates, photoFile = undefined) => {
       try {
         const memberRef = doc(db, COLLECTIONS.MEMBERS, memberId);
         await updateDoc(memberRef, {
@@ -233,10 +235,25 @@ function createMembersStore() {
           updatedAt: new Date(),
         });
 
-        // handle optional new photo
-        if (photoFile) {
-          const { organizationId } = updates; // or pass separately
-          if (organizationId) {
+        // Handle photo operations
+        const { organizationId } = updates;
+        if (organizationId) {
+          if (photoFile === null) {
+            // Remove existing photo
+            try {
+              const path = `organizations/${organizationId}/members/${memberId}.jpg`;
+              const fileRef = storageRef(storage, path);
+              await deleteObject(fileRef);
+              // Remove photoURL from member document
+              await updateDoc(memberRef, { photoURL: null });
+            } catch (e) {
+              // Ignore if photo doesn't exist
+              console.debug("Photo removal - file not found:", e.code);
+              // Still remove photoURL from document even if file doesn't exist
+              await updateDoc(memberRef, { photoURL: null });
+            }
+          } else if (photoFile) {
+            // Upload new photo
             const { compressImage } = await import("$lib/utils/image.js");
             const compressed = await compressImage(photoFile, 0.7, 1024);
             const path = `organizations/${organizationId}/members/${memberId}.jpg`;
@@ -245,16 +262,63 @@ function createMembersStore() {
             const url = await getDownloadURL(fileRef);
             await updateDoc(memberRef, { photoURL: url });
           }
+          // If photoFile is undefined, don't change the photo
         }
       } catch (error) {
         console.error("Failed to update member", error);
+        throw error; // Re-throw to let the UI handle the error
       }
     },
 
     deleteMember: async (memberId, organizationId) => {
       try {
+        // First, get the member being deleted to know their manager
         const memberRef = doc(db, COLLECTIONS.MEMBERS, memberId);
+        const memberDoc = await getDoc(memberRef);
+        
+        if (!memberDoc.exists()) {
+          throw new Error("Member not found");
+        }
+        
+        const memberData = memberDoc.data();
+        const deletedMemberManagerId = memberData.managerId;
+        
+        // Find all subordinates (direct reports) of the member being deleted
+        const subordinatesQuery = query(
+          collection(db, COLLECTIONS.MEMBERS),
+          where("managerId", "==", memberId),
+          where("organizationId", "==", organizationId)
+        );
+        
+        const subordinatesSnapshot = await getDocs(subordinatesQuery);
+        const subordinates = subordinatesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        console.log(`Found ${subordinates.length} subordinates to reassign`);
+        
+        // Reassign subordinates to the deleted member's manager
+        // If deleted member was top-level (no manager), subordinates become top-level too
+        const newManagerId = deletedMemberManagerId || null;
+        
+        // Update all subordinates in parallel
+        const updatePromises = subordinates.map(subordinate => {
+          const subordinateRef = doc(db, COLLECTIONS.MEMBERS, subordinate.id);
+          return updateDoc(subordinateRef, {
+            managerId: newManagerId,
+            updatedAt: new Date(),
+          });
+        });
+        
+        // Wait for all subordinate updates to complete
+        await Promise.all(updatePromises);
+        
+        console.log(`Successfully reassigned ${subordinates.length} subordinates to manager: ${newManagerId || 'top-level'}`);
+        
+        // Now delete the member
         await deleteDoc(memberRef);
+        
         // Remove picture
         if (organizationId) {
           const path = `organizations/${organizationId}/members/${memberId}.jpg`;
@@ -266,8 +330,12 @@ function createMembersStore() {
             console.debug("ignore missing photo", e.code);
           }
         }
+        
+        console.log(`Successfully deleted member ${memberId} and reassigned ${subordinates.length} subordinates`);
+        
       } catch (error) {
         console.error("Failed to delete member", error);
+        throw error; // Re-throw to let the UI handle the error
       }
     },
   };

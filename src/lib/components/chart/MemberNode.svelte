@@ -1,29 +1,17 @@
 <script>
   export let member;
-  import { spring } from "svelte/motion";
   import { scale } from "svelte/transition";
   export let x = 0;
   export let y = 0;
   export let size = 90; // diameter of avatar circle
-  export let draggable = true;
-  import { canvasStore } from "$lib/stores/canvas.js";
-  import { membersStore } from "$lib/stores/members.js";
   import NodeContextMenu from "./NodeContextMenu.svelte";
   import { createEventDispatcher } from "svelte";
 
-  let isDragging = false;
-  let dragStart = { x: 0, y: 0 };
   let showMenu = false;
   let menuX = 0;
   let menuY = 0;
 
   const dispatch = createEventDispatcher();
-
-  const xSpring = spring(x, { stiffness: 0.12, damping: 0.4 });
-  const ySpring = spring(y, { stiffness: 0.12, damping: 0.4 });
-
-  $: xSpring.set(x);
-  $: ySpring.set(y);
 
   // Compute initials if no photo
   $: initials = member?.name
@@ -33,33 +21,6 @@
         .map((n) => n.charAt(0).toUpperCase())
         .join("")
     : "";
-
-  function handlePointerDown(event) {
-    if (!draggable) return;
-    event.stopPropagation();
-    isDragging = true;
-    dragStart = { x: event.clientX, y: event.clientY };
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-  }
-
-  function handlePointerMove(event) {
-    if (!isDragging) return;
-    const dx = (event.clientX - dragStart.x) / $canvasStore.scale;
-    const dy = (event.clientY - dragStart.y) / $canvasStore.scale;
-    x += dx;
-    y += dy;
-    dragStart = { x: event.clientX, y: event.clientY };
-  }
-
-  function handlePointerUp() {
-    if (!isDragging) return;
-    isDragging = false;
-    window.removeEventListener("pointermove", handlePointerMove);
-    window.removeEventListener("pointerup", handlePointerUp);
-    // Persist position
-    membersStore.updatePosition(member.id, { x, y });
-  }
 
   function handleContextMenu(event) {
     event.preventDefault();
@@ -82,13 +43,18 @@
     dispatch("delete", { member });
     closeMenu();
   }
+
+  // Emit select when user clicks the node
+  function handleClick(event) {
+    dispatch("select", { member });
+  }
 </script>
 
 <div
   class="member-node"
-  style="left: {$xSpring}px; top: {$ySpring}px;"
-  on:pointerdown={handlePointerDown}
+  style="left: {x}px; top: {y}px;"
   on:contextmenu={handleContextMenu}
+  on:click|stopPropagation={handleClick}
   in:scale={{ duration: 200 }}
   out:scale={{ duration: 150 }}
 >
@@ -122,11 +88,16 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    cursor: grab;
+    cursor: pointer;
     user-select: none;
-    touch-action: none;
+    transition: all 0.2s ease;
     z-index: 2;
     width: 160px; /* Fixed width for consistent positioning */
+  }
+
+  .member-node:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
   }
 
   .avatar {
@@ -137,7 +108,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    touch-action: manipulation;
+    transition: all 0.2s ease;
+  }
+
+  .member-node:hover .avatar {
+    border-color: var(--primary-light);
+    transform: scale(1.05);
   }
 
   .avatar img {
@@ -166,6 +142,12 @@
     text-overflow: ellipsis;
     backdrop-filter: blur(4px);
     width: fit-content;
+    transition: all 0.2s ease;
+  }
+
+  .member-node:hover .member-info {
+    background: color-mix(in srgb, var(--background) 95%, transparent);
+    border-color: var(--primary);
   }
 
   .name {
