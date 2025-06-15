@@ -14,6 +14,7 @@
   let name = "";
   let role = "";
   let email = "";
+  let startDate = "";
   let file = null;
   let filePreviewUrl = null;
   let fileInput;
@@ -26,6 +27,16 @@
     name = member.name;
     role = member.role;
     email = member.email || "";
+    // Format startDate for date input (YYYY-MM-DD)
+    startDate = member.startDate
+      ? new Date(
+          member.startDate.seconds
+            ? member.startDate.seconds * 1000
+            : member.startDate
+        )
+          .toISOString()
+          .split("T")[0]
+      : new Date().toISOString().split("T")[0];
     file = null; // Reset photo state
     filePreviewUrl = null;
     currentMemberId = member.id;
@@ -51,6 +62,7 @@
     name = "";
     role = "";
     email = "";
+    startDate = "";
     error = null;
     currentMemberId = null;
 
@@ -146,10 +158,13 @@
       }
       // If file is null/undefined and not "REMOVE_PHOTO", don't pass fileToUpdate (keep existing photo)
 
+      // Convert startDate string to Date object
+      const startDateObj = startDate ? new Date(startDate) : new Date();
+
       // Update member with basic information only
       await membersStore.updateMember(
         member.id,
-        { name, role, email, organizationId },
+        { name, role, email, startDate: startDateObj, organizationId },
         fileToUpdate
       );
       close();
@@ -211,6 +226,16 @@
           type="text"
           placeholder="Enter job title or role"
           bind:value={role}
+          disabled={loading}
+        />
+
+        <label class="input-label" for="edit-member-start-date"
+          >Start Date</label
+        >
+        <input
+          id="edit-member-start-date"
+          type="date"
+          bind:value={startDate}
           disabled={loading}
         />
 
@@ -468,7 +493,8 @@
   }
 
   input[type="text"],
-  input[type="email"] {
+  input[type="email"],
+  input[type="date"] {
     padding: var(--spacing-3);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
@@ -481,10 +507,57 @@
   }
 
   input[type="text"]:focus,
-  input[type="email"]:focus {
+  input[type="email"]:focus,
+  input[type="date"]:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
     outline: none;
+  }
+
+  /* Date input icon styling for dark mode */
+  input[type="date"] {
+    color-scheme: light dark;
+    position: relative;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    background: transparent;
+    bottom: 0;
+    color: transparent;
+    cursor: pointer;
+    height: auto;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: auto;
+    opacity: 0;
+  }
+
+  /* Custom calendar icon */
+  input[type="date"] {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px 16px;
+    padding-right: 40px;
+  }
+
+  /* Dark theme calendar icon */
+  [data-theme="dark"] input[type="date"] {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%239ca3af'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd'/%3e%3c/svg%3e");
+  }
+
+  /* System dark mode */
+  @media (prefers-color-scheme: dark) {
+    input[type="date"] {
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%239ca3af'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd'/%3e%3c/svg%3e");
+    }
+  }
+
+  /* Light theme override */
+  [data-theme="light"] input[type="date"] {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd'/%3e%3c/svg%3e");
   }
 
   input.error {

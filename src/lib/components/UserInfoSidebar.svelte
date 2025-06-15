@@ -63,12 +63,20 @@
   // Find direct reports
   $: directReports = members.filter((m) => m.managerId === member?.id) || [];
 
-  // Format date
-  $: joinDate = member?.createdAt
+  // Format start date (when they joined the organization)
+  $: joinDate = member?.startDate
     ? new Date(
-        member.createdAt.toDate ? member.createdAt.toDate() : member.createdAt
+        member.startDate.toDate
+          ? member.startDate.toDate()
+          : member.startDate.seconds
+            ? member.startDate.seconds * 1000
+            : member.startDate
       ).toLocaleDateString()
-    : "N/A";
+    : member?.createdAt
+      ? new Date(
+          member.createdAt.toDate ? member.createdAt.toDate() : member.createdAt
+        ).toLocaleDateString()
+      : "N/A";
 
   function handleClose() {
     dispatch("close");

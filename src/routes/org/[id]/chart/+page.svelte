@@ -2014,7 +2014,7 @@
   }
 
   .zoom-btn:hover {
-    background: var(--chart-primary, var(--primary));
+    background: var(--primary);
     color: white;
     transform: scale(1.05);
   }
@@ -2254,7 +2254,7 @@
   }
 
   .zoom-btn.active {
-    background: var(--chart-primary, var(--primary));
+    background: var(--primary);
     color: white;
   }
 </style>
