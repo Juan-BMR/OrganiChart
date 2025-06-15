@@ -498,49 +498,59 @@
           ? `Processing ${firebaseImages.length} profile images...`
           : "Preparing chart for export...";
 
-      // Process images (same as before)
+      // Process Firebase images by converting them to data URLs
       if (firebaseImages.length > 0) {
         for (const img of firebaseImages) {
           try {
             const originalUrl = img.src;
-            const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(originalUrl)}`;
 
             imageReplacements.push({
               img,
               originalSrc: originalUrl,
             });
 
+            // Try to convert the image to a data URL
             await new Promise((resolve) => {
+              // Create a new image element to test loading
               const testImg = new Image();
-              testImg.crossOrigin = "anonymous";
 
               testImg.onload = () => {
                 try {
+                  // Create canvas to convert to data URL
                   const canvas = document.createElement("canvas");
                   const ctx = canvas.getContext("2d");
-                  canvas.width = testImg.naturalWidth;
-                  canvas.height = testImg.naturalHeight;
+                  canvas.width = testImg.naturalWidth || testImg.width;
+                  canvas.height = testImg.naturalHeight || testImg.height;
+
+                  // Draw the image to canvas
                   ctx.drawImage(testImg, 0, 0);
+
+                  // Convert to data URL
                   const dataURL = canvas.toDataURL("image/png");
                   img.src = dataURL;
+                  console.log(
+                    `Successfully converted Firebase image to data URL`
+                  );
                   resolve();
                 } catch (canvasError) {
                   console.warn(
                     "Failed to convert image to data URL:",
                     canvasError
                   );
+                  // Keep original src if conversion fails
                   resolve();
                 }
               };
 
               testImg.onerror = () => {
-                console.warn(
-                  `Failed to load image through proxy: ${originalUrl}`
-                );
+                console.warn(`Failed to load Firebase image: ${originalUrl}`);
+                // Keep original src if loading fails
                 resolve();
               };
 
-              testImg.src = proxyUrl;
+              // Set crossOrigin before src to handle CORS
+              testImg.crossOrigin = "anonymous";
+              testImg.src = originalUrl;
             });
           } catch (error) {
             console.warn("Failed to process image:", img.src, error);
@@ -879,22 +889,18 @@
           try {
             const originalUrl = img.src;
 
-            // Use our proxy API to avoid CORS issues
-            const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(originalUrl)}`;
-
-            // Create a new image element to test loading through proxy
+            // Try to convert Firebase image to data URL directly
             const testImg = new Image();
-            testImg.crossOrigin = "anonymous";
 
-            await new Promise((resolve, reject) => {
+            await new Promise((resolve) => {
               testImg.onload = () => {
                 try {
-                  // Successfully loaded through proxy, now convert to data URL
+                  // Successfully loaded, now convert to data URL
                   const canvas = document.createElement("canvas");
                   const ctx = canvas.getContext("2d");
 
-                  canvas.width = testImg.naturalWidth;
-                  canvas.height = testImg.naturalHeight;
+                  canvas.width = testImg.naturalWidth || testImg.width;
+                  canvas.height = testImg.naturalHeight || testImg.height;
 
                   ctx.drawImage(testImg, 0, 0);
                   const dataURL = canvas.toDataURL("image/png");
@@ -909,7 +915,7 @@
                   // Replace the image src with data URL
                   img.src = dataURL;
                   console.log(
-                    `Successfully proxied and converted image for ${img.alt || "user"}`
+                    `Successfully converted Firebase image to data URL for ${img.alt || "user"}`
                   );
                   resolve();
                 } catch (canvasError) {
@@ -922,14 +928,14 @@
               };
 
               testImg.onerror = () => {
-                console.warn(
-                  `Failed to load image through proxy: ${originalUrl}`
-                );
+                console.warn(`Failed to load Firebase image: ${originalUrl}`);
                 // Keep original - will likely be replaced with initials placeholder
                 resolve();
               };
 
-              testImg.src = proxyUrl;
+              // Set crossOrigin before src to handle CORS
+              testImg.crossOrigin = "anonymous";
+              testImg.src = originalUrl;
             });
           } catch (error) {
             console.warn("Failed to process image:", img.src, error);
@@ -2097,8 +2103,8 @@
   /* Selection rectangle */
   .selection-rect {
     position: absolute;
-    border: 2px dashed var(--primary);
-    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    border: 2px dashed #6366f1;
+    background: rgba(99, 102, 241, 0.15);
     pointer-events: none;
     z-index: 120;
   }
@@ -2107,7 +2113,7 @@
   .pdf-frame-rect {
     position: absolute;
     border: 3px solid #ff6b35;
-    background: color-mix(in srgb, #ff6b35 10%, transparent);
+    background: rgba(255, 107, 53, 0.1);
     pointer-events: none;
     z-index: 121;
     box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.3);
