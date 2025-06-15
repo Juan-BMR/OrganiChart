@@ -45,6 +45,12 @@
 
   // Delete confirmation state
   let showDeleteConfirmation = false;
+  let deleteModalElement;
+
+  // Focus delete modal when it opens
+  $: if (showDeleteConfirmation && deleteModalElement) {
+    deleteModalElement.focus();
+  }
 
   // Compute initials for avatar fallback
   $: initials = member?.name
@@ -110,6 +116,13 @@
   function handleKeyDown(event) {
     if (event.key === "Escape") {
       handleClose();
+    }
+  }
+
+  function handleDeleteModalKeyDown(event) {
+    if (event.key === "Escape") {
+      event.stopPropagation(); // Prevent ESC from bubbling up to close the sidebar
+      cancelDelete();
     }
   }
 </script>
@@ -310,6 +323,9 @@
     >
       <div
         class="confirmation-modal"
+        on:keydown={handleDeleteModalKeyDown}
+        tabindex="-1"
+        bind:this={deleteModalElement}
         transition:fly={{ y: -20, duration: 300 }}
       >
         <div class="confirmation-header">
