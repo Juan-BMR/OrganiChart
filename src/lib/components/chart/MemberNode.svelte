@@ -97,12 +97,12 @@
 
   .member-node:hover {
     transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    /* box-shadow: var(--shadow-md); */
   }
 
   .avatar {
     background: var(--background);
-    border: 4px solid var(--primary);
+    border: 4px solid var(--chart-primary, var(--primary));
     border-radius: 50%;
     overflow: hidden;
     display: flex;
@@ -112,7 +112,7 @@
   }
 
   .member-node:hover .avatar {
-    border-color: var(--primary-light);
+    border-color: var(--chart-primary-light, var(--primary-light));
     transform: scale(1.05);
   }
 
@@ -123,7 +123,7 @@
   }
 
   .avatar span {
-    color: var(--primary);
+    color: var(--chart-primary, var(--primary));
     font-weight: 600;
     font-size: 1.25rem;
   }
@@ -136,7 +136,7 @@
     background: color-mix(in srgb, var(--background) 90%, transparent);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
-    border: 1px solid var(--border);
+    border: 0.5px solid var(--chart-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -147,7 +147,7 @@
 
   .member-node:hover .member-info {
     background: color-mix(in srgb, var(--background) 95%, transparent);
-    border-color: var(--primary);
+    border-color: var(--chart-primary, var(--primary));
   }
 
   .name {
