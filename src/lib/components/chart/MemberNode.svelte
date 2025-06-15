@@ -133,7 +133,7 @@
     text-align: center;
     max-width: 200px; /* Fixed width slightly smaller than node width */
     padding: var(--spacing-1) var(--spacing-2);
-    background: rgba(255, 255, 255, 0.9);
+    background: color-mix(in srgb, var(--background) 90%, transparent);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
     border: 0.5px solid var(--chart-primary);
@@ -146,7 +146,7 @@
   }
 
   .member-node:hover .member-info {
-    background: rgba(255, 255, 255, 0.95);
+    background: color-mix(in srgb, var(--background) 95%, transparent);
     border-color: var(--chart-primary, var(--primary));
   }
 
