@@ -420,7 +420,7 @@
   let pdfProgress = 0;
   let pdfCurrentStage = "";
   let pdfStageNumber = 0;
-  let pdfTotalStages = 0;
+  let pdfTotalStages = 6;
 
   // PDF Export Framing State
   let pdfFramingMode = false;
