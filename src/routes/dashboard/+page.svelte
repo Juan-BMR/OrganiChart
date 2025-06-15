@@ -353,8 +353,16 @@
     transform: translateY(-2px);
   }
 
-  .org-card.existing:hover .card-actions {
-    opacity: 1;
+  .org-card.existing:hover .edit-btn {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+
+  .org-card.existing:hover .delete-btn {
+    background: var(--error);
+    color: white;
+    border-color: var(--error);
   }
 
   .card-actions {
@@ -364,13 +372,13 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-1);
-    opacity: 0;
-    transition: opacity 0.2s ease;
+    opacity: 1;
+    transition: all 0.2s ease;
     z-index: 10;
   }
 
   .action-btn {
-    border: none;
+    border: 1px solid var(--border);
     border-radius: var(--radius-md);
     width: 32px;
     height: 32px;
@@ -379,7 +387,8 @@
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
-    color: white;
+    background: transparent;
+    color: var(--border);
   }
 
   .action-btn:hover {
@@ -389,22 +398,20 @@
   .action-btn svg {
     width: 16px;
     height: 16px;
-  }
-
-  .edit-btn {
-    background: var(--primary);
+    stroke: currentColor;
+    fill: none;
   }
 
   .edit-btn:hover {
-    background: var(--primary-dark);
-  }
-
-  .delete-btn {
-    background: var(--error);
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
   }
 
   .delete-btn:hover {
-    background: #dc2626;
+    background: var(--error);
+    color: white;
+    border-color: var(--error);
   }
 
   .org-content {

@@ -2097,12 +2097,8 @@
   /* Selection rectangle */
   .selection-rect {
     position: absolute;
-    border: 2px dashed var(--chart-primary, var(--primary));
-    background: color-mix(
-      in srgb,
-      var(--chart-primary, var(--primary)) 15%,
-      transparent
-    );
+    border: 2px dashed var(--primary);
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
     pointer-events: none;
     z-index: 120;
   }
