@@ -1109,7 +1109,7 @@
               styleEl.textContent = styleEl.textContent
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*90%,\s*transparent\)/g,
-                  surfaceColor
+                  backgroundColor
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*95%,\s*transparent\)/g,
@@ -1132,7 +1132,7 @@
             if (el.style.cssText) {
               el.style.cssText = el.style.cssText.replace(
                 /color-mix\([^)]+\)/g,
-                surfaceColor
+                backgroundColor
               );
             }
           });
@@ -1146,7 +1146,7 @@
             }
             /* Ensure proper theming for PDF export */
             .member-info {
-              background: ${surfaceColor} !important;
+              background: ${backgroundColor} !important;
             }
             .member-node:hover .member-info {
               background: ${backgroundColor} !important;
