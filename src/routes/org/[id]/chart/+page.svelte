@@ -1060,68 +1060,36 @@
             element.classList.contains("modal-overlay")
           );
         },
-        onclone: async (clonedDoc) => {
+        onclone: (clonedDoc) => {
           // Detect current theme - dark mode is default (no data-theme), light mode has data-theme="light"
           const isLightMode =
             document.documentElement.getAttribute("data-theme") === "light";
 
-          // Get computed CSS variables for proper theming
-          const computedStyle = getComputedStyle(document.documentElement);
-          const surfaceColor = computedStyle
-            .getPropertyValue("--surface")
-            .trim();
-          const backgroundColor = computedStyle
-            .getPropertyValue("--background")
-            .trim();
-          const primarySelection = isLightMode
-            ? "rgba(99, 102, 241, 0.15)"
-            : "rgba(129, 140, 248, 0.2)";
-
-          // Convert Firebase Storage URLs to data URLs to avoid CORS issues
-          const images = clonedDoc.querySelectorAll(
-            'img[src*="firebasestorage.googleapis.com"]'
-          );
-          for (const img of images) {
-            try {
-              const response = await fetch(img.src);
-              const blob = await response.blob();
-              const dataUrl = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.readAsDataURL(blob);
-              });
-              img.src = dataUrl;
-            } catch (error) {
-              console.warn(
-                "Failed to convert image to data URL:",
-                img.src,
-                error
-              );
-              // Keep original src as fallback
-            }
-          }
+          // Set appropriate background colors based on theme
+          const backgroundRgba90 = isLightMode
+            ? "rgba(255, 255, 255, 0.9)"
+            : "rgba(30, 41, 59, 0.9)";
+          const backgroundRgba95 = isLightMode
+            ? "rgba(255, 255, 255, 0.95)"
+            : "rgba(30, 41, 59, 0.95)";
 
           // Find all style elements and replace color-mix() functions
           const allStyles = clonedDoc.querySelectorAll("style");
           allStyles.forEach((styleEl) => {
             if (styleEl.textContent) {
-              // Replace color-mix() functions with theme-appropriate colors
+              // Replace color-mix() functions with theme-appropriate rgba equivalents
               styleEl.textContent = styleEl.textContent
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*90%,\s*transparent\)/g,
-                  backgroundColor
+                  backgroundRgba90
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*95%,\s*transparent\)/g,
-                  backgroundColor
+                  backgroundRgba95
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--chart-primary[^)]*\)\s*15%,\s*transparent\)/g,
-                  primarySelection
-                )
-                .replace(
-                  /color-mix\(in srgb,\s*var\(--primary\)\s*15%,\s*transparent\)/g,
-                  primarySelection
+                  "rgba(99, 102, 241, 0.15)"
                 );
             }
           });
@@ -1132,7 +1100,7 @@
             if (el.style.cssText) {
               el.style.cssText = el.style.cssText.replace(
                 /color-mix\([^)]+\)/g,
-                backgroundColor
+                backgroundRgba90
               );
             }
           });
@@ -1143,13 +1111,6 @@
             * {
               backdrop-filter: none !important;
               -webkit-backdrop-filter: none !important;
-            }
-            /* Ensure proper theming for PDF export */
-            .member-info {
-              background: ${backgroundColor} !important;
-            }
-            .member-node:hover .member-info {
-              background: ${backgroundColor} !important;
             }
           `;
           clonedDoc.head.appendChild(style);
@@ -1514,7 +1475,7 @@
   }
 </script>
 
-Didn<svelte:head>
+<svelte:head>
   <title
     >{organization ? organization.name + " Chart" : "Org Chart"} - OrganiChart</title
   >
@@ -2136,32 +2097,19 @@ Didn<svelte:head>
   /* Selection rectangle */
   .selection-rect {
     position: absolute;
-    border: 2px dashed #818cf8; /* Dark mode default */
-    background: rgba(129, 140, 248, 0.2);
+    border: 2px dashed var(--primary);
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
     pointer-events: none;
     z-index: 120;
-  }
-
-  /* Light mode selection rectangle */
-  :global([data-theme="light"]) .selection-rect {
-    border-color: #6366f1;
-    background: rgba(99, 102, 241, 0.15);
   }
 
   /* PDF Frame rectangle */
   .pdf-frame-rect {
     position: absolute;
-    border: 3px solid #ff8a65; /* Dark mode default */
-    background: rgba(255, 138, 101, 0.15);
+    border: 3px solid #ff6b35;
+    background: color-mix(in srgb, #ff6b35 10%, transparent);
     pointer-events: none;
     z-index: 121;
-    box-shadow: 0 0 0 2px rgba(255, 138, 101, 0.4);
-  }
-
-  /* Light mode PDF frame */
-  :global([data-theme="light"]) .pdf-frame-rect {
-    border-color: #ff6b35;
-    background: rgba(255, 107, 53, 0.1);
     box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.3);
   }
 
@@ -2187,15 +2135,10 @@ Didn<svelte:head>
   .pdf-framing-border {
     position: absolute;
     background: transparent;
-    border: 3px solid #818cf8; /* Dark mode default */
+    border: 3px solid var(--primary);
     border-style: dashed;
     z-index: 2002;
     pointer-events: none;
-  }
-
-  /* Light mode PDF framing border */
-  :global([data-theme="light"]) .pdf-framing-border {
-    border-color: #6366f1;
   }
   .pdf-framing-instructions-overlay {
     position: fixed;

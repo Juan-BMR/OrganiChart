@@ -133,7 +133,7 @@
     text-align: center;
     max-width: 200px; /* Fixed width slightly smaller than node width */
     padding: var(--spacing-1) var(--spacing-2);
-    background: var(--background); /* Same as chart background */
+    background: var(--background);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
     border: 0.5px solid var(--chart-primary);
@@ -146,12 +146,8 @@
   }
 
   .member-node:hover .member-info {
-    background: var(--background); /* Keep same background on hover */
+    background: var(--background);
     border-color: var(--chart-primary, var(--primary));
-    box-shadow: var(--shadow-md);
-    transform: scale(
-      1.02
-    ); /* Subtle scale effect on hover instead of background change */
   }
 
   .name {
