@@ -43,6 +43,7 @@ function createOrganizationsStore() {
   });
 
   let unsubscribePerms = null;
+  let unsubscribeOrgs = [];
   let currentUser = null;
 
   // Listen for auth changes
@@ -54,6 +55,8 @@ function createOrganizationsStore() {
       unsubscribePerms();
       unsubscribePerms = null;
     }
+    unsubscribeOrgs.forEach(unsub => unsub());
+    unsubscribeOrgs = [];
 
     if (!user) {
       currentUser = null;
@@ -78,38 +81,70 @@ function createOrganizationsStore() {
               set({ organizations: [], loading: false, error: null });
               return;
             }
-            // Fetch organizations in parallel using ids
-            const orgDocs = await Promise.all(
-              orgIds.map((id) => getDoc(doc(db, COLLECTIONS.ORGANIZATIONS, id))),
-            );
-            const orgsWithoutCount = orgDocs
-              .filter((d) => d.exists())
-              .map((d) => ({ id: d.id, ...d.data() }));
-            
-            // Count members for each organization
-            const orgsWithMemberCount = await Promise.all(
-              orgsWithoutCount.map(async (org) => {
-                try {
-                  const membersQuery = query(
-                    collection(db, COLLECTIONS.MEMBERS),
-                    where("organizationId", "==", org.id)
-                  );
-                  const membersSnapshot = await getDocs(membersQuery);
-                  return {
-                    ...org,
-                    memberCount: membersSnapshot.size
-                  };
-                } catch (err) {
-                  console.error(`Failed to count members for org ${org.id}:`, err);
-                  return {
-                    ...org,
-                    memberCount: 0
-                  };
+
+            // Clean up existing organization listeners
+            unsubscribeOrgs.forEach(unsub => unsub());
+            unsubscribeOrgs = [];
+
+            // Set up real-time listeners for each organization
+            const organizationsMap = new Map();
+            const processedOrgs = new Set();
+
+            const updateOrganizations = () => {
+              const orgsArray = Array.from(organizationsMap.values());
+              set({ organizations: orgsArray, loading: false, error: null });
+            };
+
+            orgIds.forEach(orgId => {
+              const orgUnsubscribe = onSnapshot(
+                doc(db, COLLECTIONS.ORGANIZATIONS, orgId),
+                async (orgDoc) => {
+                  if (orgDoc.exists()) {
+                    try {
+                      // Count members for this organization
+                      const membersQuery = query(
+                        collection(db, COLLECTIONS.MEMBERS),
+                        where("organizationId", "==", orgId)
+                      );
+                      const membersSnapshot = await getDocs(membersQuery);
+                      
+                      const orgData = {
+                        id: orgDoc.id,
+                        ...orgDoc.data(),
+                        memberCount: membersSnapshot.size
+                      };
+                      
+                      organizationsMap.set(orgId, orgData);
+                      processedOrgs.add(orgId);
+                      
+                      // Update immediately for real-time updates
+                      updateOrganizations();
+                    } catch (err) {
+                      console.error(`Failed to count members for org ${orgId}:`, err);
+                      const orgData = {
+                        id: orgDoc.id,
+                        ...orgDoc.data(),
+                        memberCount: 0
+                      };
+                      organizationsMap.set(orgId, orgData);
+                      processedOrgs.add(orgId);
+                      
+                      // Update immediately for real-time updates
+                      updateOrganizations();
+                    }
+                  } else {
+                    // Organization was deleted
+                    organizationsMap.delete(orgId);
+                    processedOrgs.delete(orgId);
+                    updateOrganizations();
+                  }
+                },
+                (error) => {
+                  console.error(`Organization listener error for ${orgId}:`, error);
                 }
-              })
-            );
-            
-            set({ organizations: orgsWithMemberCount, loading: false, error: null });
+              );
+              unsubscribeOrgs.push(orgUnsubscribe);
+            });
           } catch (err) {
             console.error("Failed to load organizations", err);
             set({ organizations: [], loading: false, error: err.message });
