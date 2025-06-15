@@ -3,6 +3,7 @@
   import { authStore } from "$lib/stores/auth.js";
   import { organizationsStore } from "$lib/stores/organizations.js";
   import CreateOrganizationModal from "$lib/components/CreateOrganizationModal.svelte";
+  import EditOrganizationModal from "$lib/components/EditOrganizationModal.svelte";
   import { goto } from "$app/navigation";
   import { onMount } from "svelte";
   import Header from "$lib/components/layout/Header.svelte";
@@ -19,6 +20,10 @@
   let organizationToDelete = null;
   let deleteModalElement;
   let deleteLoading = false;
+
+  // Edit organization state
+  let showEditOrganization = false;
+  let organizationToEdit = null;
 
   // Focus delete modal when it opens
   $: if (showDeleteConfirmation && deleteModalElement) {
@@ -67,6 +72,17 @@
 
   function closeCreateModal() {
     showCreateModal = false;
+  }
+
+  function handleEditOrganization(org, event) {
+    event.stopPropagation(); // Prevent navigation to the org
+    organizationToEdit = org;
+    showEditOrganization = true;
+  }
+
+  function closeEditOrganization() {
+    showEditOrganization = false;
+    organizationToEdit = null;
   }
 
   function handleDeleteOrganization(org, event) {
@@ -136,20 +152,36 @@
                 goto(`/org/${org.id}/chart`);
               }}
             >
-              <button
-                class="delete-btn"
-                on:click={(e) => handleDeleteOrganization(org, e)}
-                title="Delete organization"
-              >
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-              </button>
+              <div class="card-actions">
+                <button
+                  class="action-btn delete-btn"
+                  on:click={(e) => handleDeleteOrganization(org, e)}
+                  title="Delete organization"
+                >
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                </button>
+                <button
+                  class="action-btn edit-btn"
+                  on:click={(e) => handleEditOrganization(org, e)}
+                  title="Edit organization"
+                >
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
+                  </svg>
+                </button>
+              </div>
               <div class="org-content">
                 {#if org.logoURL}
                   <img src={org.logoURL} alt={org.name} class="org-logo" />
@@ -172,6 +204,12 @@
 <CreateOrganizationModal
   bind:open={showCreateModal}
   on:close={closeCreateModal}
+/>
+
+<EditOrganizationModal
+  bind:open={showEditOrganization}
+  organization={organizationToEdit}
+  on:close={closeEditOrganization}
 />
 
 <!-- Delete Confirmation Modal -->
@@ -315,16 +353,23 @@
     transform: translateY(-2px);
   }
 
-  .org-card.existing:hover .delete-btn {
+  .org-card.existing:hover .card-actions {
     opacity: 1;
   }
 
-  .delete-btn {
+  .card-actions {
     position: absolute;
     top: var(--spacing-2);
     right: var(--spacing-2);
-    background: var(--error);
-    color: white;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 10;
+  }
+
+  .action-btn {
     border: none;
     border-radius: var(--radius-md);
     width: 32px;
@@ -333,19 +378,33 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    opacity: 0;
     transition: all 0.2s ease;
-    z-index: 10;
+    color: white;
+  }
+
+  .action-btn:hover {
+    transform: scale(1.1);
+  }
+
+  .action-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .edit-btn {
+    background: var(--primary);
+  }
+
+  .edit-btn:hover {
+    background: var(--primary-dark);
+  }
+
+  .delete-btn {
+    background: var(--error);
   }
 
   .delete-btn:hover {
     background: #dc2626;
-    transform: scale(1.1);
-  }
-
-  .delete-btn svg {
-    width: 16px;
-    height: 16px;
   }
 
   .org-content {

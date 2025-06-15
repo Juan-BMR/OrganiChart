@@ -19,6 +19,7 @@ import {
   ref as storageRef,
   uploadBytes,
   getDownloadURL,
+  deleteObject,
 } from "firebase/storage";
 import {
   COLLECTIONS,
@@ -200,6 +201,55 @@ function createOrganizationsStore() {
         });
       } catch (error) {
         console.error("Failed to update chart color:", error);
+        throw error;
+      }
+    },
+    updateOrganization: async (organizationId, updates, logoFile = undefined) => {
+      if (!currentUser) throw new Error("Not authenticated");
+      
+      try {
+        const updateData = { ...updates, updatedAt: new Date() };
+
+        // Handle logo update
+        if (logoFile !== undefined) {
+          if (logoFile === null) {
+            // Remove logo - delete from storage and remove URL from document
+            const orgDoc = await getDoc(doc(db, COLLECTIONS.ORGANIZATIONS, organizationId));
+            if (orgDoc.exists() && orgDoc.data().logoURL) {
+                           try {
+               // Delete from storage using common extensions
+               const logoPath = `organizations/${organizationId}/logo`;
+               // Try to delete with common extensions
+               const extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+               for (const ext of extensions) {
+                 try {
+                   await deleteObject(storageRef(storage, `${logoPath}.${ext}`));
+                   break; // If successful, stop trying other extensions
+                 } catch {
+                   // Continue to next extension
+                 }
+               }
+              } catch (error) {
+                console.warn("Failed to delete logo from storage:", error);
+                // Continue with update even if storage deletion fails
+              }
+            }
+            updateData.logoURL = null;
+          } else if (logoFile) {
+            // Upload new logo
+            const ext = getFileExtension(logoFile);
+            const path = `organizations/${organizationId}/logo.${ext}`;
+            const fileRef = storageRef(storage, path);
+            await uploadBytes(fileRef, logoFile);
+            const downloadURL = await getDownloadURL(fileRef);
+            updateData.logoURL = downloadURL;
+          }
+        }
+
+        // Update organization document
+        await updateDoc(doc(db, COLLECTIONS.ORGANIZATIONS, organizationId), updateData);
+      } catch (error) {
+        console.error("Failed to update organization:", error);
         throw error;
       }
     },
