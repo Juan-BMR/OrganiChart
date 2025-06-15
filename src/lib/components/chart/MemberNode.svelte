@@ -133,7 +133,7 @@
     text-align: center;
     max-width: 200px; /* Fixed width slightly smaller than node width */
     padding: var(--spacing-1) var(--spacing-2);
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--surface); /* Use CSS variable for proper theming */
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
     border: 0.5px solid var(--chart-primary);
@@ -145,19 +145,10 @@
     transition: all 0.2s ease;
   }
 
-  /* Dark mode support */
-  :global([data-theme="dark"]) .member-info {
-    background: rgba(30, 30, 30, 0.9);
-  }
-
   .member-node:hover .member-info {
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--background); /* Use CSS variable for proper theming */
     border-color: var(--chart-primary, var(--primary));
-  }
-
-  /* Dark mode hover support */
-  :global([data-theme="dark"]) .member-node:hover .member-info {
-    background: rgba(30, 30, 30, 0.95);
+    box-shadow: var(--shadow-md);
   }
 
   .name {

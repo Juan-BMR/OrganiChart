@@ -1065,13 +1065,14 @@
           const isLightMode =
             document.documentElement.getAttribute("data-theme") === "light";
 
-          // Set appropriate background colors based on theme
-          const backgroundRgba90 = isLightMode
-            ? "rgba(255, 255, 255, 0.9)"
-            : "rgba(30, 41, 59, 0.9)";
-          const backgroundRgba95 = isLightMode
-            ? "rgba(255, 255, 255, 0.95)"
-            : "rgba(30, 41, 59, 0.95)";
+          // Get computed CSS variables for proper theming
+          const computedStyle = getComputedStyle(document.documentElement);
+          const surfaceColor = computedStyle
+            .getPropertyValue("--surface")
+            .trim();
+          const backgroundColor = computedStyle
+            .getPropertyValue("--background")
+            .trim();
           const primarySelection = isLightMode
             ? "rgba(99, 102, 241, 0.15)"
             : "rgba(129, 140, 248, 0.2)";
@@ -1104,15 +1105,15 @@
           const allStyles = clonedDoc.querySelectorAll("style");
           allStyles.forEach((styleEl) => {
             if (styleEl.textContent) {
-              // Replace color-mix() functions with theme-appropriate rgba equivalents
+              // Replace color-mix() functions with theme-appropriate colors
               styleEl.textContent = styleEl.textContent
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*90%,\s*transparent\)/g,
-                  backgroundRgba90
+                  surfaceColor
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*95%,\s*transparent\)/g,
-                  backgroundRgba95
+                  backgroundColor
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--chart-primary[^)]*\)\s*15%,\s*transparent\)/g,
@@ -1131,30 +1132,24 @@
             if (el.style.cssText) {
               el.style.cssText = el.style.cssText.replace(
                 /color-mix\([^)]+\)/g,
-                backgroundRgba90
+                surfaceColor
               );
             }
           });
 
-          // Remove problematic CSS properties and add theme-specific styles
+          // Remove problematic CSS properties
           const style = clonedDoc.createElement("style");
           style.textContent = `
             * {
               backdrop-filter: none !important;
               -webkit-backdrop-filter: none !important;
             }
-            ${
-              !isLightMode
-                ? `
-            /* Dark mode specific overrides for PDF export */
+            /* Ensure proper theming for PDF export */
             .member-info {
-              background: rgba(30, 30, 30, 0.9) !important;
+              background: ${surfaceColor} !important;
             }
             .member-node:hover .member-info {
-              background: rgba(30, 30, 30, 0.95) !important;
-            }
-            `
-                : ""
+              background: ${backgroundColor} !important;
             }
           `;
           clonedDoc.head.appendChild(style);
@@ -2141,33 +2136,33 @@ Didn<svelte:head>
   /* Selection rectangle */
   .selection-rect {
     position: absolute;
-    border: 2px dashed #6366f1;
-    background: rgba(99, 102, 241, 0.15);
+    border: 2px dashed #818cf8; /* Dark mode default */
+    background: rgba(129, 140, 248, 0.2);
     pointer-events: none;
     z-index: 120;
   }
 
-  /* Dark mode selection rectangle */
-  :global([data-theme="dark"]) .selection-rect {
-    border-color: #818cf8;
-    background: rgba(129, 140, 248, 0.2);
+  /* Light mode selection rectangle */
+  :global([data-theme="light"]) .selection-rect {
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.15);
   }
 
   /* PDF Frame rectangle */
   .pdf-frame-rect {
     position: absolute;
-    border: 3px solid #ff6b35;
-    background: rgba(255, 107, 53, 0.1);
+    border: 3px solid #ff8a65; /* Dark mode default */
+    background: rgba(255, 138, 101, 0.15);
     pointer-events: none;
     z-index: 121;
-    box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.3);
+    box-shadow: 0 0 0 2px rgba(255, 138, 101, 0.4);
   }
 
-  /* Dark mode PDF frame */
-  :global([data-theme="dark"]) .pdf-frame-rect {
-    border-color: #ff8a65;
-    background: rgba(255, 138, 101, 0.15);
-    box-shadow: 0 0 0 2px rgba(255, 138, 101, 0.4);
+  /* Light mode PDF frame */
+  :global([data-theme="light"]) .pdf-frame-rect {
+    border-color: #ff6b35;
+    background: rgba(255, 107, 53, 0.1);
+    box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.3);
   }
 
   /* PDF Framing Mode Overlay */
@@ -2192,15 +2187,15 @@ Didn<svelte:head>
   .pdf-framing-border {
     position: absolute;
     background: transparent;
-    border: 3px solid #6366f1;
+    border: 3px solid #818cf8; /* Dark mode default */
     border-style: dashed;
     z-index: 2002;
     pointer-events: none;
   }
 
-  /* Dark mode PDF framing border */
-  :global([data-theme="dark"]) .pdf-framing-border {
-    border-color: #818cf8;
+  /* Light mode PDF framing border */
+  :global([data-theme="light"]) .pdf-framing-border {
+    border-color: #6366f1;
   }
   .pdf-framing-instructions-overlay {
     position: fixed;
