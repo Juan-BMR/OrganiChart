@@ -1,45 +1,28 @@
 <script>
-  import { createEventDispatcher, onMount } from "svelte";
-  import { membersStore } from "$lib/stores/members.js";
-  import { fade } from "svelte/transition";
+  import { createEventDispatcher } from "svelte";
+  import { organizationsStore } from "$lib/stores/organizations.js";
 
   export let open = false;
-  export let member; // existing member object
-  export let organizationId;
-  export let members = [];
+  export let organization; // existing organization object
 
   const dispatch = createEventDispatcher();
   let modalElement;
 
   let name = "";
-  let role = "";
-  let email = "";
-  let startDate = "";
-  let file = null;
-  let filePreviewUrl = null;
+  let logoFile = null;
+  let logoPreviewUrl = null;
   let fileInput;
   let error = null;
   let loading = false;
-  let currentMemberId = null; // Track which member we're currently editing
+  let currentOrganizationId = null; // Track which organization we're currently editing
 
-  // Initialize form values when modal opens or when member changes
-  $: if (open && member && member.id !== currentMemberId) {
-    name = member.name;
-    role = member.role;
-    email = member.email || "";
-    // Format startDate for date input (YYYY-MM-DD)
-    startDate = member.startDate
-      ? new Date(
-          member.startDate.seconds
-            ? member.startDate.seconds * 1000
-            : member.startDate
-        )
-          .toISOString()
-          .split("T")[0]
-      : new Date().toISOString().split("T")[0];
-    file = null; // Reset photo state
-    filePreviewUrl = null;
-    currentMemberId = member.id;
+  // Initialize form values when modal opens or when organization changes
+  $: if (open && organization && organization.id !== currentOrganizationId) {
+    name = organization.name;
+    logoFile = null; // Reset photo state
+    logoPreviewUrl = null;
+    currentOrganizationId = organization.id;
+    error = null;
   }
 
   // Focus the modal when it opens
@@ -49,22 +32,19 @@
 
   function close() {
     // Clean up file preview URL
-    if (filePreviewUrl) {
-      URL.revokeObjectURL(filePreviewUrl);
-      filePreviewUrl = null;
+    if (logoPreviewUrl) {
+      URL.revokeObjectURL(logoPreviewUrl);
+      logoPreviewUrl = null;
     }
-    file = null;
+    logoFile = null;
     if (fileInput) {
       fileInput.value = "";
     }
 
     // Reset form values
     name = "";
-    role = "";
-    email = "";
-    startDate = "";
     error = null;
-    currentMemberId = null;
+    currentOrganizationId = null;
 
     dispatch("close");
   }
@@ -83,18 +63,6 @@
       return;
     }
 
-    // Check for unsupported image formats (HEIC, HEIF, etc.)
-    const unsupportedTypes = ["image/heic", "image/heif"];
-    if (unsupportedTypes.includes(selectedFile.type.toLowerCase())) {
-      error =
-        "HEIC/HEIF files are not supported. Please convert to JPG or PNG first.";
-      // Reset the file input
-      if (fileInput) {
-        fileInput.value = "";
-      }
-      return;
-    }
-
     // Check file size (2MB limit)
     if (selectedFile.size > 2 * 1024 * 1024) {
       error = "File size must be below 2MB";
@@ -106,26 +74,26 @@
     }
 
     // File is valid
-    file = selectedFile;
+    logoFile = selectedFile;
     error = null;
-    filePreviewUrl = URL.createObjectURL(selectedFile);
+    logoPreviewUrl = URL.createObjectURL(selectedFile);
   }
 
   function handleRemoveFile() {
-    if (filePreviewUrl) {
-      URL.revokeObjectURL(filePreviewUrl);
+    if (logoPreviewUrl) {
+      URL.revokeObjectURL(logoPreviewUrl);
     }
-    file = null;
-    filePreviewUrl = null;
+    logoFile = null;
+    logoPreviewUrl = null;
     if (fileInput) {
       fileInput.value = "";
     }
   }
 
-  function handleRemoveCurrentPhoto() {
-    // Set a flag to remove the current photo when saving
-    file = "REMOVE_PHOTO"; // Special flag to indicate photo removal
-    filePreviewUrl = null;
+  function handleRemoveCurrentLogo() {
+    // Set a flag to remove the current logo when saving
+    logoFile = "REMOVE_LOGO"; // Special flag to indicate logo removal
+    logoPreviewUrl = null;
     if (fileInput) {
       fileInput.value = "";
     }
@@ -133,7 +101,7 @@
 
   function handleKeyDown(event) {
     if (event.key === "Escape") {
-      event.stopPropagation(); // Prevent ESC from bubbling up to close the sidebar
+      event.stopPropagation(); // Prevent ESC from bubbling up
       close();
     }
   }
@@ -144,39 +112,30 @@
 
     try {
       if (!name.trim()) {
-        error = "Name is required";
+        error = "Organization name is required";
         return;
       }
 
-      // Determine if we need to update the photo
-      let fileToUpdate = undefined; // undefined means don't change photo
+      // Determine if we need to update the logo
+      let logoToUpdate = undefined; // undefined means don't change logo
 
-      if (file === "REMOVE_PHOTO") {
-        fileToUpdate = null; // null means remove the photo
-      } else if (file && file !== "REMOVE_PHOTO") {
-        fileToUpdate = file; // file object means upload new photo
+      if (logoFile === "REMOVE_LOGO") {
+        logoToUpdate = null; // null means remove the logo
+      } else if (logoFile && logoFile !== "REMOVE_LOGO") {
+        logoToUpdate = logoFile; // file object means upload new logo
       }
-      // If file is null/undefined and not "REMOVE_PHOTO", don't pass fileToUpdate (keep existing photo)
+      // If logoFile is null/undefined and not "REMOVE_LOGO", don't pass logoToUpdate (keep existing logo)
 
-      // Convert startDate string to Date object
-      const startDateObj = startDate ? new Date(startDate) : new Date();
-
-      // Update member with basic information only
-      await membersStore.updateMember(
-        member.id,
-        { name, role, email, startDate: startDateObj, organizationId },
-        fileToUpdate
+      // Update organization
+      await organizationsStore.updateOrganization(
+        organization.id,
+        { name: name.trim() },
+        logoToUpdate
       );
       close();
     } catch (err) {
-      console.error("EditMemberModal submit error:", err);
-
-      if (err.code === "permission-denied") {
-        error =
-          "Permission denied. You need admin access to update members. Please contact the organization owner.";
-      } else {
-        error = err.message || "Failed to update member";
-      }
+      console.error("EditOrganizationModal submit error:", err);
+      error = err.message || "Failed to update organization";
     } finally {
       loading = false;
     }
@@ -192,7 +151,7 @@
       bind:this={modalElement}
     >
       <header class="modal-header">
-        <h2>Edit Member</h2>
+        <h2>Edit Organization</h2>
         <button class="close-btn" on:click={close}>×</button>
       </header>
 
@@ -201,48 +160,20 @@
           <p class="error-message">{error}</p>
         {/if}
 
-        <label class="input-label" for="edit-member-name">Name</label>
+        <label class="input-label" for="edit-org-name">Company Name</label>
         <input
-          id="edit-member-name"
+          id="edit-org-name"
           type="text"
-          placeholder="Enter full name"
+          placeholder="Enter company name"
           bind:value={name}
           class:error={error && !name.trim()}
           disabled={loading}
         />
 
-        <label class="input-label" for="edit-member-email">Email</label>
-        <input
-          id="edit-member-email"
-          type="email"
-          placeholder="Enter email address"
-          bind:value={email}
-          disabled={loading}
-        />
-
-        <label class="input-label" for="edit-member-role">Role / Title</label>
-        <input
-          id="edit-member-role"
-          type="text"
-          placeholder="Enter job title or role"
-          bind:value={role}
-          disabled={loading}
-        />
-
-        <label class="input-label" for="edit-member-start-date"
-          >Start Date</label
-        >
-        <input
-          id="edit-member-start-date"
-          type="date"
-          bind:value={startDate}
-          disabled={loading}
-        />
-
-        <label class="input-label" for="edit-photo-upload">Photo</label>
-        <div class="photo-upload-container">
+        <label class="input-label" for="edit-logo-upload">Logo</label>
+        <div class="logo-upload-container">
           <div class="upload-area" on:click={() => fileInput.click()}>
-            {#if file === "REMOVE_PHOTO"}
+            {#if logoFile === "REMOVE_LOGO"}
               <div class="upload-placeholder">
                 <svg
                   class="upload-icon"
@@ -258,14 +189,14 @@
                   />
                 </svg>
                 <p>
-                  <strong>Click to upload photo</strong>
+                  <strong>Click to upload logo</strong>
                   <span class="upload-hint">JPG, PNG, GIF, WebP up to 2MB</span>
                 </p>
               </div>
-            {:else if filePreviewUrl}
-              <div class="photo-preview">
-                <img src={filePreviewUrl} alt="Photo preview" />
-                <div class="photo-overlay">
+            {:else if logoPreviewUrl}
+              <div class="logo-preview">
+                <img src={logoPreviewUrl} alt="Logo preview" />
+                <div class="logo-overlay">
                   <svg
                     class="camera-icon"
                     fill="none"
@@ -288,10 +219,10 @@
                   <span>Click to change</span>
                 </div>
               </div>
-            {:else if member?.photoURL}
-              <div class="photo-preview">
-                <img src={member.photoURL} alt="Current photo" />
-                <div class="photo-overlay">
+            {:else if organization?.logoURL}
+              <div class="logo-preview">
+                <img src={organization.logoURL} alt="Current logo" />
+                <div class="logo-overlay">
                   <svg
                     class="camera-icon"
                     fill="none"
@@ -330,20 +261,20 @@
                   />
                 </svg>
                 <p>
-                  <strong>Click to upload photo</strong>
+                  <strong>Click to upload logo</strong>
                   <span class="upload-hint">JPG, PNG, GIF, WebP up to 2MB</span>
                 </p>
               </div>
             {/if}
           </div>
 
-          <div class="photo-actions">
-            {#if filePreviewUrl}
+          <div class="logo-actions">
+            {#if logoPreviewUrl}
               <button
                 type="button"
-                class="photo-action-btn remove"
+                class="logo-action-btn remove"
                 on:click={handleRemoveFile}
-                title="Cancel new photo"
+                title="Cancel new logo"
               >
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -355,12 +286,12 @@
                 </svg>
                 Cancel
               </button>
-            {:else if member?.photoURL && file !== "REMOVE_PHOTO"}
+            {:else if organization?.logoURL && logoFile !== "REMOVE_LOGO"}
               <button
                 type="button"
-                class="photo-action-btn remove"
-                on:click={handleRemoveCurrentPhoto}
-                title="Remove current photo"
+                class="logo-action-btn remove"
+                on:click={handleRemoveCurrentLogo}
+                title="Remove current logo"
               >
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -370,15 +301,15 @@
                     d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                   />
                 </svg>
-                Remove Photo
+                Remove Logo
               </button>
             {/if}
 
             <button
               type="button"
-              class="photo-action-btn change"
+              class="logo-action-btn change"
               on:click={() => fileInput.click()}
-              title="Change photo"
+              title="Change logo"
             >
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -394,14 +325,15 @@
                   d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
                 />
               </svg>
-              {filePreviewUrl || (member?.photoURL && file !== "REMOVE_PHOTO")
-                ? "Change Photo"
-                : "Add Photo"}
+              {logoPreviewUrl ||
+              (organization?.logoURL && logoFile !== "REMOVE_LOGO")
+                ? "Change Logo"
+                : "Add Logo"}
             </button>
           </div>
         </div>
         <input
-          id="edit-photo-upload"
+          id="edit-logo-upload"
           type="file"
           accept="image/*"
           on:change={handleFileChange}
@@ -492,9 +424,7 @@
     margin-bottom: var(--spacing-1);
   }
 
-  input[type="text"],
-  input[type="email"],
-  input[type="date"] {
+  input[type="text"] {
     padding: var(--spacing-3);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
@@ -506,58 +436,10 @@
       box-shadow 0.2s ease;
   }
 
-  input[type="text"]:focus,
-  input[type="email"]:focus,
-  input[type="date"]:focus {
+  input[type="text"]:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
     outline: none;
-  }
-
-  /* Date input icon styling for dark mode */
-  input[type="date"] {
-    color-scheme: light dark;
-    position: relative;
-  }
-
-  input[type="date"]::-webkit-calendar-picker-indicator {
-    background: transparent;
-    bottom: 0;
-    color: transparent;
-    cursor: pointer;
-    height: auto;
-    left: 0;
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: auto;
-    opacity: 0;
-  }
-
-  /* Custom calendar icon */
-  input[type="date"] {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd'/%3e%3c/svg%3e");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    background-size: 16px 16px;
-    padding-right: 40px;
-  }
-
-  /* Dark theme calendar icon */
-  [data-theme="dark"] input[type="date"] {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%239ca3af'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd'/%3e%3c/svg%3e");
-  }
-
-  /* System dark mode */
-  @media (prefers-color-scheme: dark) {
-    input[type="date"] {
-      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%239ca3af'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd'/%3e%3c/svg%3e");
-    }
-  }
-
-  /* Light theme override */
-  [data-theme="light"] input[type="date"] {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd'/%3e%3c/svg%3e");
   }
 
   input.error {
@@ -574,7 +456,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 100px;
+    min-height: 120px;
     font-size: var(--font-size-sm);
     transition:
       border-color 0.2s ease,
@@ -586,19 +468,7 @@
     background: var(--surface);
   }
 
-  .upload-area img {
-    max-width: 100%;
-    max-height: 80px;
-    object-fit: contain;
-    border-radius: var(--radius-md);
-  }
-
-  .upload-hint {
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-  }
-
-  .photo-upload-container {
+  .logo-upload-container {
     position: relative;
     display: flex;
     flex-direction: column;
@@ -630,20 +500,25 @@
     color: var(--text-secondary);
   }
 
-  .photo-preview {
+  .upload-hint {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
+  .logo-preview {
     position: relative;
     display: inline-block;
   }
 
-  .photo-preview img {
+  .logo-preview img {
     max-width: 100%;
-    max-height: 80px;
+    max-height: 100px;
     object-fit: contain;
     border-radius: var(--radius-md);
     transition: opacity 0.2s ease;
   }
 
-  .photo-overlay {
+  .logo-overlay {
     position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.7);
@@ -660,7 +535,7 @@
     font-weight: 500;
   }
 
-  .upload-area:hover .photo-overlay {
+  .upload-area:hover .logo-overlay {
     opacity: 1;
   }
 
@@ -669,13 +544,13 @@
     height: 20px;
   }
 
-  .photo-actions {
+  .logo-actions {
     display: flex;
     gap: var(--spacing-2);
     flex-wrap: wrap;
   }
 
-  .photo-action-btn {
+  .logo-action-btn {
     display: inline-flex;
     align-items: center;
     gap: var(--spacing-1);
@@ -688,27 +563,27 @@
     transition: all 0.2s ease;
   }
 
-  .photo-action-btn.remove {
+  .logo-action-btn.remove {
     background: var(--error);
     color: white;
   }
 
-  .photo-action-btn.remove:hover {
+  .logo-action-btn.remove:hover {
     background: #dc2626;
     transform: translateY(-1px);
   }
 
-  .photo-action-btn.change {
+  .logo-action-btn.change {
     background: var(--primary);
     color: white;
   }
 
-  .photo-action-btn.change:hover {
+  .logo-action-btn.change:hover {
     background: var(--primary-dark);
     transform: translateY(-1px);
   }
 
-  .photo-action-btn svg {
+  .logo-action-btn svg {
     width: 14px;
     height: 14px;
   }
@@ -744,6 +619,11 @@
   .cancel-btn:hover:not(:disabled) {
     background: var(--secondary);
     color: var(--text-primary);
+  }
+
+  .cancel-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .spinner {

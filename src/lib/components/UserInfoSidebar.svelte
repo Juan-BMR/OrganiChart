@@ -45,6 +45,12 @@
 
   // Delete confirmation state
   let showDeleteConfirmation = false;
+  let deleteModalElement;
+
+  // Focus delete modal when it opens
+  $: if (showDeleteConfirmation && deleteModalElement) {
+    deleteModalElement.focus();
+  }
 
   // Compute initials for avatar fallback
   $: initials = member?.name
@@ -63,12 +69,20 @@
   // Find direct reports
   $: directReports = members.filter((m) => m.managerId === member?.id) || [];
 
-  // Format date
-  $: joinDate = member?.createdAt
+  // Format start date (when they joined the organization)
+  $: joinDate = member?.startDate
     ? new Date(
-        member.createdAt.toDate ? member.createdAt.toDate() : member.createdAt
+        member.startDate.toDate
+          ? member.startDate.toDate()
+          : member.startDate.seconds
+            ? member.startDate.seconds * 1000
+            : member.startDate
       ).toLocaleDateString()
-    : "N/A";
+    : member?.createdAt
+      ? new Date(
+          member.createdAt.toDate ? member.createdAt.toDate() : member.createdAt
+        ).toLocaleDateString()
+      : "N/A";
 
   function handleClose() {
     dispatch("close");
@@ -102,6 +116,13 @@
   function handleKeyDown(event) {
     if (event.key === "Escape") {
       handleClose();
+    }
+  }
+
+  function handleDeleteModalKeyDown(event) {
+    if (event.key === "Escape") {
+      event.stopPropagation(); // Prevent ESC from bubbling up to close the sidebar
+      cancelDelete();
     }
   }
 </script>
@@ -302,6 +323,9 @@
     >
       <div
         class="confirmation-modal"
+        on:keydown={handleDeleteModalKeyDown}
+        tabindex="-1"
+        bind:this={deleteModalElement}
         transition:fly={{ y: -20, duration: 300 }}
       >
         <div class="confirmation-header">
