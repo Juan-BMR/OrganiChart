@@ -189,6 +189,19 @@ function createOrganizationsStore() {
   return {
     subscribe,
     createOrganization,
+    updateChartColor: async (organizationId, chartColor) => {
+      if (!currentUser) throw new Error("Not authenticated");
+      
+      try {
+        await updateDoc(doc(db, COLLECTIONS.ORGANIZATIONS, organizationId), {
+          chartColor,
+          updatedAt: new Date(),
+        });
+      } catch (error) {
+        console.error("Failed to update chart color:", error);
+        throw error;
+      }
+    },
   };
 }
 

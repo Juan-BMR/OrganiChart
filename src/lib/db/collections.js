@@ -27,6 +27,7 @@ export const createOrganizationData = (name, logoURL, ownerId) => ({
   name: name.trim(),
   logoURL: logoURL || null,
   ownerId,
+  chartColor: "#6366F1", // Default chart color
   createdAt: new Date(),
   updatedAt: new Date(),
   memberCount: 0,

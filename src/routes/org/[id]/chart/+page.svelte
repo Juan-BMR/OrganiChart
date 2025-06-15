@@ -138,6 +138,28 @@
     containerEl && (containerEl.style.cursor = "grab");
   }
 
+  function startPDFFraming() {
+    pdfFramingMode = true;
+    pdfFrameRect = null;
+    containerEl && (containerEl.style.cursor = "crosshair");
+  }
+
+  function cancelPDFFraming() {
+    pdfFramingMode = false;
+    pdfFrameRect = null;
+    containerEl && (containerEl.style.cursor = "grab");
+  }
+
+  function confirmPDFExport() {
+    if (!pdfFrameRect || pdfFrameRect.width < 10 || pdfFrameRect.height < 10) {
+      alert("Please draw a frame around the content you want to export.");
+      return;
+    }
+
+    // Start the actual PDF export with the framed area
+    exportFramedPDF();
+  }
+
   function zoomToSelection() {
     if (!selectionRect || !containerEl) return;
     const MIN_SIZE = 10;
@@ -179,7 +201,19 @@
 
   function handlePointerDown(event) {
     const rect = containerEl.getBoundingClientRect();
-    if (selectionToolActive) {
+    if (pdfFramingMode) {
+      // PDF framing mode
+      isSelecting = true;
+      const offsetX = event.clientX - rect.left;
+      const offsetY = event.clientY - rect.top;
+      selectionStart = { x: offsetX, y: offsetY };
+      pdfFrameRect = {
+        left: offsetX,
+        top: offsetY,
+        width: 0,
+        height: 0,
+      };
+    } else if (selectionToolActive) {
       isSelecting = true;
       const offsetX = event.clientX - rect.left;
       const offsetY = event.clientY - rect.top;
@@ -202,12 +236,22 @@
     if (isSelecting) {
       const offsetX = event.clientX - rect.left;
       const offsetY = event.clientY - rect.top;
-      selectionRect = {
-        left: Math.min(selectionStart.x, offsetX),
-        top: Math.min(selectionStart.y, offsetY),
-        width: Math.abs(offsetX - selectionStart.x),
-        height: Math.abs(offsetY - selectionStart.y),
-      };
+
+      if (pdfFramingMode) {
+        pdfFrameRect = {
+          left: Math.min(selectionStart.x, offsetX),
+          top: Math.min(selectionStart.y, offsetY),
+          width: Math.abs(offsetX - selectionStart.x),
+          height: Math.abs(offsetY - selectionStart.y),
+        };
+      } else {
+        selectionRect = {
+          left: Math.min(selectionStart.x, offsetX),
+          top: Math.min(selectionStart.y, offsetY),
+          width: Math.abs(offsetX - selectionStart.x),
+          height: Math.abs(offsetY - selectionStart.y),
+        };
+      }
     } else if (isPanning) {
       const dx = event.clientX - panStart.x;
       const dy = event.clientY - panStart.y;
@@ -219,8 +263,13 @@
   function handlePointerUp(event) {
     if (isSelecting) {
       isSelecting = false;
-      zoomToSelection();
-      return;
+      if (pdfFramingMode) {
+        // Don't zoom, just finish framing
+        return;
+      } else {
+        zoomToSelection();
+        return;
+      }
     }
     if (isPanning) {
       isPanning = false;
@@ -373,6 +422,10 @@
   let pdfStageNumber = 0;
   let pdfTotalStages = 0;
 
+  // PDF Export Framing State
+  let pdfFramingMode = false;
+  let pdfFrameRect = null; // { left, top, width, height }
+
   // Sidebar state
   let sidebarOpen = false;
   let sidebarLoading = false;
@@ -413,6 +466,380 @@
     }
   }
 
+  // New framed PDF export function
+  async function exportFramedPDF() {
+    if (!containerEl || !pdfFrameRect) return;
+
+    try {
+      // Hide the framing UI
+      pdfFramingMode = false;
+
+      // Show modal and start progress
+      showPDFModal = true;
+      pdfProgress = 0;
+      pdfStageNumber = 1;
+      pdfCurrentStage = "Initializing export...";
+
+      console.log("Starting framed PDF export...", pdfFrameRect);
+
+      // Convert Firebase images to use proxy URLs to avoid CORS issues
+      const firebaseImages = containerEl.querySelectorAll(
+        'img[src*="firebasestorage"]'
+      );
+      const imageReplacements = [];
+
+      console.log(`Found ${firebaseImages.length} Firebase images to process`);
+
+      // Update progress
+      pdfProgress = 15;
+      pdfStageNumber = 2;
+      pdfCurrentStage =
+        firebaseImages.length > 0
+          ? `Processing ${firebaseImages.length} profile images...`
+          : "Preparing chart for export...";
+
+      // Process images (same as before)
+      if (firebaseImages.length > 0) {
+        for (const img of firebaseImages) {
+          try {
+            const originalUrl = img.src;
+            const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(originalUrl)}`;
+
+            imageReplacements.push({
+              img,
+              originalSrc: originalUrl,
+            });
+
+            await new Promise((resolve) => {
+              const testImg = new Image();
+              testImg.crossOrigin = "anonymous";
+
+              testImg.onload = () => {
+                try {
+                  const canvas = document.createElement("canvas");
+                  const ctx = canvas.getContext("2d");
+                  canvas.width = testImg.naturalWidth;
+                  canvas.height = testImg.naturalHeight;
+                  ctx.drawImage(testImg, 0, 0);
+                  const dataURL = canvas.toDataURL("image/png");
+                  img.src = dataURL;
+                  resolve();
+                } catch (canvasError) {
+                  console.warn(
+                    "Failed to convert image to data URL:",
+                    canvasError
+                  );
+                  resolve();
+                }
+              };
+
+              testImg.onerror = () => {
+                console.warn(
+                  `Failed to load image through proxy: ${originalUrl}`
+                );
+                resolve();
+              };
+
+              testImg.src = proxyUrl;
+            });
+          } catch (error) {
+            console.warn("Failed to process image:", img.src, error);
+          }
+        }
+      }
+
+      console.log(`Successfully processed ${imageReplacements.length} images`);
+
+      // Update progress
+      pdfProgress = 40;
+      pdfStageNumber = 3;
+      pdfCurrentStage = "Using framed area for export...";
+
+      // Use the framed area directly
+      const frameWidth = pdfFrameRect.width;
+      const frameHeight = pdfFrameRect.height;
+
+      console.log("Framed area:", {
+        frame: pdfFrameRect,
+        dimensions: { frameWidth, frameHeight },
+      });
+
+      // Update progress
+      pdfProgress = 60;
+      pdfStageNumber = 4;
+      pdfCurrentStage = "Capturing framed area...";
+
+      // Capture the container element at high scale for better quality
+      const captureScale = 3;
+      const canvas = await html2canvas(containerEl, {
+        backgroundColor: "#ffffff",
+        scale: captureScale,
+        logging: false,
+        useCORS: true,
+        allowTaint: false,
+        ignoreElements: (element) => {
+          return (
+            element.classList.contains("color-picker") ||
+            element.classList.contains("floating-controls") ||
+            element.classList.contains("modal-overlay") ||
+            element.classList.contains("pdf-frame-rect")
+          );
+        },
+        onclone: (clonedDoc) => {
+          // Same theme detection and color replacement as before
+          const isLightMode =
+            document.documentElement.getAttribute("data-theme") === "light";
+
+          const backgroundRgba90 = isLightMode
+            ? "rgba(255, 255, 255, 0.9)"
+            : "rgba(30, 41, 59, 0.9)";
+          const backgroundRgba95 = isLightMode
+            ? "rgba(255, 255, 255, 0.95)"
+            : "rgba(30, 41, 59, 0.95)";
+
+          const allStyles = clonedDoc.querySelectorAll("style");
+          allStyles.forEach((styleEl) => {
+            if (styleEl.textContent) {
+              styleEl.textContent = styleEl.textContent
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--background\)\s*90%,\s*transparent\)/g,
+                  backgroundRgba90
+                )
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--background\)\s*95%,\s*transparent\)/g,
+                  backgroundRgba95
+                )
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--chart-primary[^)]*\)\s*15%,\s*transparent\)/g,
+                  "rgba(99, 102, 241, 0.15)"
+                );
+            }
+          });
+
+          const elementsWithStyle = clonedDoc.querySelectorAll("[style]");
+          elementsWithStyle.forEach((el) => {
+            if (el.style.cssText) {
+              el.style.cssText = el.style.cssText.replace(
+                /color-mix\([^)]+\)/g,
+                backgroundRgba90
+              );
+            }
+          });
+
+          const style = clonedDoc.createElement("style");
+          style.textContent = `
+            * {
+              backdrop-filter: none !important;
+              -webkit-backdrop-filter: none !important;
+            }
+          `;
+          clonedDoc.head.appendChild(style);
+        },
+      });
+
+      console.log("Canvas captured:", canvas.width, "x", canvas.height);
+
+      // Update progress
+      pdfProgress = 80;
+      pdfStageNumber = 5;
+      pdfCurrentStage = "Cropping to framed area...";
+
+      if (canvas.width === 0 || canvas.height === 0) {
+        alert("Export failed - captured canvas has zero dimensions.");
+        return;
+      }
+
+      // Calculate source coordinates in the high-scale captured canvas
+      // Frame coordinates are now correctly relative to container (after visual fix)
+      let sourceX = pdfFrameRect.left * captureScale;
+      let sourceY = pdfFrameRect.top * captureScale;
+      let sourceWidth = frameWidth * captureScale;
+      let sourceHeight = frameHeight * captureScale;
+
+      console.log("Y-axis debugging:", {
+        "pdfFrameRect.top": pdfFrameRect.top,
+        "containerEl.scrollTop": containerEl.scrollTop,
+        captureScale: captureScale,
+        "calculated sourceY": sourceY,
+        "canvas.height": canvas.height,
+        "container getBoundingClientRect": containerEl.getBoundingClientRect(),
+        "window.scrollY": window.scrollY,
+      });
+
+      // Ensure coordinates stay within canvas boundaries
+      sourceX = Math.max(0, Math.min(sourceX, canvas.width));
+      sourceY = Math.max(0, Math.min(sourceY, canvas.height));
+
+      // Adjust width and height to not exceed canvas boundaries
+      sourceWidth = Math.min(sourceWidth, canvas.width - sourceX);
+      sourceHeight = Math.min(sourceHeight, canvas.height - sourceY);
+
+      // Create a canvas for the cropped output using the adjusted dimensions
+      const croppedCanvas = document.createElement("canvas");
+      croppedCanvas.width = sourceWidth;
+      croppedCanvas.height = sourceHeight;
+      const ctx = croppedCanvas.getContext("2d");
+
+      console.log("Cropping details:", {
+        frame: pdfFrameRect,
+        source: { sourceX, sourceY, sourceWidth, sourceHeight },
+        canvasSize: `${canvas.width}x${canvas.height}`,
+        targetSize: `${croppedCanvas.width}x${croppedCanvas.height}`,
+        adjustedForBounds: true,
+      });
+
+      // Draw the framed portion to the cropped canvas
+      ctx.drawImage(
+        canvas,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        0,
+        0,
+        sourceWidth,
+        sourceHeight
+      );
+
+      // Restore original image sources
+      for (const replacement of imageReplacements) {
+        replacement.img.src = replacement.originalSrc;
+      }
+      console.log(`Restored ${imageReplacements.length} image sources`);
+
+      // Convert cropped canvas to image data
+      const imgData = croppedCanvas.toDataURL("image/png");
+      console.log(
+        "Final canvas dimensions:",
+        croppedCanvas.width,
+        "x",
+        croppedCanvas.height
+      );
+
+      if (imgData.length < 1000) {
+        console.error("Image data too small, likely empty");
+        alert("Export failed - captured image appears to be empty.");
+        return;
+      }
+
+      // Update progress
+      pdfProgress = 95;
+      pdfStageNumber = 6;
+      pdfCurrentStage = "Creating PDF document...";
+
+      // Use actual cropped canvas dimensions for PDF
+      const actualWidth = croppedCanvas.width / captureScale;
+      const actualHeight = croppedCanvas.height / captureScale;
+
+      // Determine orientation based on actual cropped dimensions
+      const isLandscape = actualWidth > actualHeight;
+      const orientation = isLandscape ? "landscape" : "portrait";
+
+      // Use actual dimensions for PDF
+      const pdfWidth = actualWidth;
+      const pdfHeight = actualHeight;
+      const pdfFormat = [actualWidth, actualHeight];
+
+      console.log("PDF orientation:", {
+        originalFrame: { frameWidth, frameHeight },
+        actualDimensions: { actualWidth, actualHeight },
+        aspectRatio: (actualWidth / actualHeight).toFixed(2),
+        orientation,
+        isLandscape,
+        finalDimensions: { pdfWidth, pdfHeight },
+      });
+
+      // Create PDF with determined orientation and dimensions
+      const pdf = new jsPDF({
+        orientation: orientation,
+        unit: "px",
+        format: pdfFormat,
+      });
+
+      console.log(
+        "PDF internal dimensions:",
+        pdf.internal.pageSize.getWidth(),
+        "x",
+        pdf.internal.pageSize.getHeight()
+      );
+
+      // Add the image to PDF using calculated dimensions
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight, "", "SLOW");
+
+      // Final progress update
+      pdfProgress = 100;
+      pdfCurrentStage = "Downloading PDF...";
+
+      // Save the PDF
+      const fileName = `${organization?.name || "orgchart"}.pdf`;
+
+      if ("showSaveFilePicker" in window) {
+        try {
+          const fileHandle = await window.showSaveFilePicker({
+            suggestedName: fileName,
+            types: [
+              {
+                description: "PDF files",
+                accept: { "application/pdf": [".pdf"] },
+              },
+            ],
+          });
+
+          const writableStream = await fileHandle.createWritable();
+          const pdfBlob = pdf.output("blob");
+          await writableStream.write(pdfBlob);
+          await writableStream.close();
+
+          console.log("PDF saved successfully");
+
+          setTimeout(() => {
+            showPDFModal = false;
+            pdfFrameRect = null;
+          }, 500);
+        } catch (err) {
+          if (err.name === "AbortError") {
+            // User cancelled the save dialog
+            console.log("PDF save cancelled by user");
+            setTimeout(() => {
+              showPDFModal = false;
+              pdfFrameRect = null;
+            }, 100);
+          } else {
+            console.error("Save failed:", err);
+            pdf.save(fileName);
+            setTimeout(() => {
+              showPDFModal = false;
+              pdfFrameRect = null;
+            }, 500);
+          }
+        }
+      } else {
+        pdf.save(fileName);
+
+        setTimeout(() => {
+          showPDFModal = false;
+          pdfFrameRect = null;
+        }, 500);
+      }
+    } catch (error) {
+      // Restore image sources in case of error
+      if (typeof imageReplacements !== "undefined") {
+        for (const replacement of imageReplacements) {
+          replacement.img.src = replacement.originalSrc;
+        }
+        console.log(
+          `Restored ${imageReplacements.length} image sources after error`
+        );
+      }
+
+      console.error("Framed PDF export failed:", error);
+      alert("Failed to export PDF: " + error.message);
+
+      showPDFModal = false;
+      pdfFrameRect = null;
+    }
+  }
+
   async function exportAsPDF() {
     if (!containerEl) return;
 
@@ -441,58 +868,73 @@
       // Update progress
       pdfProgress = 15;
       pdfStageNumber = 2;
-      pdfCurrentStage = `Processing ${firebaseImages.length} profile images...`;
+      pdfCurrentStage =
+        firebaseImages.length > 0
+          ? `Processing ${firebaseImages.length} profile images...`
+          : "Preparing chart for export...";
 
-      for (const img of firebaseImages) {
-        try {
-          const originalUrl = img.src;
+      // Only process images if there are any Firebase images
+      if (firebaseImages.length > 0) {
+        for (const img of firebaseImages) {
+          try {
+            const originalUrl = img.src;
 
-          // Use our proxy API to avoid CORS issues
-          const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(originalUrl)}`;
+            // Use our proxy API to avoid CORS issues
+            const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(originalUrl)}`;
 
-          // Create a new image element to test loading through proxy
-          const testImg = new Image();
-          testImg.crossOrigin = "anonymous";
+            // Create a new image element to test loading through proxy
+            const testImg = new Image();
+            testImg.crossOrigin = "anonymous";
 
-          await new Promise((resolve, reject) => {
-            testImg.onload = () => {
-              // Successfully loaded through proxy, now convert to data URL
-              const canvas = document.createElement("canvas");
-              const ctx = canvas.getContext("2d");
+            await new Promise((resolve, reject) => {
+              testImg.onload = () => {
+                try {
+                  // Successfully loaded through proxy, now convert to data URL
+                  const canvas = document.createElement("canvas");
+                  const ctx = canvas.getContext("2d");
 
-              canvas.width = testImg.naturalWidth;
-              canvas.height = testImg.naturalHeight;
+                  canvas.width = testImg.naturalWidth;
+                  canvas.height = testImg.naturalHeight;
 
-              ctx.drawImage(testImg, 0, 0);
-              const dataURL = canvas.toDataURL("image/png");
+                  ctx.drawImage(testImg, 0, 0);
+                  const dataURL = canvas.toDataURL("image/png");
 
-              // Store replacement info
-              imageReplacements.push({
-                img: img,
-                originalSrc: originalUrl,
-                dataURL: dataURL,
-              });
+                  // Store replacement info
+                  imageReplacements.push({
+                    img: img,
+                    originalSrc: originalUrl,
+                    dataURL: dataURL,
+                  });
 
-              // Replace the image src with data URL
-              img.src = dataURL;
-              console.log(
-                `Successfully proxied and converted image for ${img.alt || "user"}`
-              );
-              resolve();
-            };
+                  // Replace the image src with data URL
+                  img.src = dataURL;
+                  console.log(
+                    `Successfully proxied and converted image for ${img.alt || "user"}`
+                  );
+                  resolve();
+                } catch (canvasError) {
+                  console.warn(
+                    "Failed to convert image to data URL:",
+                    canvasError
+                  );
+                  resolve(); // Continue even if conversion fails
+                }
+              };
 
-            testImg.onerror = () => {
-              console.warn(
-                `Failed to load image through proxy: ${originalUrl}`
-              );
-              // Keep original - will likely be replaced with initials placeholder
-              resolve();
-            };
+              testImg.onerror = () => {
+                console.warn(
+                  `Failed to load image through proxy: ${originalUrl}`
+                );
+                // Keep original - will likely be replaced with initials placeholder
+                resolve();
+              };
 
-            testImg.src = proxyUrl;
-          });
-        } catch (error) {
-          console.warn("Failed to process image:", img.src, error);
+              testImg.src = proxyUrl;
+            });
+          } catch (error) {
+            console.warn("Failed to process image:", img.src, error);
+            // Continue processing other images even if one fails
+          }
         }
       }
 
@@ -501,31 +943,100 @@
       // Update progress
       pdfProgress = 40;
       pdfStageNumber = 3;
-      pdfCurrentStage = "Calculating chart boundaries...";
+      pdfCurrentStage = "Calculating visible chart boundaries...";
 
-      // Find the exact bounds of the actual chart elements (no padding)
-      const nodeWidth = 160;
-      const nodeHeight = 160; // Increased to capture full text below avatars
+      // Instead of calculating from node positions, use the current viewport bounds
+      // This ensures we capture exactly what's visible, accounting for zoom/pan
+      const viewportRect = containerEl.getBoundingClientRect();
 
-      // Get the absolute positions of the leftmost, rightmost, topmost, and bottommost elements
-      const leftmostX = Math.min(...nodesWithPosition.map((n) => n.x));
-      const rightmostX =
-        Math.max(...nodesWithPosition.map((n) => n.x)) + nodeWidth;
-      const topmostY = Math.min(...nodesWithPosition.map((n) => n.y));
-      const bottommostY =
-        Math.max(...nodesWithPosition.map((n) => n.y)) + nodeHeight;
+      // Get all visible nodes in screen coordinates
+      const visibleNodes = nodesWithPosition
+        .map((n) => {
+          // Convert canvas coordinates to screen coordinates
+          const screenX = n.x * transform.scale + transform.x;
+          const screenY = n.y * transform.scale + transform.y;
+          return { ...n, screenX, screenY };
+        })
+        .filter((n) => {
+          // Only include nodes that are at least partially visible
+          const nodeWidth = 160 * transform.scale;
+          const nodeHeight = 200 * transform.scale; // Generous height estimate
+          return (
+            n.screenX + nodeWidth > 0 &&
+            n.screenX < viewportRect.width &&
+            n.screenY + nodeHeight > 0 &&
+            n.screenY < viewportRect.height
+          );
+        });
 
-      // Calculate exact content dimensions
-      const contentWidth = rightmostX - leftmostX;
-      const contentHeight = bottommostY - topmostY;
+      if (visibleNodes.length === 0) {
+        alert(
+          "No visible chart content to export. Please adjust the view and try again."
+        );
+        return;
+      }
 
-      console.log("Exact chart bounds:", {
-        leftmostX,
-        topmostY,
-        rightmostX,
-        bottommostY,
-        contentWidth,
-        contentHeight,
+      // Calculate bounds of visible content in screen coordinates
+      const padding = 40;
+      const leftmostScreen =
+        Math.min(...visibleNodes.map((n) => n.screenX)) - padding;
+      const rightmostScreen =
+        Math.max(
+          ...visibleNodes.map((n) => n.screenX + 160 * transform.scale)
+        ) + padding;
+      const topmostScreen =
+        Math.min(...visibleNodes.map((n) => n.screenY)) - padding;
+      const bottommostScreen =
+        Math.max(
+          ...visibleNodes.map((n) => n.screenY + 200 * transform.scale)
+        ) + padding;
+
+      // Ensure bounds are within the container
+      const boundedLeft = Math.max(0, leftmostScreen);
+      const boundedTop = Math.max(0, topmostScreen);
+      const boundedRight = Math.min(viewportRect.width, rightmostScreen);
+      const boundedBottom = Math.min(viewportRect.height, bottommostScreen);
+
+      const contentWidth = boundedRight - boundedLeft;
+      const contentHeight = boundedBottom - boundedTop;
+
+      // Convert back to canvas coordinates for cropping
+      const paddedLeftmostX = (boundedLeft - transform.x) / transform.scale;
+      const paddedTopmostY = (boundedTop - transform.y) / transform.scale;
+      const paddedContentWidth = contentWidth / transform.scale;
+      const paddedContentHeight = contentHeight / transform.scale;
+
+      console.log("Viewport-based chart bounds:", {
+        viewport: {
+          width: viewportRect.width,
+          height: viewportRect.height,
+        },
+        transform: {
+          scale: transform.scale,
+          x: transform.x,
+          y: transform.y,
+        },
+        visibleNodes: visibleNodes.length,
+        screenBounds: {
+          leftmostScreen,
+          rightmostScreen,
+          topmostScreen,
+          bottommostScreen,
+        },
+        boundedBounds: {
+          boundedLeft,
+          boundedRight,
+          boundedTop,
+          boundedBottom,
+          contentWidth,
+          contentHeight,
+        },
+        canvasBounds: {
+          paddedLeftmostX,
+          paddedTopmostY,
+          paddedContentWidth,
+          paddedContentHeight,
+        },
       });
 
       // Update progress
@@ -536,12 +1047,74 @@
       // Capture the container element at high scale for better quality
       const captureScale = 3; // Higher scale for better definition
       const canvas = await html2canvas(containerEl, {
-        backgroundColor: null, // Use natural background
+        backgroundColor: "#ffffff", // Use solid white background instead of null
         scale: captureScale,
         logging: false,
         useCORS: true,
         allowTaint: false, // Safe since we're using data URLs
-        // No ignoreElements needed - all images are now data URLs
+        ignoreElements: (element) => {
+          // Ignore elements that might cause issues
+          return (
+            element.classList.contains("color-picker") ||
+            element.classList.contains("floating-controls") ||
+            element.classList.contains("modal-overlay")
+          );
+        },
+        onclone: (clonedDoc) => {
+          // Detect current theme - dark mode is default (no data-theme), light mode has data-theme="light"
+          const isLightMode =
+            document.documentElement.getAttribute("data-theme") === "light";
+
+          // Set appropriate background colors based on theme
+          const backgroundRgba90 = isLightMode
+            ? "rgba(255, 255, 255, 0.9)"
+            : "rgba(30, 41, 59, 0.9)";
+          const backgroundRgba95 = isLightMode
+            ? "rgba(255, 255, 255, 0.95)"
+            : "rgba(30, 41, 59, 0.95)";
+
+          // Find all style elements and replace color-mix() functions
+          const allStyles = clonedDoc.querySelectorAll("style");
+          allStyles.forEach((styleEl) => {
+            if (styleEl.textContent) {
+              // Replace color-mix() functions with theme-appropriate rgba equivalents
+              styleEl.textContent = styleEl.textContent
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--background\)\s*90%,\s*transparent\)/g,
+                  backgroundRgba90
+                )
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--background\)\s*95%,\s*transparent\)/g,
+                  backgroundRgba95
+                )
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--chart-primary[^)]*\)\s*15%,\s*transparent\)/g,
+                  "rgba(99, 102, 241, 0.15)"
+                );
+            }
+          });
+
+          // Also check inline styles
+          const elementsWithStyle = clonedDoc.querySelectorAll("[style]");
+          elementsWithStyle.forEach((el) => {
+            if (el.style.cssText) {
+              el.style.cssText = el.style.cssText.replace(
+                /color-mix\([^)]+\)/g,
+                backgroundRgba90
+              );
+            }
+          });
+
+          // Remove problematic CSS properties
+          const style = clonedDoc.createElement("style");
+          style.textContent = `
+            * {
+              backdrop-filter: none !important;
+              -webkit-backdrop-filter: none !important;
+            }
+          `;
+          clonedDoc.head.appendChild(style);
+        },
       });
 
       console.log("Canvas captured:", canvas.width, "x", canvas.height);
@@ -560,20 +1133,20 @@
       const croppedCanvas = document.createElement("canvas");
 
       // Set canvas to high resolution (scale up for quality, then we'll scale down for PDF)
-      croppedCanvas.width = contentWidth * captureScale;
-      croppedCanvas.height = contentHeight * captureScale;
+      croppedCanvas.width = paddedContentWidth * captureScale;
+      croppedCanvas.height = paddedContentHeight * captureScale;
       const ctx = croppedCanvas.getContext("2d");
 
       // Get the canvas div to read its transform
       const canvasDiv = containerEl.querySelector(".canvas");
       const computedStyle = window.getComputedStyle(canvasDiv);
-      const transform = computedStyle.transform;
+      const cssTransform = computedStyle.transform;
 
       // Extract translate values from transform matrix
       let translateX = 0,
         translateY = 0;
-      if (transform && transform !== "none") {
-        const matrix = transform.match(/matrix\(([^)]+)\)/);
+      if (cssTransform && cssTransform !== "none") {
+        const matrix = cssTransform.match(/matrix\(([^)]+)\)/);
         if (matrix) {
           const values = matrix[1].split(",").map(Number);
           translateX = values[4] || 0;
@@ -585,19 +1158,37 @@
       const containerRect = containerEl.getBoundingClientRect();
 
       // Calculate the exact source position in the high-scale captured canvas
-      const sourceX = Math.max(0, (translateX + leftmostX) * captureScale);
-      const sourceY = Math.max(0, (translateY + topmostY) * captureScale);
+      // Use the padding variables already declared above
+
+      const sourceX = Math.max(
+        0,
+        (translateX + paddedLeftmostX) * captureScale
+      );
+      const sourceY = Math.max(0, (translateY + paddedTopmostY) * captureScale);
       const sourceWidth = Math.min(
-        contentWidth * captureScale,
+        paddedContentWidth * captureScale,
         canvas.width - sourceX
       );
       const sourceHeight = Math.min(
-        contentHeight * captureScale,
+        paddedContentHeight * captureScale,
         canvas.height - sourceY
       );
 
       console.log("Cropping details:", {
-        chartBounds: { leftmostX, topmostY, rightmostX, bottommostY },
+        viewportBounds: {
+          boundedLeft,
+          boundedTop,
+          boundedRight,
+          boundedBottom,
+          contentWidth,
+          contentHeight,
+        },
+        canvasBounds: {
+          paddedLeftmostX,
+          paddedTopmostY,
+          paddedContentWidth,
+          paddedContentHeight,
+        },
         transform: { translateX, translateY },
         sourceRect: { sourceX, sourceY, sourceWidth, sourceHeight },
         canvasSize: `${canvas.width}x${canvas.height}`,
@@ -643,9 +1234,9 @@
       // Debug: Show what dimensions we're about to use for PDF
       console.log(
         "PDF will be created with dimensions:",
-        contentWidth,
+        paddedContentWidth,
         "x",
-        contentHeight
+        paddedContentHeight
       );
 
       // Update progress
@@ -657,7 +1248,7 @@
       const pdf = new jsPDF({
         // orientation: "portrait", // We'll handle orientation with custom format
         unit: "px",
-        format: [contentWidth, contentHeight], // Custom format exactly matching chart
+        format: [paddedContentWidth, paddedContentHeight], // Custom format exactly matching chart
       });
 
       console.log(
@@ -673,8 +1264,8 @@
         "PNG",
         0,
         0,
-        contentWidth,
-        contentHeight,
+        paddedContentWidth,
+        paddedContentHeight,
         "",
         "SLOW" // Use SLOW for better quality rendering
       );
@@ -710,9 +1301,18 @@
             showPDFModal = false;
           }, 500);
         } catch (err) {
-          if (err.name !== "AbortError") {
+          if (err.name === "AbortError") {
+            // User cancelled the save dialog
+            console.log("PDF save cancelled by user");
+            setTimeout(() => {
+              showPDFModal = false;
+            }, 100);
+          } else {
             console.error("Save failed:", err);
             pdf.save(fileName);
+            setTimeout(() => {
+              showPDFModal = false;
+            }, 500);
           }
         }
       } else {
@@ -799,7 +1399,9 @@
         canvasStore.panBy(-50, 0);
         break;
       case "Escape":
-        if (sidebarOpen) {
+        if (pdfFramingMode) {
+          cancelPDFFraming();
+        } else if (sidebarOpen) {
           closeSidebar();
         } else if (selectionToolActive) {
           deactivateSelectionTool();
@@ -937,7 +1539,7 @@
                    L {parentCenterX - minX} {midY - minY}
                    L {childCenterX - minX} {midY - minY}
                    L {childCenterX - minX} {childTopY - minY}"
-                stroke="var(--primary)"
+                stroke="var(--chart-primary, var(--primary))"
                 stroke-width="2"
                 fill="none"
                 stroke-linecap="round"
@@ -1088,7 +1690,7 @@
 
       <!-- Action buttons -->
       <div class="action-controls">
-        <button class="action-btn secondary" on:click={exportAsPDF}>
+        <button class="action-btn secondary" on:click={startPDFFraming}>
           <svg
             class="button-icon"
             fill="none"
@@ -1173,7 +1775,66 @@
     }}
   />
 
-  <ChartColorPicker />
+  <ChartColorPicker {organizationId} />
+
+  <!-- PDF Framing Mode Overlay -->
+  {#if pdfFramingMode}
+    {#if pdfFrameRect && pdfFrameRect.width > 10 && pdfFrameRect.height > 10}
+      <!-- Dark overlay with cutout for the selected frame -->
+      <div
+        class="pdf-framing-cutout-overlay"
+        style="left:{pdfFrameRect.left}px; top:{pdfFrameRect.top +
+          60}px; width:{pdfFrameRect.width}px; height:{pdfFrameRect.height}px;"
+      ></div>
+      <!-- Frame border -->
+      <div
+        class="pdf-framing-border"
+        style="left:{pdfFrameRect.left}px; top:{pdfFrameRect.top +
+          60}px; width:{pdfFrameRect.width}px; height:{pdfFrameRect.height}px;"
+      ></div>
+    {:else}
+      <!-- Full dark overlay when no frame is drawn -->
+      <div class="pdf-framing-dark-overlay"></div>
+    {/if}
+
+    <!-- Instructions panel -->
+    <div class="pdf-framing-instructions-overlay">
+      <div class="pdf-framing-instructions">
+        <div class="instruction-content">
+          <h3>Frame Your Export</h3>
+          {#if pdfFrameRect && pdfFrameRect.width > 10 && pdfFrameRect.height > 10}
+            <div class="frame-info">
+              <span class="frame-dimensions">
+                {Math.round(pdfFrameRect.width)} × {Math.round(
+                  pdfFrameRect.height
+                )} px
+              </span>
+              <span class="frame-orientation">
+                {pdfFrameRect.width > pdfFrameRect.height
+                  ? "Landscape"
+                  : "Portrait"}
+              </span>
+            </div>
+          {:else}
+            <p>Draw a rectangle around the content to export</p>
+          {/if}
+        </div>
+
+        <div class="pdf-framing-controls">
+          <button
+            class="export-btn"
+            on:click={confirmPDFExport}
+            disabled={!pdfFrameRect || pdfFrameRect.width < 10}
+          >
+            Export PDF
+          </button>
+          <button class="cancel-btn" on:click={cancelPDFFraming}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -1353,7 +2014,7 @@
   }
 
   .zoom-btn:hover {
-    background: var(--primary);
+    background: var(--chart-primary, var(--primary));
     color: white;
     transform: scale(1.05);
   }
@@ -1436,10 +2097,155 @@
   /* Selection rectangle */
   .selection-rect {
     position: absolute;
-    border: 2px dashed var(--primary);
-    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    border: 2px dashed var(--chart-primary, var(--primary));
+    background: color-mix(
+      in srgb,
+      var(--chart-primary, var(--primary)) 15%,
+      transparent
+    );
     pointer-events: none;
     z-index: 120;
+  }
+
+  /* PDF Frame rectangle */
+  .pdf-frame-rect {
+    position: absolute;
+    border: 3px solid #ff6b35;
+    background: color-mix(in srgb, #ff6b35 10%, transparent);
+    pointer-events: none;
+    z-index: 121;
+    box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.3);
+  }
+
+  /* PDF Framing Mode Overlay */
+  .pdf-framing-dark-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 2000;
+    pointer-events: none;
+  }
+  .pdf-framing-cutout-overlay {
+    position: absolute;
+    background: transparent;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+    z-index: 2001;
+    pointer-events: none;
+  }
+
+  .pdf-framing-border {
+    position: absolute;
+    background: transparent;
+    border: 3px solid var(--primary);
+    border-style: dashed;
+    z-index: 2002;
+    pointer-events: none;
+  }
+  .pdf-framing-instructions-overlay {
+    position: fixed;
+    top: calc(var(--header-height) + var(--spacing-10));
+    left: var(--spacing-6);
+    z-index: 2002;
+    pointer-events: none;
+  }
+
+  .pdf-framing-instructions {
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-4);
+    box-shadow: var(--shadow-lg);
+    max-width: 280px;
+    pointer-events: auto;
+  }
+
+  .instruction-content {
+    text-align: left;
+    margin-bottom: var(--spacing-3);
+  }
+
+  .pdf-framing-instructions h3 {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-2) 0;
+  }
+
+  .pdf-framing-instructions p {
+    color: var(--text-secondary);
+    margin: 0;
+    font-size: var(--font-size-sm);
+  }
+
+  .frame-info {
+    display: flex;
+    gap: var(--spacing-3);
+    align-items: center;
+    font-size: var(--font-size-sm);
+    margin: 0;
+  }
+
+  .frame-dimensions {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-family: monospace;
+  }
+
+  .frame-orientation {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .pdf-framing-controls {
+    display: flex;
+    gap: var(--spacing-2);
+  }
+
+  .export-btn {
+    background: var(--primary);
+    color: white;
+    padding: var(--spacing-3) var(--spacing-5);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    white-space: nowrap;
+  }
+
+  .export-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .export-btn:not(:disabled):hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  .pdf-framing-controls .cancel-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    padding: var(--spacing-3) var(--spacing-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    white-space: nowrap;
+  }
+
+  .pdf-framing-controls .cancel-btn:hover {
+    background: var(--secondary);
+    color: var(--text-primary);
   }
 
   /* Disable pointer events on canvas while selecting */
@@ -1448,7 +2254,7 @@
   }
 
   .zoom-btn.active {
-    background: var(--primary);
+    background: var(--chart-primary, var(--primary));
     color: white;
   }
 </style>

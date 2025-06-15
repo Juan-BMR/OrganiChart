@@ -1,24 +1,66 @@
 <script>
   import { onMount } from "svelte";
   import { fade } from "svelte/transition";
-  let color = "#6366F1"; // default (matches existing --primary)
+  import { db } from "$lib/firebase.js";
+  import { doc, getDoc, updateDoc } from "firebase/firestore";
+  import { COLLECTIONS } from "$lib/db/collections.js";
+
+  export let organizationId;
+
+  let color = "#6366F1"; // default fallback
   let inputValue = "";
   let isValid = true;
-  const STORAGE_KEY = "orgchartPrimaryColor";
+  let loading = false;
 
   const HEX_REGEX = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
-  onMount(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored && isValidHex(stored)) {
-      color = normalizeHex(stored);
-      inputValue = color;
-      applyColor(color);
+  onMount(async () => {
+    // Initialize chart color variables with defaults
+    document.documentElement.style.setProperty("--chart-primary", "#6366F1");
+    document.documentElement.style.setProperty(
+      "--chart-primary-dark",
+      adjustColor("#6366F1", -15)
+    );
+    document.documentElement.style.setProperty(
+      "--chart-primary-light",
+      adjustColor("#6366F1", 15)
+    );
+
+    if (organizationId) {
+      await loadOrganizationColor();
     } else {
+      // Fallback to localStorage if no organizationId
+      const stored = localStorage.getItem("orgchartPrimaryColor");
+      if (stored && isValidHex(stored)) {
+        color = normalizeHex(stored);
+        inputValue = color;
+        applyColor(color);
+      } else {
+        inputValue = color;
+        applyColor(color);
+      }
+    }
+  });
+
+  async function loadOrganizationColor() {
+    try {
+      const orgDoc = await getDoc(
+        doc(db, COLLECTIONS.ORGANIZATIONS, organizationId)
+      );
+      if (orgDoc.exists()) {
+        const orgData = orgDoc.data();
+        const orgColor = orgData.chartColor || "#6366F1";
+        color = normalizeHex(orgColor);
+        inputValue = color;
+        applyColor(color);
+      }
+    } catch (error) {
+      console.error("Failed to load organization color:", error);
+      // Fallback to default
       inputValue = color;
       applyColor(color);
     }
-  });
+  }
 
   function normalizeHex(val) {
     if (!val) return "";
@@ -39,32 +81,85 @@
     isValid = isValidHex(val);
 
     clearTimeout(debounceTimeout);
-    debounceTimeout = setTimeout(() => {
+    debounceTimeout = setTimeout(async () => {
       if (isValid) {
         color = normalizeHex(val);
         applyColor(color);
-        localStorage.setItem(STORAGE_KEY, color);
+        await saveColorToDatabase(color);
       }
     }, 300);
   }
 
+  function handleKeyDown(event) {
+    // Prevent arrow keys and other navigation keys from bubbling up to chart controls
+    const preventKeys = [
+      "ArrowUp",
+      "ArrowDown",
+      "ArrowLeft",
+      "ArrowRight",
+      "+",
+      "=",
+      "-",
+      "Escape",
+    ];
+    if (preventKeys.includes(event.key)) {
+      event.stopPropagation();
+    }
+  }
+
+  async function saveColorToDatabase(hex) {
+    if (!organizationId) {
+      // Fallback to localStorage if no organizationId
+      localStorage.setItem("orgchartPrimaryColor", hex);
+      return;
+    }
+
+    try {
+      loading = true;
+      await updateDoc(doc(db, COLLECTIONS.ORGANIZATIONS, organizationId), {
+        chartColor: hex,
+        updatedAt: new Date(),
+      });
+    } catch (error) {
+      console.error("Failed to save color to database:", error);
+      // Fallback to localStorage
+      localStorage.setItem("orgchartPrimaryColor", hex);
+    } finally {
+      loading = false;
+    }
+  }
+
   function applyColor(hex) {
     if (!isValidHex(hex)) return;
-    document.documentElement.style.setProperty("--primary", hex);
-    // derive lighter and darker variants
-    document.documentElement.style.setProperty("--primary-dark", adjustColor(hex, -15));
-    document.documentElement.style.setProperty("--primary-light", adjustColor(hex, 15));
+    // Use chart-specific CSS variables instead of global --primary
+    document.documentElement.style.setProperty("--chart-primary", hex);
+    document.documentElement.style.setProperty(
+      "--chart-primary-dark",
+      adjustColor(hex, -15)
+    );
+    document.documentElement.style.setProperty(
+      "--chart-primary-light",
+      adjustColor(hex, 15)
+    );
   }
 
   // Utility: adjust color brightness
   function adjustColor(hex, percent) {
     const h = normalizeHex(hex).slice(1);
-    const bigint = parseInt(h.length === 3 ? h.split("").map(c=>c+c).join("") : h, 16);
+    const bigint = parseInt(
+      h.length === 3
+        ? h
+            .split("")
+            .map((c) => c + c)
+            .join("")
+        : h,
+      16
+    );
     let r = (bigint >> 16) & 255;
     let g = (bigint >> 8) & 255;
     let b = bigint & 255;
     const adjust = (c) => {
-      const amt = Math.round((percent/100)*255);
+      const amt = Math.round((percent / 100) * 255);
       const v = Math.min(255, Math.max(0, c + amt));
       return v;
     };
@@ -75,11 +170,11 @@
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
   }
 
-  function resetColor() {
+  async function resetColor() {
     color = "#6366F1";
     inputValue = color;
     applyColor(color);
-    localStorage.removeItem(STORAGE_KEY);
+    await saveColorToDatabase(color);
     isValid = true;
   }
 </script>
@@ -88,23 +183,30 @@
   <label>
     <span class="label-text">Chart Color</span>
     <div class="input-wrapper">
-      <input
-        type="text"
-        bind:value={inputValue}
-        on:input={handleInput}
-        class:is-error={!isValid}
-        placeholder="#6366F1"
-        maxlength="7"
-      />
       <span
         class="swatch"
         style="background:{isValid ? color : '#ccc'};"
         aria-label="current color preview"
       ></span>
+      <input
+        type="text"
+        bind:value={inputValue}
+        on:input={handleInput}
+        on:keydown={handleKeyDown}
+        class:is-error={!isValid}
+        placeholder="#6366F1"
+        maxlength="7"
+        disabled={loading}
+      />
     </div>
   </label>
-  <button class="reset-btn" on:click={resetColor} title="Reset to default">
-    Reset
+  <button
+    class="reset-btn"
+    on:click={resetColor}
+    title="Reset to default"
+    disabled={loading}
+  >
+    {loading ? "Saving..." : "Reset"}
   </button>
 </div>
 
@@ -127,8 +229,14 @@
   }
 
   @keyframes fade-in {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   label {
@@ -156,7 +264,9 @@
     font-size: var(--font-size-sm);
     background: var(--background);
     color: var(--text-primary);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
   }
 
   input[type="text"]:focus {
