@@ -1,7 +1,7 @@
 <script>
   import { authStore } from "$lib/stores/auth.js";
   import { themeStore } from "$lib/stores/theme.js";
-  import { Moon, Sun, Network } from "lucide-svelte";
+  import { Moon, Sun } from "lucide-svelte";
   import { goto } from "$app/navigation";
 
   export let user = null;
@@ -103,7 +103,31 @@
       on:click={goToDashboard}
       title="Go to Dashboard"
     >
-      <Network size={28} />
+      <svg
+        class="logo-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M12 2L2 7L12 12L22 7L12 2Z"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M2 17L12 22L22 17"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M2 12L12 17L22 12"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linejoin="round"
+        />
+      </svg>
       <span class="logo-text">OrganiChart</span>
     </button>
 
@@ -198,6 +222,12 @@
   .logo-button:hover {
     background: rgba(255, 255, 255, 0.1);
     transform: scale(1.02);
+  }
+
+  .logo-icon {
+    width: 28px;
+    height: 28px;
+    color: white;
   }
 
   .logo-text {
