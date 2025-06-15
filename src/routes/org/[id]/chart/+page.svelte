@@ -504,6 +504,7 @@
           try {
             const originalUrl = img.src;
 
+            // Always store the original URL first
             imageReplacements.push({
               img,
               originalSrc: originalUrl,
@@ -527,6 +528,8 @@
 
                   // Convert to data URL
                   const dataURL = canvas.toDataURL("image/png");
+
+                  // Only change src if conversion succeeded
                   img.src = dataURL;
                   console.log(
                     `Successfully converted Firebase image to data URL`
@@ -537,14 +540,14 @@
                     "Failed to convert image to data URL:",
                     canvasError
                   );
-                  // Keep original src if conversion fails
+                  // Don't change img.src, keep original
                   resolve();
                 }
               };
 
               testImg.onerror = () => {
                 console.warn(`Failed to load Firebase image: ${originalUrl}`);
-                // Keep original src if loading fails
+                // Don't change img.src, keep original
                 resolve();
               };
 
@@ -889,6 +892,12 @@
           try {
             const originalUrl = img.src;
 
+            // Always store the original URL first
+            imageReplacements.push({
+              img: img,
+              originalSrc: originalUrl,
+            });
+
             // Try to convert Firebase image to data URL directly
             const testImg = new Image();
 
@@ -905,14 +914,7 @@
                   ctx.drawImage(testImg, 0, 0);
                   const dataURL = canvas.toDataURL("image/png");
 
-                  // Store replacement info
-                  imageReplacements.push({
-                    img: img,
-                    originalSrc: originalUrl,
-                    dataURL: dataURL,
-                  });
-
-                  // Replace the image src with data URL
+                  // Only change src if conversion succeeded
                   img.src = dataURL;
                   console.log(
                     `Successfully converted Firebase image to data URL for ${img.alt || "user"}`
@@ -923,13 +925,14 @@
                     "Failed to convert image to data URL:",
                     canvasError
                   );
-                  resolve(); // Continue even if conversion fails
+                  // Don't change img.src, keep original
+                  resolve();
                 }
               };
 
               testImg.onerror = () => {
                 console.warn(`Failed to load Firebase image: ${originalUrl}`);
-                // Keep original - will likely be replaced with initials placeholder
+                // Don't change img.src, keep original
                 resolve();
               };
 
