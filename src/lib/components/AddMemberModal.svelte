@@ -19,6 +19,7 @@
   let fileInput;
   let subordinateIds = [];
   let dropdownOpen = false;
+  let startDate = new Date().toISOString().split("T")[0]; // Today's date in YYYY-MM-DD format
 
   // Computed properties for subordinate functionality
   $: selectedSubordinates = subordinateIds
@@ -125,6 +126,8 @@
 
     loading = true;
     try {
+      const startDateObj = startDate ? new Date(startDate) : new Date();
+
       if (willInsertBetween && selectedSubordinates.length > 0) {
         // Adding member "in between" - use special method with multiple subordinates
         await membersStore.addMemberBetweenMultiple(
@@ -134,7 +137,8 @@
           role,
           managerId || null,
           subordinateIds,
-          photoFile
+          photoFile,
+          startDateObj
         );
       } else {
         // Regular add member (now with subordinate support)
@@ -145,7 +149,8 @@
           role,
           managerId || null,
           photoFile,
-          subordinateIds
+          subordinateIds,
+          startDateObj
         );
       }
       dispatch("close");
@@ -174,6 +179,7 @@
     photoFile = null;
     photoPreviewUrl = null;
     error = "";
+    startDate = new Date().toISOString().split("T")[0]; // Reset to today
     open = false;
 
     // Reset file input
@@ -240,9 +246,18 @@
           disabled={loading}
         />
 
+        <label class="input-label" for="member-start-date">Start Date</label>
+        <input
+          id="member-start-date"
+          type="date"
+          bind:value={startDate}
+          disabled={loading}
+        />
+
         <label class="input-label" for="member-manager">Manager</label>
         <select
           id="member-manager"
+          class="dropdown-trigger"
           bind:value={managerId}
           disabled={loading || willInsertBetween}
         >
@@ -473,6 +488,7 @@
 
   input[type="text"],
   input[type="email"],
+  input[type="date"],
   select {
     padding: var(--spacing-3);
     border: 1px solid var(--border);
@@ -485,8 +501,55 @@
       box-shadow 0.2s ease;
   }
 
+  /* Date input icon styling for dark mode */
+  input[type="date"] {
+    color-scheme: light dark;
+    position: relative;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    background: transparent;
+    bottom: 0;
+    color: transparent;
+    cursor: pointer;
+    height: auto;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: auto;
+    opacity: 0;
+  }
+
+  /* Custom calendar icon */
+  input[type="date"] {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px 16px;
+    padding-right: 40px;
+  }
+
+  /* Dark theme calendar icon */
+  [data-theme="dark"] input[type="date"] {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%239ca3af'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd'/%3e%3c/svg%3e");
+  }
+
+  /* System dark mode */
+  @media (prefers-color-scheme: dark) {
+    input[type="date"] {
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%239ca3af'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd'/%3e%3c/svg%3e");
+    }
+  }
+
+  /* Light theme override */
+  [data-theme="light"] input[type="date"] {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3e%3cpath fill-rule='evenodd' d='M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z' clip-rule='evenodd'/%3e%3c/svg%3e");
+  }
+
   input[type="text"]:focus,
   input[type="email"]:focus,
+  input[type="date"]:focus,
   select:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);

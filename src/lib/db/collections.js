@@ -41,6 +41,7 @@ export const createMemberData = (
   role,
   photoURL = null,
   managerId = null,
+  startDate = null,
 ) => ({
   organizationId,
   name: name.trim(),
@@ -48,6 +49,7 @@ export const createMemberData = (
   role: role.trim(),
   photoURL,
   managerId,
+  startDate: startDate || new Date(), // Default to today if not provided
   level: 0, // Will be calculated based on hierarchy
   position: null, // Chart positioning
   createdAt: new Date(),

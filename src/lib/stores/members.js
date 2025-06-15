@@ -69,6 +69,7 @@ function createMembersStore() {
       managerId = null,
       photoFile = null,
       subordinateIds = [],
+      startDate = null,
     ) => {
       const data = createMemberData(
         organizationId,
@@ -77,6 +78,7 @@ function createMembersStore() {
         role,
         null,
         managerId,
+        startDate,
       );
       const ref = await addDoc(collection(db, COLLECTIONS.MEMBERS), data);
       const newMemberId = ref.id;
@@ -121,6 +123,7 @@ function createMembersStore() {
       newManagerId,
       subordinateId,
       photoFile = null,
+      startDate = null,
     ) => {
       // We don't need to check the subordinate here since we trust the UI validation
       // The key operation is: new member gets newManagerId, subordinate gets new member as manager
@@ -133,6 +136,7 @@ function createMembersStore() {
         role,
         null,
         newManagerId, // Manager ID passed or subordinate's current manager
+        startDate,
       );
       const newMemberRef = await addDoc(collection(db, COLLECTIONS.MEMBERS), data);
       const newMemberId = newMemberRef.id;
@@ -171,6 +175,7 @@ function createMembersStore() {
       newManagerId,
       subordinateIds,
       photoFile = null,
+      startDate = null,
     ) => {
       // Create the new member
       const data = createMemberData(
@@ -180,6 +185,7 @@ function createMembersStore() {
         role,
         null,
         newManagerId,
+        startDate,
       );
       const newMemberRef = await addDoc(collection(db, COLLECTIONS.MEMBERS), data);
       const newMemberId = newMemberRef.id;
