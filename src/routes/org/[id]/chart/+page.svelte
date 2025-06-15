@@ -1060,7 +1060,7 @@
             element.classList.contains("modal-overlay")
           );
         },
-        onclone: (clonedDoc) => {
+        onclone: async (clonedDoc) => {
           // Detect current theme - dark mode is default (no data-theme), light mode has data-theme="light"
           const isLightMode =
             document.documentElement.getAttribute("data-theme") === "light";
@@ -1072,6 +1072,33 @@
           const backgroundRgba95 = isLightMode
             ? "rgba(255, 255, 255, 0.95)"
             : "rgba(30, 41, 59, 0.95)";
+          const primarySelection = isLightMode
+            ? "rgba(99, 102, 241, 0.15)"
+            : "rgba(129, 140, 248, 0.2)";
+
+          // Convert Firebase Storage URLs to data URLs to avoid CORS issues
+          const images = clonedDoc.querySelectorAll(
+            'img[src*="firebasestorage.googleapis.com"]'
+          );
+          for (const img of images) {
+            try {
+              const response = await fetch(img.src);
+              const blob = await response.blob();
+              const dataUrl = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.readAsDataURL(blob);
+              });
+              img.src = dataUrl;
+            } catch (error) {
+              console.warn(
+                "Failed to convert image to data URL:",
+                img.src,
+                error
+              );
+              // Keep original src as fallback
+            }
+          }
 
           // Find all style elements and replace color-mix() functions
           const allStyles = clonedDoc.querySelectorAll("style");
@@ -1089,7 +1116,11 @@
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--chart-primary[^)]*\)\s*15%,\s*transparent\)/g,
-                  "rgba(99, 102, 241, 0.15)"
+                  primarySelection
+                )
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--primary\)\s*15%,\s*transparent\)/g,
+                  primarySelection
                 );
             }
           });
@@ -1105,12 +1136,25 @@
             }
           });
 
-          // Remove problematic CSS properties
+          // Remove problematic CSS properties and add theme-specific styles
           const style = clonedDoc.createElement("style");
           style.textContent = `
             * {
               backdrop-filter: none !important;
               -webkit-backdrop-filter: none !important;
+            }
+            ${
+              !isLightMode
+                ? `
+            /* Dark mode specific overrides for PDF export */
+            .member-info {
+              background: rgba(30, 30, 30, 0.9) !important;
+            }
+            .member-node:hover .member-info {
+              background: rgba(30, 30, 30, 0.95) !important;
+            }
+            `
+                : ""
             }
           `;
           clonedDoc.head.appendChild(style);
@@ -1475,7 +1519,7 @@
   }
 </script>
 
-<svelte:head>
+Didn<svelte:head>
   <title
     >{organization ? organization.name + " Chart" : "Org Chart"} - OrganiChart</title
   >
@@ -2097,20 +2141,33 @@
   /* Selection rectangle */
   .selection-rect {
     position: absolute;
-    border: 2px dashed var(--primary);
-    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    border: 2px dashed #6366f1;
+    background: rgba(99, 102, 241, 0.15);
     pointer-events: none;
     z-index: 120;
+  }
+
+  /* Dark mode selection rectangle */
+  :global([data-theme="dark"]) .selection-rect {
+    border-color: #818cf8;
+    background: rgba(129, 140, 248, 0.2);
   }
 
   /* PDF Frame rectangle */
   .pdf-frame-rect {
     position: absolute;
     border: 3px solid #ff6b35;
-    background: color-mix(in srgb, #ff6b35 10%, transparent);
+    background: rgba(255, 107, 53, 0.1);
     pointer-events: none;
     z-index: 121;
     box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.3);
+  }
+
+  /* Dark mode PDF frame */
+  :global([data-theme="dark"]) .pdf-frame-rect {
+    border-color: #ff8a65;
+    background: rgba(255, 138, 101, 0.15);
+    box-shadow: 0 0 0 2px rgba(255, 138, 101, 0.4);
   }
 
   /* PDF Framing Mode Overlay */
@@ -2135,10 +2192,15 @@
   .pdf-framing-border {
     position: absolute;
     background: transparent;
-    border: 3px solid var(--primary);
+    border: 3px solid #6366f1;
     border-style: dashed;
     z-index: 2002;
     pointer-events: none;
+  }
+
+  /* Dark mode PDF framing border */
+  :global([data-theme="dark"]) .pdf-framing-border {
+    border-color: #818cf8;
   }
   .pdf-framing-instructions-overlay {
     position: fixed;
