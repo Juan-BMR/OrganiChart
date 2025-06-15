@@ -13,6 +13,7 @@ import {
   setDoc,
   updateDoc,
   getDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import {
   ref as storageRef,
@@ -199,6 +200,39 @@ function createOrganizationsStore() {
         });
       } catch (error) {
         console.error("Failed to update chart color:", error);
+        throw error;
+      }
+    },
+    deleteOrganization: async (organizationId) => {
+      if (!currentUser) throw new Error("Not authenticated");
+      
+      try {
+        // Delete all members in the organization
+        const membersQuery = query(
+          collection(db, COLLECTIONS.MEMBERS),
+          where("organizationId", "==", organizationId)
+        );
+        const membersSnapshot = await getDocs(membersQuery);
+        const memberDeletePromises = membersSnapshot.docs.map(memberDoc => 
+          deleteDoc(memberDoc.ref)
+        );
+        await Promise.all(memberDeletePromises);
+
+        // Delete all organization permissions
+        const permsQuery = query(
+          collection(db, COLLECTIONS.ORGANIZATION_PERMISSIONS),
+          where("organizationId", "==", organizationId)
+        );
+        const permsSnapshot = await getDocs(permsQuery);
+        const permDeletePromises = permsSnapshot.docs.map(permDoc => 
+          deleteDoc(permDoc.ref)
+        );
+        await Promise.all(permDeletePromises);
+
+        // Finally, delete the organization itself
+        await deleteDoc(doc(db, COLLECTIONS.ORGANIZATIONS, organizationId));
+      } catch (error) {
+        console.error("Failed to delete organization:", error);
         throw error;
       }
     },

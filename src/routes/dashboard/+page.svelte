@@ -14,6 +14,17 @@
   let organizations = [];
   let orgsLoading = true;
 
+  // Delete confirmation state
+  let showDeleteConfirmation = false;
+  let organizationToDelete = null;
+  let deleteModalElement;
+  let deleteLoading = false;
+
+  // Focus delete modal when it opens
+  $: if (showDeleteConfirmation && deleteModalElement) {
+    deleteModalElement.focus();
+  }
+
   const unsubscribeOrgs = organizationsStore.subscribe(
     ({ organizations: orgs, loading }) => {
       organizations = orgs;
@@ -57,6 +68,42 @@
   function closeCreateModal() {
     showCreateModal = false;
   }
+
+  function handleDeleteOrganization(org, event) {
+    event.stopPropagation(); // Prevent navigation to the org
+    organizationToDelete = org;
+    showDeleteConfirmation = true;
+  }
+
+  async function confirmDelete() {
+    if (!organizationToDelete || deleteLoading) return;
+
+    deleteLoading = true;
+    try {
+      await organizationsStore.deleteOrganization(organizationToDelete.id);
+      showDeleteConfirmation = false;
+      organizationToDelete = null;
+    } catch (error) {
+      console.error("Failed to delete organization:", error);
+      // You could add error handling UI here
+    } finally {
+      deleteLoading = false;
+    }
+  }
+
+  function cancelDelete() {
+    if (deleteLoading) return; // Prevent canceling during deletion
+    showDeleteConfirmation = false;
+    organizationToDelete = null;
+    deleteLoading = false;
+  }
+
+  function handleDeleteModalKeyDown(event) {
+    if (event.key === "Escape") {
+      event.stopPropagation(); // Prevent ESC from bubbling up
+      cancelDelete();
+    }
+  }
 </script>
 
 <svelte:head>
@@ -89,6 +136,20 @@
                 goto(`/org/${org.id}/chart`);
               }}
             >
+              <button
+                class="delete-btn"
+                on:click={(e) => handleDeleteOrganization(org, e)}
+                title="Delete organization"
+              >
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
               <div class="org-content">
                 {#if org.logoURL}
                   <img src={org.logoURL} alt={org.name} class="org-logo" />
@@ -112,6 +173,82 @@
   bind:open={showCreateModal}
   on:close={closeCreateModal}
 />
+
+<!-- Delete Confirmation Modal -->
+{#if showDeleteConfirmation}
+  <div class="confirmation-overlay" on:click|self={cancelDelete}>
+    <div
+      class="confirmation-modal"
+      on:keydown={handleDeleteModalKeyDown}
+      tabindex="-1"
+      bind:this={deleteModalElement}
+    >
+      <div class="confirmation-header">
+        <div class="warning-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"
+            />
+          </svg>
+        </div>
+        <h3>Delete Organization</h3>
+      </div>
+
+      <div class="confirmation-body">
+        <p>
+          Are you sure you want to delete <strong
+            >{organizationToDelete?.name}</strong
+          >?
+        </p>
+
+        {#if organizationToDelete?.memberCount > 0}
+          <div class="members-warning">
+            <p class="members-info">
+              <strong
+                >⚠️ This organization has {organizationToDelete.memberCount} member{organizationToDelete.memberCount ===
+                1
+                  ? ""
+                  : "s"}.</strong
+              >
+            </p>
+            <p class="deletion-info">
+              All members and organizational data will be permanently deleted.
+            </p>
+          </div>
+        {/if}
+
+        <p class="warning-text">
+          This action cannot be undone. The organization and all its data will
+          be permanently removed.
+        </p>
+      </div>
+
+      <div class="confirmation-footer">
+        <button
+          class="confirm-delete-btn"
+          on:click={confirmDelete}
+          disabled={deleteLoading}
+        >
+          {#if deleteLoading}
+            <span class="spinner" /> Deleting...
+          {:else}
+            Delete Organization
+          {/if}
+        </button>
+        <button
+          class="cancel-btn"
+          on:click={cancelDelete}
+          disabled={deleteLoading}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .dashboard-container {
@@ -169,12 +306,46 @@
     border: 1px solid var(--border);
     box-shadow: var(--shadow-sm);
     background: var(--background);
+    position: relative;
   }
 
   .org-card.existing:hover {
     box-shadow: var(--shadow-md);
     border-color: var(--primary-light);
     transform: translateY(-2px);
+  }
+
+  .org-card.existing:hover .delete-btn {
+    opacity: 1;
+  }
+
+  .delete-btn {
+    position: absolute;
+    top: var(--spacing-2);
+    right: var(--spacing-2);
+    background: var(--error);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s ease;
+    z-index: 10;
+  }
+
+  .delete-btn:hover {
+    background: #dc2626;
+    transform: scale(1.1);
+  }
+
+  .delete-btn svg {
+    width: 16px;
+    height: 16px;
   }
 
   .org-content {
@@ -229,5 +400,180 @@
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
     margin: 0;
+  }
+
+  /* Delete Confirmation Modal */
+  .confirmation-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    backdrop-filter: blur(4px);
+  }
+
+  .confirmation-modal {
+    background: var(--background);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 400px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    margin: var(--spacing-4);
+    padding: var(--spacing-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-4);
+  }
+
+  .confirmation-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+  }
+
+  .warning-icon {
+    width: 48px;
+    height: 48px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--error);
+    flex-shrink: 0;
+  }
+
+  .warning-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .confirmation-header h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .confirmation-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+  }
+
+  .confirmation-body p {
+    margin: 0;
+    color: var(--text-primary);
+    line-height: 1.5;
+  }
+
+  .members-warning {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-3);
+  }
+
+  .members-info {
+    color: var(--error) !important;
+    font-weight: 500;
+    margin-bottom: var(--spacing-2) !important;
+  }
+
+  .deletion-info {
+    color: var(--text-secondary) !important;
+    font-size: var(--font-size-sm);
+  }
+
+  .warning-text {
+    color: var(--text-secondary) !important;
+    font-size: var(--font-size-sm);
+    font-style: italic;
+  }
+
+  .confirmation-footer {
+    display: flex;
+    gap: var(--spacing-3);
+    padding-top: var(--spacing-2);
+  }
+
+  .cancel-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    padding: var(--spacing-3) var(--spacing-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+  }
+
+  .cancel-btn:hover {
+    background: var(--secondary);
+    color: var(--text-primary);
+  }
+
+  .confirm-delete-btn {
+    background: var(--error);
+    color: white;
+    padding: var(--spacing-3) var(--spacing-4);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+  }
+
+  .confirm-delete-btn:hover:not(:disabled) {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  .confirm-delete-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .cancel-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-top-color: white;
+    border-radius: 50%;
+    display: inline-block;
+    animation: spin 1s linear infinite;
+    margin-right: var(--spacing-2);
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Responsive design for modal */
+  @media (max-width: 480px) {
+    .confirmation-footer {
+      flex-direction: column-reverse;
+    }
+
+    .cancel-btn,
+    .confirm-delete-btn {
+      width: 100%;
+    }
   }
 </style>
