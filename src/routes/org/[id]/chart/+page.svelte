@@ -1475,6 +1475,29 @@
   }
 
   /**
+   * Helper that checks if `possibleAncestorId` is an ancestor of `nodeId`.
+   * Walks up the manager chain until it reaches the root or finds the ancestor.
+   */
+  function isAncestor(possibleAncestorId, nodeId) {
+    if (!possibleAncestorId || !nodeId) return false;
+    let current = members.find((m) => m.id === nodeId);
+    const visitedSafeguard = new Set(); // prevent infinite loops if somehow cyclic already
+    while (current && current.managerId) {
+      if (current.managerId === possibleAncestorId) return true;
+      if (visitedSafeguard.has(current.managerId)) break;
+      visitedSafeguard.add(current.managerId);
+      current = members.find((m) => m.id === current.managerId);
+    }
+    return false;
+  }
+
+  function canReparent(employeeId, newManagerId) {
+    if (employeeId === newManagerId) return false;
+    // Reparent is invalid if employee is an ancestor of the new manager
+    return !isAncestor(employeeId, newManagerId);
+  }
+
+  /**
    * Reparent (drag-and-drop) handler.
    * 1. Optimistically update local members array so the UI updates instantly.
    * 2. Persist the change via membersStore.updateMember.
@@ -1485,6 +1508,12 @@
 
     // Prevent self-parenting (should already be handled by UI guard)
     if (employeeId === newManagerId) return;
+
+    // Prevent cycles (moving under own descendant)
+    if (isAncestor(employeeId, newManagerId)) {
+      alert("That move would create a cycle in the org chart. Please choose a different manager.");
+      return;
+    }
 
     // Find the member and remember original managerId for rollback
     const idx = members.findIndex((m) => m.id === employeeId);
@@ -1595,6 +1624,7 @@
             on:edit={handleEditMember}
             on:delete={handleDeleteMember}
             on:select={handleSelectMember}
+            validateDrop={canReparent}
             on:reparent={handleReparent}
           />
         {/each}

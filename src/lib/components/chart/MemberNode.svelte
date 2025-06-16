@@ -14,6 +14,9 @@
   // --- Drag-and-Drop state & helpers ---
   let isDragOver = false; // highlights valid drop target
 
+  // Function passed from parent that validates whether a given drag action is allowed
+  export let validateDrop = null; // (draggedId, targetId) => boolean
+
   const dispatch = createEventDispatcher();
 
   /**
@@ -31,10 +34,14 @@
    */
   function handleDragOver(event) {
     const draggedId = event.dataTransfer?.getData("text/plain");
-    if (draggedId && draggedId !== member.id) {
+    const ok = draggedId && draggedId !== member.id && (!validateDrop || validateDrop(draggedId, member.id));
+    if (ok) {
       event.preventDefault(); // Necessary to allow the drop
       isDragOver = true;
       event.dataTransfer.dropEffect = "move";
+    } else {
+      // Disallow drop
+      event.dataTransfer.dropEffect = "none";
     }
   }
 
@@ -51,7 +58,7 @@
     event.preventDefault();
     const draggedId = event.dataTransfer?.getData("text/plain");
     isDragOver = false;
-    if (draggedId && draggedId !== member.id) {
+    if (draggedId && draggedId !== member.id && (!validateDrop || validateDrop(draggedId, member.id))) {
       dispatch("reparent", {
         employeeId: draggedId,
         newManagerId: member.id,
