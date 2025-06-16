@@ -10,9 +10,10 @@
   }
 </script>
 
-<div class="context-menu" style="left:{x}px; top:{y}px" on:click|stopPropagation>
-  <button on:click={() => handle('edit')}>Edit</button>
-  <button on:click={() => handle('delete')}>Delete</button>
+<div class="context-menu" role="menu" style="left:{x}px; top:{y}px" on:click|stopPropagation>
+  <button role="menuitem" tabindex="0" on:click={() => handle('edit')} on:keydown={(e)=>{if(e.key==='Enter'||e.key===' '){handle('edit')}}}>Edit</button>
+  <button role="menuitem" tabindex="0" on:click={() => handle('delete')} on:keydown={(e)=>{if(e.key==='Enter'||e.key===' '){handle('delete')}}}>Delete</button>
+  <button role="menuitem" tabindex="0" on:click={() => handle('move')} on:keydown={(e)=>{if(e.key==='Enter'||e.key===' '){handle('move')}}}>Move under...</button>
 </div>
 
 <style>

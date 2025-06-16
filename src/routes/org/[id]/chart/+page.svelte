@@ -11,6 +11,7 @@
   import MemberNode from "$lib/components/chart/MemberNode.svelte";
   import AddMemberModal from "$lib/components/AddMemberModal.svelte";
   import EditMemberModal from "$lib/components/EditMemberModal.svelte";
+  import MoveMemberModal from "$lib/components/MoveMemberModal.svelte";
   import PDFExportModal from "$lib/components/PDFExportModal.svelte";
   import UserInfoSidebar from "$lib/components/UserInfoSidebar.svelte";
   import ChartColorPicker from "$lib/components/ChartColorPicker.svelte";
@@ -39,6 +40,10 @@
 
   // Modal state - declare before store subscription
   let editingMember = null;
+
+  // Move member modal state
+  let movingMember = null;
+  let showMoveMember = false;
 
   // Subscribe to members store
   const unsubscribeMembers = membersStore.subscribe(
@@ -464,6 +469,17 @@
       console.error("Failed to delete member:", error);
       alert(`Failed to delete ${member.name}: ${error.message}`);
     }
+  }
+
+  function handleMoveRequest(event) {
+    // event.detail.member
+    movingMember = event.detail.member;
+    showMoveMember = true;
+  }
+
+  function closeMoveMember() {
+    showMoveMember = false;
+    movingMember = null;
   }
 
   // New framed PDF export function
@@ -1626,6 +1642,7 @@
             on:select={handleSelectMember}
             validateDrop={canReparent}
             on:reparent={handleReparent}
+            on:move={handleMoveRequest}
           />
         {/each}
 
@@ -1807,6 +1824,15 @@
     {organizationId}
     {members}
     on:close={closeEditMember}
+  />
+
+  <MoveMemberModal
+    bind:open={showMoveMember}
+    member={movingMember}
+    {members}
+    canReparent={canReparent}
+    on:move={(e)=>{handleReparent(e); closeMoveMember();}}
+    on:close={closeMoveMember}
   />
 
   <PDFExportModal

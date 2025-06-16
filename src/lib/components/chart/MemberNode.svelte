@@ -97,17 +97,37 @@
     closeMenu();
   }
 
+  function onMenuMove() {
+    dispatch("move", { member });
+    closeMenu();
+  }
+
   // Emit select when user clicks the node
   function handleClick(event) {
     dispatch("select", { member });
+  }
+
+  // Open context menu from keyboard (Enter/Space) when node is focused
+  function handleKeyDown(event) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      // Place menu at center of node for keyboard access
+      const rect = event.currentTarget.getBoundingClientRect();
+      menuX = rect.left + rect.width / 2;
+      menuY = rect.top + rect.height / 2;
+      showMenu = true;
+      window.addEventListener("click", closeMenu, { once: true });
+    }
   }
 </script>
 
 <div
   class="member-node {isDragOver ? 'drag-over' : ''}"
   style="left: {x}px; top: {y}px;"
+  tabindex="0"
   on:contextmenu={handleContextMenu}
   on:click|stopPropagation={handleClick}
+  on:keydown={handleKeyDown}
   draggable="true"
   on:dragstart={handleDragStart}
   on:dragover={handleDragOver}
@@ -136,6 +156,7 @@
       y={menuY}
       on:edit={onMenuEdit}
       on:delete={onMenuDelete}
+      on:move={onMenuMove}
     />
   {/if}
 </div>
