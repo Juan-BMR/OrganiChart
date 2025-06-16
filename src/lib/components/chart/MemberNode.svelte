@@ -11,7 +11,53 @@
   let menuX = 0;
   let menuY = 0;
 
+  // --- Drag-and-Drop state & helpers ---
+  let isDragOver = false; // highlights valid drop target
+
   const dispatch = createEventDispatcher();
+
+  /**
+   * Fired when the user starts dragging a node. We attach the member's id so
+   * the drop target knows which employee is being moved.
+   */
+  function handleDragStart(event) {
+    event.dataTransfer.setData("text/plain", member.id);
+    event.dataTransfer.effectAllowed = "move";
+  }
+
+  /**
+   * While the dragged element hovers this node we provide visual feedback and
+   * call preventDefault so that the element is treated as a valid drop zone.
+   */
+  function handleDragOver(event) {
+    const draggedId = event.dataTransfer?.getData("text/plain");
+    if (draggedId && draggedId !== member.id) {
+      event.preventDefault(); // Necessary to allow the drop
+      isDragOver = true;
+      event.dataTransfer.dropEffect = "move";
+    }
+  }
+
+  function handleDragLeave() {
+    isDragOver = false;
+  }
+
+  /**
+   * On drop we dispatch a custom `reparent` event that bubbles up to whatever
+   * chart container owns these nodes. That parent component can then decide
+   * whether to update state optimistically and/or call the backend.
+   */
+  function handleDrop(event) {
+    event.preventDefault();
+    const draggedId = event.dataTransfer?.getData("text/plain");
+    isDragOver = false;
+    if (draggedId && draggedId !== member.id) {
+      dispatch("reparent", {
+        employeeId: draggedId,
+        newManagerId: member.id,
+      });
+    }
+  }
 
   // Compute initials if no photo
   $: initials = member?.name
@@ -51,10 +97,15 @@
 </script>
 
 <div
-  class="member-node"
+  class="member-node {isDragOver ? 'drag-over' : ''}"
   style="left: {x}px; top: {y}px;"
   on:contextmenu={handleContextMenu}
   on:click|stopPropagation={handleClick}
+  draggable="true"
+  on:dragstart={handleDragStart}
+  on:dragover={handleDragOver}
+  on:dragleave={handleDragLeave}
+  on:drop={handleDrop}
   in:scale={{ duration: 200 }}
   out:scale={{ duration: 150 }}
 >
@@ -163,5 +214,11 @@
     color: var(--text-secondary);
     line-height: 1.2;
     font-weight: 500;
+  }
+
+  /* Visual feedback when a potential manager is hovered during drag */
+  .member-node.drag-over {
+    box-shadow: 0 0 0 4px var(--chart-primary-light, var(--secondary));
+    transition: box-shadow 0.15s ease;
   }
 </style>
