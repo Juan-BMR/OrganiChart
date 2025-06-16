@@ -1473,6 +1473,41 @@
       sidebarLoading = false;
     }
   }
+
+  /**
+   * Reparent (drag-and-drop) handler.
+   * 1. Optimistically update local members array so the UI updates instantly.
+   * 2. Persist the change via membersStore.updateMember.
+   * 3. Roll back on error if the write fails.
+   */
+  async function handleReparent(event) {
+    const { employeeId, newManagerId } = event.detail;
+
+    // Prevent self-parenting (should already be handled by UI guard)
+    if (employeeId === newManagerId) return;
+
+    // Find the member and remember original managerId for rollback
+    const idx = members.findIndex((m) => m.id === employeeId);
+    if (idx === -1) return;
+
+    const originalManagerId = members[idx].managerId;
+
+    // Optimistically update local state
+    members[idx] = { ...members[idx], managerId: newManagerId };
+    members = [...members];
+
+    try {
+      await membersStore.updateMember(employeeId, {
+        managerId: newManagerId,
+      });
+    } catch (err) {
+      console.error("Failed to reparent", err);
+      // Rollback local change
+      members[idx] = { ...members[idx], managerId: originalManagerId };
+      members = [...members];
+      alert("Unable to move member. " + err.message);
+    }
+  }
 </script>
 
 <svelte:head>
@@ -1560,6 +1595,7 @@
             on:edit={handleEditMember}
             on:delete={handleDeleteMember}
             on:select={handleSelectMember}
+            on:reparent={handleReparent}
           />
         {/each}
 
