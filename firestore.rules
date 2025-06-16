@@ -2,6 +2,46 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    /* ------------------------------------------------------------
+       Helper functions
+    ------------------------------------------------------------*/
+    function isOrgAdmin(orgId) {
+      // Permissions document ID convention: {userId}_{orgId}
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/organization_permissions/$(request.auth.uid + "_" + orgId)) &&
+        get(/databases/$(database)/documents/organization_permissions/$(request.auth.uid + "_" + orgId)).data.role in ["owner", "admin"];
+    }
+
+    // Prevent a node from being moved under itself or an immediate child. We
+    // can only do limited checks in rules, so we guard against the most
+    // obvious cycles: setting managerId to self OR to someone whose managerId
+    // is the employee. Deeper cycle checks should be enforced client-side and
+    // optionally in Cloud Functions.
+    function isValidManagerChange(memberId, orgId) {
+      let newManagerId = request.resource.data.managerId;
+
+      // No change or remain top-level
+      if (newManagerId == resource.data.managerId) {
+        return true;
+      }
+
+      // Allow removing manager (move to root)
+      if (newManagerId == null) {
+        return true;
+      }
+
+      // Self-parenting not allowed
+      if (newManagerId == memberId) {
+        return false;
+      }
+
+      // New manager must exist & belong to same org
+      return exists(/databases/$(database)/documents/members/$(newManagerId)) &&
+        get(/databases/$(database)/documents/members/$(newManagerId)).data.organizationId == orgId &&
+        // Immediate cycle check – new manager's manager must not be the member
+        (get(/databases/$(database)/documents/members/$(newManagerId)).data.managerId != memberId);
+    }
+    
     // Users collection - users can only access their own data
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
@@ -23,15 +63,25 @@ service cloud.firestore {
     
     // Members collection
     match /members/{memberId} {
-      // Allow creating members if user owns the organization
-      allow create: if request.auth != null && 
-        exists(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)) &&
-        get(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)).data.ownerId == request.auth.uid;
-      
-      // Allow reading/updating/deleting if user owns the organization
-      allow read, update, delete: if request.auth != null && 
-        exists(/databases/$(database)/documents/organizations/$(resource.data.organizationId)) &&
-        get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.ownerId == request.auth.uid;
+      // ----- Create ----- //
+      allow create: if request.auth != null &&
+        isOrgAdmin(request.resource.data.organizationId);
+
+      // ----- Read ----- //
+      allow read: if request.auth != null &&
+        isOrgAdmin(resource.data.organizationId);
+
+      // ----- Update (including re-parent) ----- //
+      allow update: if request.auth != null &&
+        isOrgAdmin(resource.data.organizationId) &&
+        // Ensure organizationId cannot be changed
+        request.resource.data.organizationId == resource.data.organizationId &&
+        // If managerId is changing, validate it doesn't create a cycle or self-parent
+        isValidManagerChange(memberId, resource.data.organizationId);
+
+      // ----- Delete ----- //
+      allow delete: if request.auth != null &&
+        isOrgAdmin(resource.data.organizationId);
     }
     
     // Organization permissions collection
