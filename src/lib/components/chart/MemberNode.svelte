@@ -44,6 +44,11 @@
     closeMenu();
   }
 
+  function onMenuSkills() {
+    dispatch("skills", { member });
+    closeMenu();
+  }
+
   // Emit select when user clicks the node
   function handleClick(event) {
     dispatch("select", { member });
@@ -78,6 +83,7 @@
       y={menuY}
       on:edit={onMenuEdit}
       on:delete={onMenuDelete}
+      on:skills={onMenuSkills}
     />
   {/if}
 </div>

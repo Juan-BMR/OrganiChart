@@ -11,8 +11,10 @@
 </script>
 
 <div class="context-menu" style="left:{x}px; top:{y}px" on:click|stopPropagation>
-  <button on:click={() => handle('edit')}>Edit</button>
-  <button on:click={() => handle('delete')}>Delete</button>
+  <button on:click={() => handle('edit')}>✏️ Edit</button>
+  <button on:click={() => handle('skills')}>🧬 DNA & Skills</button>
+  <div class="menu-separator"></div>
+  <button on:click={() => handle('delete')}" class="delete-btn">🗑️ Delete</button>
 </div>
 
 <style>
@@ -35,5 +37,20 @@
   }
   .context-menu button:hover {
     background: var(--surface);
+  }
+
+  .menu-separator {
+    height: 1px;
+    background: var(--border);
+    margin: var(--spacing-1) 0;
+  }
+
+  .delete-btn {
+    color: var(--error, #DC2626);
+  }
+
+  .delete-btn:hover {
+    background: var(--error-background, #FEE2E2);
+    color: var(--error, #DC2626);
   }
 </style>

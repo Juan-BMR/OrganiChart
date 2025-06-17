@@ -14,6 +14,10 @@
   import PDFExportModal from "$lib/components/PDFExportModal.svelte";
   import UserInfoSidebar from "$lib/components/UserInfoSidebar.svelte";
   import ChartColorPicker from "$lib/components/ChartColorPicker.svelte";
+  // NEW DNA IMPORTS
+  import OrganizationalDNA from "$lib/components/OrganizationalDNA.svelte";
+  import MemberSkillsModal from "$lib/components/MemberSkillsModal.svelte";
+  import { organizationalDNAStore } from "$lib/stores/organizationalDNA.js";
 
   import * as d3 from "d3";
   import html2canvas from "html2canvas";
@@ -39,6 +43,17 @@
 
   // Modal state - declare before store subscription
   let editingMember = null;
+
+  // Sidebar state
+  let sidebarOpen = false;
+  let sidebarLoading = false;
+  let sidebarError = null;
+  let navigationHistory = []; // Stack of previous members for back navigation
+
+  // NEW DNA FEATURE STATE
+  let showMemberSkillsModal = false;
+  let selectedMemberForSkills = null;
+  let dnaViewMode = 'hierarchy'; // 'hierarchy', 'collaboration', 'skills', 'dna'
 
   // Subscribe to members store
   const unsubscribeMembers = membersStore.subscribe(
@@ -88,6 +103,8 @@
     // Start listening for members when we have org id
     if (organizationId) {
       membersStore.listen(organizationId);
+      // Also start listening for DNA data
+      organizationalDNAStore.listen(organizationId);
       // Also fetch organization details from organizationsStore (already in memory)
       const orgUnsub = organizationsStore.subscribe(({ organizations }) => {
         organization = organizations.find((o) => o.id === organizationId);
@@ -98,8 +115,10 @@
         pageUnsub();
         orgUnsub();
         membersStore.stop();
+        organizationalDNAStore.stop();
         unsubscribeCanvas();
         unsubscribeMembers();
+        unsubscribeDNAStore();
       };
     }
   });
@@ -426,11 +445,10 @@
   let pdfFramingMode = false;
   let pdfFrameRect = null; // { left, top, width, height }
 
-  // Sidebar state
-  let sidebarOpen = false;
-  let sidebarLoading = false;
-  let sidebarError = null;
-  let navigationHistory = []; // Stack of previous members for back navigation
+  // Subscribe to DNA store for view mode changes
+  const unsubscribeDNAStore = organizationalDNAStore.subscribe((dnaData) => {
+    dnaViewMode = dnaData.viewMode;
+  });
 
   function openAddMember() {
     showAddMember = true;
@@ -464,6 +482,31 @@
       console.error("Failed to delete member:", error);
       alert(`Failed to delete ${member.name}: ${error.message}`);
     }
+  }
+
+  // NEW DNA FEATURE HANDLERS
+  function openMemberSkillsModal(member) {
+    selectedMemberForSkills = member;
+    showMemberSkillsModal = true;
+  }
+
+  function closeMemberSkillsModal() {
+    showMemberSkillsModal = false;
+    selectedMemberForSkills = null;
+  }
+
+  function toggleDNAView(mode) {
+    if (dnaViewMode === mode) {
+      // If clicking the same mode, go back to hierarchy
+      organizationalDNAStore.setViewMode('hierarchy');
+    } else {
+      organizationalDNAStore.setViewMode(mode);
+    }
+  }
+
+  function handleSkillsSuccess(event) {
+    console.log(event.detail.message);
+    // You could add a toast notification here
   }
 
   // New framed PDF export function
@@ -1481,9 +1524,37 @@
   >
 </svelte:head>
 
-<Header {user} />
+{#if user && organization}
+  <Header />
 
-{#if user}
+  <!-- NEW DNA CONTROLS -->
+  <div class="dna-controls-panel">
+    <h3>🧬 Organizational DNA</h3>
+    <div class="dna-mode-buttons">
+      <button 
+        class="dna-btn {dnaViewMode === 'collaboration' ? 'active' : ''}"
+        on:click={() => toggleDNAView('collaboration')}
+        title="View collaboration networks"
+      >
+        🤝 Collaboration
+      </button>
+      <button 
+        class="dna-btn {dnaViewMode === 'skills' ? 'active' : ''}"
+        on:click={() => toggleDNAView('skills')}
+        title="View skills distribution"
+      >
+        🎯 Skills
+      </button>
+      <button 
+        class="dna-btn {dnaViewMode === 'dna' ? 'active' : ''}"
+        on:click={() => toggleDNAView('dna')}
+        title="View comprehensive DNA analysis"
+      >
+        🧬 DNA View
+      </button>
+    </div>
+  </div>
+
   <!-- Main container with proper spacing from header -->
   <div class="page-container">
     <!-- Chart viewport -->
@@ -1556,9 +1627,9 @@
             member={n.member}
             x={n.x}
             y={n.y}
-            size={100}
             on:edit={handleEditMember}
             on:delete={handleDeleteMember}
+            on:skills={(e) => openMemberSkillsModal(e.detail.member)}
             on:select={handleSelectMember}
           />
         {/each}
@@ -1728,28 +1799,48 @@
   </div>
 
   <!-- Modals -->
-  <AddMemberModal
-    bind:open={showAddMember}
-    {organizationId}
-    {members}
-    on:close={closeAddMember}
-  />
+  {#if showAddMember}
+    <AddMemberModal
+      {organizationId}
+      {members}
+      on:close={closeAddMember}
+      on:success={() => {
+        closeAddMember();
+      }}
+    />
+  {/if}
 
-  <EditMemberModal
-    bind:open={showEditMember}
-    member={editingMember}
-    {organizationId}
-    {members}
-    on:close={closeEditMember}
-  />
+  {#if showEditMember && editingMember}
+    <EditMemberModal
+      {organizationId}
+      {editingMember}
+      {members}
+      on:close={closeEditMember}
+      on:success={() => {
+        closeEditMember();
+      }}
+    />
+  {/if}
 
-  <PDFExportModal
-    isVisible={showPDFModal}
-    progress={pdfProgress}
-    currentStage={pdfCurrentStage}
-    currentStageNumber={pdfStageNumber}
-    totalStages={pdfTotalStages}
-  />
+  {#if showPDFModal}
+    <PDFExportModal
+      bind:showModal={showPDFModal}
+      bind:progress={pdfProgress}
+      bind:currentStage={pdfCurrentStage}
+      bind:stageNumber={pdfStageNumber}
+      bind:totalStages={pdfTotalStages}
+    />
+  {/if}
+
+  <!-- NEW MEMBER SKILLS MODAL -->
+  {#if showMemberSkillsModal && selectedMemberForSkills}
+    <MemberSkillsModal
+      member={selectedMemberForSkills}
+      {organizationId}
+      on:close={closeMemberSkillsModal}
+      on:success={handleSkillsSuccess}
+    />
+  {/if}
 
   <!-- User info sidebar -->
   <UserInfoSidebar
@@ -1776,6 +1867,13 @@
   />
 
   <ChartColorPicker {organizationId} />
+
+  <!-- NEW DNA OVERLAY -->
+  <OrganizationalDNA 
+    {members} 
+    {organizationId} 
+    {transform}
+  />
 
   <!-- PDF Framing Mode Overlay -->
   {#if pdfFramingMode}
@@ -2250,6 +2348,50 @@
   }
 
   .zoom-btn.active {
+    background: var(--primary);
+    color: white;
+  }
+
+  /* NEW DNA CONTROLS */
+  .dna-controls-panel {
+    position: absolute;
+    top: var(--header-height);
+    right: var(--spacing-6);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-4);
+    box-shadow: var(--shadow-lg);
+    max-width: 280px;
+    pointer-events: auto;
+    z-index: 200;
+  }
+
+  .dna-mode-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+  }
+
+  .dna-btn {
+    background: transparent;
+    color: var(--text-primary);
+    padding: var(--spacing-2) var(--spacing-4);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .dna-btn:hover {
+    background: var(--secondary);
+    color: var(--text-primary);
+  }
+
+  .dna-btn.active {
     background: var(--primary);
     color: white;
   }
