@@ -262,6 +262,7 @@
     display: flex;
     align-items: center;
     gap: var(--spacing-3);
+    position: relative;
   }
 
   .theme-toggle {
