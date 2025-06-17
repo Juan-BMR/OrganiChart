@@ -14,6 +14,8 @@
   import PDFExportModal from "$lib/components/PDFExportModal.svelte";
   import UserInfoSidebar from "$lib/components/UserInfoSidebar.svelte";
   import ChartColorPicker from "$lib/components/ChartColorPicker.svelte";
+  import { teamPulseStore } from "$lib/stores/pulse.js";
+  import PulseMetricsGrid from "$lib/components/PulseMetricsGrid.svelte";
 
   import * as d3 from "d3";
   import html2canvas from "html2canvas";
@@ -68,6 +70,17 @@
     }
   );
 
+  // Pulse store state
+  let pulseMetrics = [];
+  let pulseLoading = true;
+  let pulseError = null;
+
+  const unsubscribePulse = teamPulseStore.subscribe(($s) => {
+    pulseMetrics = $s.metrics;
+    pulseLoading = $s.loading;
+    pulseError = $s.error;
+  });
+
   // Listen for auth and organization param
   onMount(() => {
     const authUnsub = authStore.subscribe(({ user: u, loading }) => {
@@ -88,6 +101,7 @@
     // Start listening for members when we have org id
     if (organizationId) {
       membersStore.listen(organizationId);
+      teamPulseStore.listen(organizationId);
       // Also fetch organization details from organizationsStore (already in memory)
       const orgUnsub = organizationsStore.subscribe(({ organizations }) => {
         organization = organizations.find((o) => o.id === organizationId);
@@ -100,6 +114,8 @@
         membersStore.stop();
         unsubscribeCanvas();
         unsubscribeMembers();
+        unsubscribePulse();
+        teamPulseStore.stop();
       };
     }
   });
@@ -431,6 +447,15 @@
   let sidebarLoading = false;
   let sidebarError = null;
   let navigationHistory = []; // Stack of previous members for back navigation
+
+  let showPulseIndicators = false;
+  let showPulseOverlay = false;
+
+  // Health score calculation
+  $: healthScore = (() => {
+    const latest = pulseMetrics.find((m) => m.metricKey === "engagement_score");
+    return latest?.value ?? null;
+  })();
 
   function openAddMember() {
     showAddMember = true;
@@ -1473,6 +1498,11 @@
       sidebarLoading = false;
     }
   }
+
+  function handleNodePulse(event) {
+    showPulseOverlay = true;
+  }
+  function closePulseOverlay() { showPulseOverlay = false; }
 </script>
 
 <svelte:head>
@@ -1559,7 +1589,10 @@
             size={100}
             on:edit={handleEditMember}
             on:delete={handleDeleteMember}
+            on:pulse={handleNodePulse}
             on:select={handleSelectMember}
+            showPulse={showPulseIndicators}
+            healthScore={healthScore}
           />
         {/each}
 
@@ -1725,6 +1758,19 @@
         </button>
       </div>
     </div>
+
+    <!-- Team Pulse toggle button -->
+    <button class="pulse-toggle-btn" on:click={() => (showPulseIndicators = !showPulseIndicators)} title="Toggle Team Pulse Indicators">
+      📊 Pulse {showPulseIndicators ? 'On' : 'Off'}
+    </button>
+
+    <!-- Pulse overlay drill-down -->
+    {#if showPulseOverlay}
+      <div class="pulse-overlay">
+        <button class="pulse-overlay-close" on:click={closePulseOverlay}>×</button>
+        <PulseMetricsGrid {organizationId} />
+      </div>
+    {/if}
   </div>
 
   <!-- Modals -->
@@ -2252,5 +2298,52 @@
   .zoom-btn.active {
     background: var(--primary);
     color: white;
+  }
+
+  /* Team Pulse toggle button */
+  .pulse-toggle-btn {
+    position: fixed;
+    bottom: var(--spacing-6);
+    left: var(--spacing-6);
+    background: var(--surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-3) var(--spacing-4);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    z-index: 300;
+    box-shadow: var(--shadow-md);
+  }
+
+  .pulse-toggle-btn:hover { background: var(--primary-dark); color:#fff; }
+
+  .pulse-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index: 400;
+  }
+  .pulse-overlay > div {
+    background: var(--background);
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow:auto;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+  }
+  .pulse-overlay-close {
+    position:absolute;
+    top: var(--spacing-6);
+    right: var(--spacing-6);
+    font-size:1.5rem;
+    background:none;
+    color:#fff;
+    border:none;
+    cursor:pointer;
+    z-index:401;
   }
 </style>

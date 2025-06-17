@@ -13,6 +13,7 @@
 <div class="context-menu" style="left:{x}px; top:{y}px" on:click|stopPropagation>
   <button on:click={() => handle('edit')}>Edit</button>
   <button on:click={() => handle('delete')}>Delete</button>
+  <button on:click={() => handle('pulse')}>Pulse Metrics</button>
 </div>
 
 <style>

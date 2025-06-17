@@ -7,6 +7,17 @@
   import NodeContextMenu from "./NodeContextMenu.svelte";
   import { createEventDispatcher } from "svelte";
 
+  // Team Pulse integration
+  export let showPulse = false;
+  export let healthScore = null; // 0-100 number or null
+
+  $: pulseColor = (() => {
+    if (healthScore === null || healthScore === undefined) return "var(--primary)";
+    if (healthScore >= 80) return "var(--success)";
+    if (healthScore >= 50) return "#fbbf24"; // warning amber
+    return "var(--error)";
+  })();
+
   let showMenu = false;
   let menuX = 0;
   let menuY = 0;
@@ -44,6 +55,11 @@
     closeMenu();
   }
 
+  function onMenuPulse() {
+    dispatch("pulse", { member });
+    closeMenu();
+  }
+
   // Emit select when user clicks the node
   function handleClick(event) {
     dispatch("select", { member });
@@ -78,7 +94,17 @@
       y={menuY}
       on:edit={onMenuEdit}
       on:delete={onMenuDelete}
+      on:pulse={onMenuPulse}
     />
+  {/if}
+  {#if showPulse && healthScore !== null}
+    <div
+      class="pulse-indicator"
+      style="border-color:{pulseColor}"
+      title={`Health ${Math.round(healthScore)}%`}
+    >
+      <span>{Math.round(healthScore)}</span>
+    </div>
   {/if}
 </div>
 
@@ -163,5 +189,23 @@
     color: var(--text-secondary);
     line-height: 1.2;
     font-weight: 500;
+  }
+
+  .pulse-indicator {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 32px;
+    height: 32px;
+    background: var(--surface);
+    border: 4px solid var(--primary);
+    border-radius: 50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
   }
 </style>
