@@ -1511,7 +1511,7 @@
   >
 </svelte:head>
 
-<Header {user} />
+<Header {user} orgId={organizationId} />
 
 {#if user}
   <!-- Main container with proper spacing from header -->

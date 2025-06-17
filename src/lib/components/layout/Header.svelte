@@ -5,6 +5,7 @@
   import { goto } from "$app/navigation";
 
   export let user = null;
+  export let orgId = null;
 
   let currentTheme = "light";
   let imageLoadError = false;
@@ -78,6 +79,15 @@
   function goToDashboard() {
     goto("/dashboard");
   }
+
+  function goToPulse() {
+    if (orgId) {
+      goto(`/org/${orgId}/pulse`);
+    }
+  }
+
+  let showNotifications = false;
+  function toggleNotifications() { showNotifications = !showNotifications; }
 </script>
 
 {#if user}
@@ -143,6 +153,15 @@
           <Sun size={18} />
         {/if}
       </button>
+      {#if orgId}
+        <button class="nav-btn" title="Team Pulse" on:click={goToPulse}>📊</button>
+      {/if}
+      <button class="nav-btn" title="Notifications" on:click={toggleNotifications}>🔔</button>
+      {#if showNotifications}
+        <div class="notification-dropdown">
+          <p class="empty">No notifications</p>
+        </div>
+      {/if}
       <button class="logout-btn" on:click={handleSignOut}>Logout</button>
     </div>
   </header>
@@ -278,4 +297,32 @@
   .logout-btn:hover {
     background: rgba(255, 255, 255, 0.3);
   }
+
+  .nav-btn {
+    background: rgba(255,255,255,0.2);
+    border:none;
+    color:white;
+    padding: var(--spacing-2) var(--spacing-3);
+    border-radius: var(--radius-md);
+    font-size: 1.1rem;
+    cursor:pointer;
+  }
+
+  .nav-btn:hover { background: rgba(255,255,255,0.3); }
+
+  .notification-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: var(--spacing-2);
+    background: var(--background);
+    border:1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-4);
+    min-width: 240px;
+    box-shadow: var(--shadow-lg);
+    z-index: 2000;
+  }
+
+  .notification-dropdown .empty { color: var(--text-secondary); font-size: var(--font-size-sm); }
 </style>

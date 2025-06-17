@@ -14,5 +14,8 @@
 	],
 	"/org/[id]/chart": [
 		"src/routes/+layout.js"
+	],
+	"/org/[id]/pulse": [
+		"src/routes/+layout.js"
 	]
 }
