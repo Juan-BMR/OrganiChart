@@ -12,35 +12,116 @@
     return () => unsubscribe();
   });
 
-  // New rule form fields
+  /* ----------------- Builder state ---------------- */
+  // General
   let name = "";
-  let substring = "";
-  let backgroundColor = "#ffeb3b"; // yellow default
+  // Condition
+  let conditionType = "title_contains";
+  let condSubstring = "";
+  let condCaseSensitive = false;
+  let condLevel = 0;
+  let condDirectReports = 0;
+  // Styles
+  let styleBackgroundColor = "";
+  let styleBorderColor = "";
+  let styleBorderWidth = ""; // px
+  let styleFontWeight = "";
+
+  /* ----------------- Helpers ---------------- */
+  function buildConditions() {
+    switch (conditionType) {
+      case "title_contains":
+        return [
+          {
+            type: "title_contains",
+            value: condSubstring.trim(),
+            caseSensitive: condCaseSensitive,
+          },
+        ];
+      case "level_equals":
+        return [
+          {
+            type: "level_equals",
+            value: Number(condLevel),
+          },
+        ];
+      case "direct_reports_gte":
+        return [
+          {
+            type: "direct_reports_gte",
+            value: Number(condDirectReports),
+          },
+        ];
+    }
+  }
+
+  function buildStyles() {
+    const style = {};
+    if (styleBackgroundColor) {
+      style.node = { ...(style.node || {}), backgroundColor: styleBackgroundColor };
+    }
+    if (styleBorderColor) {
+      style.node = { ...(style.node || {}), borderColor: styleBorderColor };
+    }
+    if (styleBorderWidth && !isNaN(styleBorderWidth)) {
+      style.node = {
+        ...(style.node || {}),
+        borderWidth: Number(styleBorderWidth),
+      };
+    }
+    if (styleFontWeight) {
+      style.text = { ...(style.text || {}), fontWeight: styleFontWeight };
+    }
+    return style;
+  }
+
+  function validateForm() {
+    if (!name.trim()) return false;
+
+    // Validate condition-specific values
+    switch (conditionType) {
+      case "title_contains":
+        if (!condSubstring.trim()) return false;
+        break;
+      case "level_equals":
+        if (isNaN(condLevel)) return false;
+        break;
+      case "direct_reports_gte":
+        if (isNaN(condDirectReports) || condDirectReports < 0) return false;
+        break;
+    }
+
+    // Validate style – at least one property chosen
+    const styles = buildStyles();
+    if (Object.keys(styles).length === 0) return false;
+
+    return true;
+  }
+
+  $: formValid = validateForm();
 
   function addRule() {
-    if (!name.trim() || !substring.trim()) return;
+    if (!formValid) return;
 
-    rulesStore.addRule({
+    const newRule = {
       name: name.trim(),
       enabled: true,
       priority: rules.length,
-      conditions: [
-        {
-          type: "title_contains",
-          value: substring.trim(),
-          caseSensitive: false,
-        },
-      ],
-      styles: {
-        node: {
-          backgroundColor,
-        },
-      },
-    });
+      conditions: buildConditions(),
+      styles: buildStyles(),
+    };
 
-    // Reset form
+    rulesStore.addRule(newRule);
+
+    // Reset form fields
     name = "";
-    substring = "";
+    condSubstring = "";
+    condLevel = 0;
+    condDirectReports = 0;
+    styleBackgroundColor = "";
+    styleBorderColor = "";
+    styleBorderWidth = "";
+    styleFontWeight = "";
   }
 
   function toggleRule(rule) {
@@ -52,6 +133,17 @@
       rulesStore.deleteRule(rule.id);
     }
   }
+
+  function moveRule(index, direction) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= rules.length) return;
+    const ordered = [...rules];
+    const [moved] = ordered.splice(index, 1);
+    ordered.splice(newIndex, 0, moved);
+    rulesStore.reorderRules(ordered.map((r) => r.id));
+  }
+
+  // ----------------- End builder -----------------
 </script>
 
 <div class="overlay" on:click={() => dispatch("close")}></div>
@@ -65,8 +157,10 @@
     {#if rules.length === 0}
       <p class="empty">No rules yet.</p>
     {:else}
-      {#each rules as rule (rule.id)}
+      {#each rules as rule, i (rule.id)}
         <div class="rule-item">
+          <button class="move-btn" title="Move up" disabled={i === 0} on:click={() => moveRule(i, -1)}>▲</button>
+          <button class="move-btn" title="Move down" disabled={i === rules.length - 1} on:click={() => moveRule(i, 1)}>▼</button>
           <input type="checkbox" bind:checked={rule.enabled} on:change={() => toggleRule(rule)} />
           <span class="rule-name">{rule.name}</span>
           <span class="rule-priority">#{rule.priority}</span>
@@ -77,24 +171,56 @@
   </section>
 
   <form class="new-rule" on:submit|preventDefault={addRule}>
-    <h3>Add Quick "Title contains" Rule</h3>
-    <input
-      type="text"
-      placeholder="Rule name"
-      bind:value={name}
-      required
-    />
-    <input
-      type="text"
-      placeholder="Title substring"
-      bind:value={substring}
-      required
-    />
-    <label class="color-picker">
-      <span>Background</span>
-      <input type="color" bind:value={backgroundColor} />
+    <h3>Create Rule</h3>
+    <label>
+      <span>Name</span>
+      <input type="text" bind:value={name} required />
     </label>
-    <button type="submit" class="add-btn">Add</button>
+
+    <fieldset class="condition-section">
+      <legend>Condition</legend>
+      <select bind:value={conditionType}>
+        <option value="title_contains">Title contains</option>
+        <option value="level_equals">Level equals</option>
+        <option value="direct_reports_gte">Direct reports ≥</option>
+      </select>
+
+      {#if conditionType === 'title_contains'}
+        <input type="text" placeholder="Substring" bind:value={condSubstring} required />
+        <label class="inline"><input type="checkbox" bind:checked={condCaseSensitive}/> Case sensitive</label>
+      {:else if conditionType === 'level_equals'}
+        <input type="number" min="0" step="1" bind:value={condLevel} required />
+      {:else}
+        <input type="number" min="0" step="1" bind:value={condDirectReports} required />
+      {/if}
+    </fieldset>
+
+    <fieldset class="style-section">
+      <legend>Styles (any)</legend>
+      <label class="color-picker">
+        <span>Background</span>
+        <input type="color" bind:value={styleBackgroundColor} />
+      </label>
+      <label class="color-picker">
+        <span>Border color</span>
+        <input type="color" bind:value={styleBorderColor} />
+      </label>
+      <label class="inline">
+        Border width <input type="number" min="0" max="10" style="width:60px" bind:value={styleBorderWidth}/> px
+      </label>
+      <label class="inline">
+        Font weight
+        <select bind:value={styleFontWeight}>
+          <option value="">—</option>
+          <option value="400">Normal</option>
+          <option value="500">500</option>
+          <option value="600">600</option>
+          <option value="700">Bold</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <button type="submit" class="add-btn" disabled={!formValid}>Add Rule</button>
   </form>
 </div>
 
@@ -153,7 +279,7 @@
   .rule-item {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.3rem;
   }
 
   .rule-name {
@@ -197,5 +323,59 @@
     border-radius: var(--radius-md,6px);
     cursor: pointer;
     font-size: 0.85rem;
+  }
+
+  .move-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-size: 0.8rem;
+    line-height: 1;
+    color: var(--text-secondary,#666);
+  }
+  .move-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  .inline {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .condition-section, .style-section {
+    border: 1px solid var(--border,#ddd);
+    padding: 0.5rem;
+    border-radius: var(--radius-md,8px);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-block: 0.5rem;
+  }
+
+  .condition-section select {
+    width: 100%;
+  }
+
+  .new-rule label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .new-rule input[type="text"],
+  .new-rule input[type="number"],
+  .new-rule select {
+    width: 100%;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border,#ddd);
+    border-radius: var(--radius-md,6px);
+  }
+
+  .add-btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>
