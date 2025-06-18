@@ -6,6 +6,8 @@
   export let size = 90; // diameter of avatar circle
   import NodeContextMenu from "./NodeContextMenu.svelte";
   import { createEventDispatcher } from "svelte";
+  import { rulesStore } from "$lib/stores/rules.js";
+  import { evaluateStyles } from "$lib/utils/ruleEngine.js";
 
   let showMenu = false;
   let menuX = 0;
@@ -21,6 +23,22 @@
         .map((n) => n.charAt(0).toUpperCase())
         .join("")
     : "";
+
+  // Reactive evaluation of styling rules
+  $: computedStyles = evaluateStyles(member, $rulesStore);
+  $: nodeStyle = computedStyles.node || {};
+  $: textStyle = computedStyles.text || {};
+
+  // Build inline style strings for elements that will use dynamic props
+  $: avatarInlineStyle = `width:${size}px; height:${size}px;` +
+    (nodeStyle.backgroundColor ? `background:${nodeStyle.backgroundColor};` : "") +
+    (nodeStyle.borderColor ? `border-color:${nodeStyle.borderColor};` : "") +
+    (nodeStyle.borderWidth ? `border-width:${nodeStyle.borderWidth}px;` : "");
+
+  $: nameInlineStyle =
+    (textStyle.color ? `color:${textStyle.color};` : "") +
+    (textStyle.fontWeight ? `font-weight:${textStyle.fontWeight};` : "") +
+    (textStyle.fontSize ? `font-size:${textStyle.fontSize};` : "");
 
   function handleContextMenu(event) {
     event.preventDefault();
@@ -58,7 +76,7 @@
   in:scale={{ duration: 200 }}
   out:scale={{ duration: 150 }}
 >
-  <div class="avatar" style="width:{size}px; height:{size}px">
+  <div class="avatar" style={avatarInlineStyle}>
     {#if member.photoURL}
       <img src={member.photoURL} alt={member.name} />
     {:else}
@@ -66,7 +84,7 @@
     {/if}
   </div>
   <div class="member-info">
-    <div class="name">{member.name}</div>
+    <div class="name" style={nameInlineStyle}>{member.name}</div>
     {#if member.role}
       <div class="role">{member.role}</div>
     {/if}
