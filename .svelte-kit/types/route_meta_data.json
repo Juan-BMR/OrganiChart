@@ -1,9 +1,18 @@
 {
-	"/": [],
+	"/": [
+		"src/routes/+layout.js",
+		"src/routes/+layout.js"
+	],
 	"/api/proxy-image": [
 		"src/routes/api/proxy-image/+server.js"
 	],
-	"/dashboard": [],
-	"/login": [],
-	"/org/[id]/chart": []
+	"/dashboard": [
+		"src/routes/+layout.js"
+	],
+	"/login": [
+		"src/routes/+layout.js"
+	],
+	"/org/[id]/chart": [
+		"src/routes/+layout.js"
+	]
 }

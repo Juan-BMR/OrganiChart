@@ -14,6 +14,9 @@
   import PDFExportModal from "$lib/components/PDFExportModal.svelte";
   import UserInfoSidebar from "$lib/components/UserInfoSidebar.svelte";
   import ChartColorPicker from "$lib/components/ChartColorPicker.svelte";
+  import RuleManagerModal from "$lib/components/RuleManagerModal.svelte";
+  import { rulesStore } from "$lib/stores/rules.js";
+  import { getMemberDiameter } from "$lib/utils/ruleEngine.js";
 
   import * as d3 from "d3";
   import html2canvas from "html2canvas";
@@ -40,6 +43,10 @@
   // Modal state - declare before store subscription
   let editingMember = null;
 
+  // Rules store subscription
+  let rules = [];
+  const unsubscribeRules = rulesStore.subscribe((r) => (rules = r));
+
   // Subscribe to members store
   const unsubscribeMembers = membersStore.subscribe(
     ({ members: m, loading }) => {
@@ -49,7 +56,7 @@
       // Update selectedMember reference if it exists and members changed
       if (selectedMember && m.length > 0) {
         const updatedMember = m.find(
-          (member) => member.id === selectedMember.id
+          (member) => member.id === selectedMember.id,
         );
         if (updatedMember) {
           selectedMember = updatedMember;
@@ -59,13 +66,13 @@
       // Update editingMember reference if it exists and members changed
       if (editingMember && m.length > 0) {
         const updatedEditingMember = m.find(
-          (member) => member.id === editingMember.id
+          (member) => member.id === editingMember.id,
         );
         if (updatedEditingMember) {
           editingMember = updatedEditingMember;
         }
       }
-    }
+    },
   );
 
   // Listen for auth and organization param
@@ -85,24 +92,35 @@
       organizationId = $page.params.id;
     });
 
-    // Start listening for members when we have org id
-    if (organizationId) {
-      membersStore.listen(organizationId);
-      // Also fetch organization details from organizationsStore (already in memory)
-      const orgUnsub = organizationsStore.subscribe(({ organizations }) => {
-        organization = organizations.find((o) => o.id === organizationId);
-      });
-      // Cleanup membership
-      return () => {
-        authUnsub();
-        pageUnsub();
-        orgUnsub();
-        membersStore.stop();
-        unsubscribeCanvas();
-        unsubscribeMembers();
-      };
-    }
+    // Also fetch organization details from organizationsStore (already in memory)
+    const orgUnsub = organizationsStore.subscribe(({ organizations }) => {
+      organization = organizations.find((o) => o.id === organizationId);
+    });
+
+    // Cleanup
+    return () => {
+      authUnsub();
+      pageUnsub();
+      orgUnsub();
+      membersStore.stop();
+      unsubscribeCanvas();
+      unsubscribeRules();
+      unsubscribeMembers();
+    };
   });
+
+  // Reactive: Start listening for members and load rules when organizationId changes
+  $: if (organizationId && user) {
+    console.log("Loading data for organization:", organizationId);
+
+    // Start listening for members
+    membersStore.listen(organizationId);
+
+    // Load rules for this organization
+    rulesStore.loadRules(organizationId).catch((error) => {
+      console.error("Failed to load rules:", error);
+    });
+  }
 
   /********************
    * Pan and Zoom Logic
@@ -304,7 +322,7 @@
       (m) =>
         m.position &&
         typeof m.position.x === "number" &&
-        typeof m.position.y === "number"
+        typeof m.position.y === "number",
     );
 
     if (allHavePositions) {
@@ -327,11 +345,48 @@
         });
       });
 
-      // Compute layout with d3.tree for each tree
-      const nodeSize = [200, 180]; // More spacing between nodes
+      // Use original fixed spacing, then post-process for individual nodes with large avatars
+      const nodeSize = [200, 180];
+
       trees.forEach((rootTree, i) => {
         const treeLayout = d3.tree().nodeSize(nodeSize);
         const treeData = treeLayout(rootTree);
+
+        // Post-process: adjust positions proportionally for nodes with larger avatars
+        const adjustPositionsForLargeAvatars = (node) => {
+          const member = node.data;
+          const avatarDiameter = getMemberDiameter(member, rules) || 90;
+          const defaultDiameter = 90;
+
+          // Calculate proportional extra space for any avatar larger than default
+          if (avatarDiameter > defaultDiameter) {
+            // More responsive scaling: 1.2x the diameter difference + base spacing
+            const extraSpace = (avatarDiameter - defaultDiameter) * 1;
+
+            // Recursively push down all descendants
+            const pushDownDescendants = (n, yOffset) => {
+              if (n.children) {
+                n.children.forEach((child) => {
+                  child.y += yOffset;
+                  pushDownDescendants(child, yOffset);
+                });
+              }
+            };
+
+            pushDownDescendants(node, extraSpace);
+          }
+
+          // Recursively process children
+          if (node.children) {
+            node.children.forEach((child) =>
+              adjustPositionsForLargeAvatars(child),
+            );
+          }
+        };
+
+        // Apply adjustments starting from root
+        adjustPositionsForLargeAvatars(rootTree);
+
         // Offset each tree horizontally to avoid overlap if multiple roots
         const offsetX = i * 600;
         treeData.each((node) => {
@@ -432,11 +487,21 @@
   let sidebarError = null;
   let navigationHistory = []; // Stack of previous members for back navigation
 
+  // Rules modal state
+  let showRules = false;
+
   function openAddMember() {
     showAddMember = true;
   }
   function closeAddMember() {
     showAddMember = false;
+  }
+
+  function openRules() {
+    showRules = true;
+  }
+  function closeRules() {
+    showRules = false;
   }
 
   function handleEditMember(event) {
@@ -484,7 +549,7 @@
 
       // Convert Firebase images to use proxy URLs to avoid CORS issues
       const firebaseImages = containerEl.querySelectorAll(
-        'img[src*="firebasestorage"]'
+        'img[src*="firebasestorage"]',
       );
       const imageReplacements = [];
 
@@ -527,7 +592,7 @@
                 } catch (canvasError) {
                   console.warn(
                     "Failed to convert image to data URL:",
-                    canvasError
+                    canvasError,
                   );
                   resolve();
                 }
@@ -535,7 +600,7 @@
 
               testImg.onerror = () => {
                 console.warn(
-                  `Failed to load image through proxy: ${originalUrl}`
+                  `Failed to load image through proxy: ${originalUrl}`,
                 );
                 resolve();
               };
@@ -603,15 +668,15 @@
               styleEl.textContent = styleEl.textContent
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*90%,\s*transparent\)/g,
-                  backgroundRgba90
+                  backgroundRgba90,
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*95%,\s*transparent\)/g,
-                  backgroundRgba95
+                  backgroundRgba95,
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--chart-primary[^)]*\)\s*15%,\s*transparent\)/g,
-                  "rgba(99, 102, 241, 0.15)"
+                  "rgba(99, 102, 241, 0.15)",
                 );
             }
           });
@@ -621,7 +686,7 @@
             if (el.style.cssText) {
               el.style.cssText = el.style.cssText.replace(
                 /color-mix\([^)]+\)/g,
-                backgroundRgba90
+                backgroundRgba90,
               );
             }
           });
@@ -698,7 +763,7 @@
         0,
         0,
         sourceWidth,
-        sourceHeight
+        sourceHeight,
       );
 
       // Restore original image sources
@@ -713,7 +778,7 @@
         "Final canvas dimensions:",
         croppedCanvas.width,
         "x",
-        croppedCanvas.height
+        croppedCanvas.height,
       );
 
       if (imgData.length < 1000) {
@@ -760,7 +825,7 @@
         "PDF internal dimensions:",
         pdf.internal.pageSize.getWidth(),
         "x",
-        pdf.internal.pageSize.getHeight()
+        pdf.internal.pageSize.getHeight(),
       );
 
       // Add the image to PDF using calculated dimensions
@@ -828,7 +893,7 @@
           replacement.img.src = replacement.originalSrc;
         }
         console.log(
-          `Restored ${imageReplacements.length} image sources after error`
+          `Restored ${imageReplacements.length} image sources after error`,
         );
       }
 
@@ -859,7 +924,7 @@
 
       // Convert Firebase images to use proxy URLs to avoid CORS issues
       const firebaseImages = containerEl.querySelectorAll(
-        'img[src*="firebasestorage"]'
+        'img[src*="firebasestorage"]',
       );
       const imageReplacements = [];
 
@@ -909,13 +974,13 @@
                   // Replace the image src with data URL
                   img.src = dataURL;
                   console.log(
-                    `Successfully proxied and converted image for ${img.alt || "user"}`
+                    `Successfully proxied and converted image for ${img.alt || "user"}`,
                   );
                   resolve();
                 } catch (canvasError) {
                   console.warn(
                     "Failed to convert image to data URL:",
-                    canvasError
+                    canvasError,
                   );
                   resolve(); // Continue even if conversion fails
                 }
@@ -923,7 +988,7 @@
 
               testImg.onerror = () => {
                 console.warn(
-                  `Failed to load image through proxy: ${originalUrl}`
+                  `Failed to load image through proxy: ${originalUrl}`,
                 );
                 // Keep original - will likely be replaced with initials placeholder
                 resolve();
@@ -971,7 +1036,7 @@
 
       if (visibleNodes.length === 0) {
         alert(
-          "No visible chart content to export. Please adjust the view and try again."
+          "No visible chart content to export. Please adjust the view and try again.",
         );
         return;
       }
@@ -982,13 +1047,13 @@
         Math.min(...visibleNodes.map((n) => n.screenX)) - padding;
       const rightmostScreen =
         Math.max(
-          ...visibleNodes.map((n) => n.screenX + 160 * transform.scale)
+          ...visibleNodes.map((n) => n.screenX + 160 * transform.scale),
         ) + padding;
       const topmostScreen =
         Math.min(...visibleNodes.map((n) => n.screenY)) - padding;
       const bottommostScreen =
         Math.max(
-          ...visibleNodes.map((n) => n.screenY + 200 * transform.scale)
+          ...visibleNodes.map((n) => n.screenY + 200 * transform.scale),
         ) + padding;
 
       // Ensure bounds are within the container
@@ -1081,15 +1146,15 @@
               styleEl.textContent = styleEl.textContent
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*90%,\s*transparent\)/g,
-                  backgroundRgba90
+                  backgroundRgba90,
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*95%,\s*transparent\)/g,
-                  backgroundRgba95
+                  backgroundRgba95,
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--chart-primary[^)]*\)\s*15%,\s*transparent\)/g,
-                  "rgba(99, 102, 241, 0.15)"
+                  "rgba(99, 102, 241, 0.15)",
                 );
             }
           });
@@ -1100,7 +1165,7 @@
             if (el.style.cssText) {
               el.style.cssText = el.style.cssText.replace(
                 /color-mix\([^)]+\)/g,
-                backgroundRgba90
+                backgroundRgba90,
               );
             }
           });
@@ -1162,16 +1227,16 @@
 
       const sourceX = Math.max(
         0,
-        (translateX + paddedLeftmostX) * captureScale
+        (translateX + paddedLeftmostX) * captureScale,
       );
       const sourceY = Math.max(0, (translateY + paddedTopmostY) * captureScale);
       const sourceWidth = Math.min(
         paddedContentWidth * captureScale,
-        canvas.width - sourceX
+        canvas.width - sourceX,
       );
       const sourceHeight = Math.min(
         paddedContentHeight * captureScale,
-        canvas.height - sourceY
+        canvas.height - sourceY,
       );
 
       console.log("Cropping details:", {
@@ -1205,7 +1270,7 @@
         0,
         0,
         sourceWidth,
-        sourceHeight // destination rectangle (same high-res size)
+        sourceHeight, // destination rectangle (same high-res size)
       );
 
       // Restore original image sources
@@ -1220,7 +1285,7 @@
         "Final canvas dimensions:",
         croppedCanvas.width,
         "x",
-        croppedCanvas.height
+        croppedCanvas.height,
       );
       console.log("Image data length:", imgData.length);
 
@@ -1236,7 +1301,7 @@
         "PDF will be created with dimensions:",
         paddedContentWidth,
         "x",
-        paddedContentHeight
+        paddedContentHeight,
       );
 
       // Update progress
@@ -1255,7 +1320,7 @@
         "PDF internal dimensions:",
         pdf.internal.pageSize.getWidth(),
         "x",
-        pdf.internal.pageSize.getHeight()
+        pdf.internal.pageSize.getHeight(),
       );
 
       // Add the high-resolution image to PDF, scaling down to exact content dimensions
@@ -1267,7 +1332,7 @@
         paddedContentWidth,
         paddedContentHeight,
         "",
-        "SLOW" // Use SLOW for better quality rendering
+        "SLOW", // Use SLOW for better quality rendering
       );
 
       // Final progress update
@@ -1330,7 +1395,7 @@
           replacement.img.src = replacement.originalSrc;
         }
         console.log(
-          `Restored ${imageReplacements.length} image sources after error`
+          `Restored ${imageReplacements.length} image sources after error`,
         );
       }
 
@@ -1504,13 +1569,19 @@
         {#each lines as l, i}
           <!-- Calculate avatar centers using fixed node width -->
           {@const fixedNodeWidth = 160}
-          <!-- Fixed width from MemberNode CSS -->
-          {@const avatarSize = 100}
+          <!-- Look up member data for dynamic avatar sizes -->
+          {@const parentMember = members.find((m) => m.id === l.parentId)}
+          {@const childMember = members.find((m) => m.id === l.childId)}
+          {@const parentAvatarSize =
+            getMemberDiameter(parentMember || {}, rules) || 90}
+          {@const childAvatarSize =
+            getMemberDiameter(childMember || {}, rules) || 90}
           {@const borderWidth = 4}
 
           <!-- Avatar is centered within the fixed-width node -->
           {@const parentCenterX = l.x1 + fixedNodeWidth / 2}
-          {@const parentBottomY = l.y1 + avatarSize + borderWidth * 2 + 50}
+          {@const parentBottomY =
+            l.y1 + parentAvatarSize + borderWidth * 2 + 50}
           {@const childCenterX = l.x2 + fixedNodeWidth / 2}
           {@const childTopY = l.y2 - 4}
 
@@ -1690,6 +1761,29 @@
 
       <!-- Action buttons -->
       <div class="action-controls">
+        <button class="action-btn secondary" on:click={openRules}>
+          <svg
+            class="button-icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+          Chart Design Rules
+        </button>
+
         <button class="action-btn secondary" on:click={startPDFFraming}>
           <svg
             class="button-icon"
@@ -1758,12 +1852,9 @@
     {members}
     {organizationId}
     {navigationHistory}
-    loading={sidebarLoading}
-    error={sidebarError}
     on:close={closeSidebar}
     on:back={handleSidebarBack}
     on:navigate={handleSidebarNavigate}
-    on:retry={retrySidebar}
     on:edit={(e) => {
       editingMember = e.detail.member;
       showEditMember = true;
@@ -1776,6 +1867,8 @@
   />
 
   <ChartColorPicker {organizationId} />
+
+  <RuleManagerModal open={showRules} {organizationId} on:close={closeRules} />
 
   <!-- PDF Framing Mode Overlay -->
   {#if pdfFramingMode}
@@ -1806,7 +1899,7 @@
             <div class="frame-info">
               <span class="frame-dimensions">
                 {Math.round(pdfFrameRect.width)} × {Math.round(
-                  pdfFrameRect.height
+                  pdfFrameRect.height,
                 )} px
               </span>
               <span class="frame-orientation">
@@ -1840,7 +1933,7 @@
 <style>
   .page-container {
     min-height: calc(100vh - var(--header-height));
-    margin-top: var(--header-height);
+    /* margin-top: var(--header-height); */
     background: var(--background);
     position: relative;
   }
