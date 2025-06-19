@@ -11,6 +11,7 @@
   let inputValue = "";
   let isValid = true;
   let loading = false;
+  let isExpanded = false;
 
   const HEX_REGEX = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
@@ -19,11 +20,11 @@
     document.documentElement.style.setProperty("--chart-primary", "#6366F1");
     document.documentElement.style.setProperty(
       "--chart-primary-dark",
-      adjustColor("#6366F1", -15)
+      adjustColor("#6366F1", -15),
     );
     document.documentElement.style.setProperty(
       "--chart-primary-light",
-      adjustColor("#6366F1", 15)
+      adjustColor("#6366F1", 15),
     );
 
     if (organizationId) {
@@ -45,7 +46,7 @@
   async function loadOrganizationColor() {
     try {
       const orgDoc = await getDoc(
-        doc(db, COLLECTIONS.ORGANIZATIONS, organizationId)
+        doc(db, COLLECTIONS.ORGANIZATIONS, organizationId),
       );
       if (orgDoc.exists()) {
         const orgData = orgDoc.data();
@@ -135,11 +136,11 @@
     document.documentElement.style.setProperty("--chart-primary", hex);
     document.documentElement.style.setProperty(
       "--chart-primary-dark",
-      adjustColor(hex, -15)
+      adjustColor(hex, -15),
     );
     document.documentElement.style.setProperty(
       "--chart-primary-light",
-      adjustColor(hex, 15)
+      adjustColor(hex, 15),
     );
   }
 
@@ -153,7 +154,7 @@
             .map((c) => c + c)
             .join("")
         : h,
-      16
+      16,
     );
     let r = (bigint >> 16) & 255;
     let g = (bigint >> 8) & 255;
@@ -177,17 +178,63 @@
     await saveColorToDatabase(color);
     isValid = true;
   }
+
+  function toggleExpanded() {
+    isExpanded = !isExpanded;
+  }
 </script>
 
-<div class="color-picker" in:fade>
-  <label>
-    <span class="label-text">Chart Color</span>
+<div class="color-picker" class:expanded={isExpanded} in:fade>
+  <!-- Collapsed State: Just the swatch -->
+  {#if !isExpanded}
+    <button
+      class="swatch-toggle"
+      on:click={toggleExpanded}
+      title="Chart Color Picker - Click to customize"
+    >
+      <div class="swatch-container">
+        <span
+          class="swatch"
+          style="background:{isValid ? color : '#ccc'};"
+          aria-label="current color preview"
+        ></span>
+        <div class="picker-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM7 3V1m0 20v-2m-4-4h2m12-10a2 2 0 012 2v6a2 2 0 01-2 2h-2a2 2 0 01-2-2V7a2 2 0 012-2h2zm-2 4h2m0 0v2"
+            />
+          </svg>
+        </div>
+      </div>
+      <span class="tooltip-text">Color Picker</span>
+    </button>
+  {:else}
+    <!-- Expanded State: Full interface -->
+    <div class="picker-header">
+      <span class="label-text">Chart Color</span>
+      <button class="collapse-btn" on:click={toggleExpanded} title="Collapse">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      </button>
+    </div>
+
     <div class="input-wrapper">
-      <span
-        class="swatch"
+      <button
+        class="swatch clickable"
         style="background:{isValid ? color : '#ccc'};"
-        aria-label="current color preview"
-      ></span>
+        on:click={toggleExpanded}
+        title="Collapse color picker"
+        aria-label="current color preview - click to collapse"
+      ></button>
       <input
         type="text"
         bind:value={inputValue}
@@ -199,33 +246,50 @@
         disabled={loading}
       />
     </div>
-  </label>
-  <button
-    class="reset-btn"
-    on:click={resetColor}
-    title="Reset to default"
-    disabled={loading}
-  >
-    {loading ? "Saving..." : "Reset"}
-  </button>
+
+    <button
+      class="reset-btn"
+      on:click={resetColor}
+      title="Reset to default"
+      disabled={loading}
+    >
+      {loading ? "Saving..." : "Reset"}
+    </button>
+  {/if}
 </div>
 
 <style>
   .color-picker {
     position: fixed;
-    bottom: 24px;
-    left: 24px;
+    bottom: var(--spacing-16);
+    left: var(--spacing-6);
     background: var(--background);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
-    padding: var(--spacing-4);
     z-index: 1500;
     display: flex;
     flex-direction: column;
+    transition: all 0.3s ease;
+    animation: fade-in 0.2s ease-out;
+    margin-bottom: var(--spacing-2);
+  }
+  .color-picker:hover {
+    border-color: var(--primary-light);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Collapsed state */
+  .color-picker:not(.expanded) {
+    padding: var(--spacing-1);
+    min-width: auto;
+  }
+
+  /* Expanded state */
+  .color-picker.expanded {
+    padding: var(--spacing-4);
     gap: var(--spacing-3);
     min-width: 220px;
-    animation: fade-in 0.2s ease-out;
   }
 
   @keyframes fade-in {
@@ -239,10 +303,115 @@
     }
   }
 
-  label {
+  .swatch-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--spacing-2);
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
     gap: var(--spacing-2);
+    position: relative;
+  }
+
+  /* .swatch-toggle:hover {
+    transform: scale(1.05);
+    background: rgba(255, 255, 255, 0.1);
+  } */
+
+  .swatch-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .swatch-toggle .swatch {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .swatch-toggle:hover .swatch {
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .picker-icon {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 12px;
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+  }
+
+  .swatch-toggle:hover .picker-icon {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+  }
+
+  .picker-icon svg {
+    width: 8px;
+    height: 8px;
+  }
+
+  .tooltip-text {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    font-weight: 500;
+    opacity: 0.8;
+    transition: all 0.2s ease;
+  }
+
+  .swatch-toggle:hover .tooltip-text {
+    color: var(--text-primary);
+    opacity: 1;
+  }
+
+  .picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-2);
+  }
+
+  .collapse-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-1);
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+  }
+
+  .collapse-btn:hover {
+    background: var(--surface);
+    color: var(--text-primary);
+  }
+
+  .collapse-btn svg {
+    width: 14px;
+    height: 14px;
   }
 
   .label-text {
@@ -283,8 +452,20 @@
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    border: 1px solid var(--border);
-    transition: background 0.2s ease;
+    border: 2px solid var(--border);
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .swatch.clickable {
+    cursor: pointer;
+    background: none;
+    padding: 0;
+  }
+
+  .swatch.clickable:hover {
+    border-color: var(--primary);
+    transform: scale(1.05);
   }
 
   .reset-btn {
@@ -309,7 +490,15 @@
     .color-picker {
       bottom: 80px;
       left: 12px;
+    }
+
+    .color-picker:not(.expanded) {
+      padding: var(--spacing-1);
+    }
+
+    .color-picker.expanded {
       padding: var(--spacing-3);
+      min-width: 200px;
     }
   }
 </style>

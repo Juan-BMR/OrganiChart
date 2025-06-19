@@ -1944,7 +1944,6 @@
     background: var(--background);
     cursor: grab;
     user-select: none;
-    overflow: hidden;
     position: relative;
   }
 
