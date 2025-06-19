@@ -3,11 +3,11 @@
   import { scale } from "svelte/transition";
   export let x = 0;
   export let y = 0;
-  export let size = 90; // diameter of avatar circle
+  export let size = 90; // diameter of avatar circle - can be overridden by rules
   import NodeContextMenu from "./NodeContextMenu.svelte";
   import { createEventDispatcher } from "svelte";
   import { rulesStore } from "$lib/stores/rules.js";
-  import { evaluateStyles } from "$lib/utils/ruleEngine.js";
+  import { evaluateStyles, getMemberDiameter } from "$lib/utils/ruleEngine.js";
 
   let showMenu = false;
   let menuX = 0;
@@ -29,9 +29,15 @@
   $: nodeStyle = computedStyles.node || {};
   $: textStyle = computedStyles.text || {};
 
+  // Get diameter from rules, fallback to prop
+  $: actualSize = getMemberDiameter(member, $rulesStore) || size;
+
   // Build inline style strings for elements that will use dynamic props
-  $: avatarInlineStyle = `width:${size}px; height:${size}px;` +
-    (nodeStyle.backgroundColor ? `background:${nodeStyle.backgroundColor};` : "") +
+  $: avatarInlineStyle =
+    `width:${actualSize}px; height:${actualSize}px;` +
+    (nodeStyle.backgroundColor
+      ? `background:${nodeStyle.backgroundColor};`
+      : "") +
     (nodeStyle.borderColor ? `border-color:${nodeStyle.borderColor};` : "") +
     (nodeStyle.borderWidth ? `border-width:${nodeStyle.borderWidth}px;` : "");
 

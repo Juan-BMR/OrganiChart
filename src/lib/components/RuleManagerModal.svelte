@@ -1,8 +1,12 @@
 <script>
   import { createEventDispatcher, onMount } from "svelte";
   import { rulesStore } from "$lib/stores/rules.js";
+  import { fly, fade } from "svelte/transition";
 
   const dispatch = createEventDispatcher();
+
+  // Export the open prop to control visibility
+  export let open = false;
 
   let rules = [];
   let unsubscribe;
@@ -12,116 +16,76 @@
     return () => unsubscribe();
   });
 
-  /* ----------------- Builder state ---------------- */
-  // General
-  let name = "";
-  // Condition
-  let conditionType = "title_contains";
-  let condSubstring = "";
-  let condCaseSensitive = false;
-  let condLevel = 0;
-  let condDirectReports = 0;
-  // Styles
-  let styleBackgroundColor = "";
-  let styleBorderColor = "";
-  let styleBorderWidth = ""; // px
-  let styleFontWeight = "";
+  // Form state
+  let ruleName = "";
+  let titleContains = "";
+  let caseSensitive = false;
+  let profileSize = 90; // Default size
+  let loading = false;
+  let error = "";
+  let modalElement;
 
-  /* ----------------- Helpers ---------------- */
-  function buildConditions() {
-    switch (conditionType) {
-      case "title_contains":
-        return [
+  // Focus modal when it becomes visible
+  $: if (open && modalElement) {
+    modalElement.focus();
+  }
+
+  // Predefined size options
+  const sizePresets = [
+    { label: "Small", value: 60, description: "Junior roles" },
+    { label: "Medium", value: 90, description: "Standard size" },
+    { label: "Large", value: 120, description: "Senior roles" },
+    { label: "Extra Large", value: 150, description: "Leadership" },
+  ];
+
+  function selectPreset(size) {
+    profileSize = size;
+  }
+
+  // Direct reactive validation - more reliable than function call
+  $: nameValid = ruleName && ruleName.trim().length > 0;
+  $: titleValid = titleContains && titleContains.trim().length > 0;
+  $: sizeValid = profileSize >= 40 && profileSize <= 200;
+  $: formValid = nameValid && titleValid && sizeValid;
+
+  async function handleSubmit() {
+    if (!formValid || loading) return;
+
+    error = "";
+    loading = true;
+
+    try {
+      const newRule = {
+        name: ruleName.trim(),
+        enabled: true,
+        priority: rules.length,
+        conditions: [
           {
             type: "title_contains",
-            value: condSubstring.trim(),
-            caseSensitive: condCaseSensitive,
+            value: titleContains.trim(),
+            caseSensitive,
           },
-        ];
-      case "level_equals":
-        return [
-          {
-            type: "level_equals",
-            value: Number(condLevel),
+        ],
+        styles: {
+          node: {
+            diameter: profileSize,
           },
-        ];
-      case "direct_reports_gte":
-        return [
-          {
-            type: "direct_reports_gte",
-            value: Number(condDirectReports),
-          },
-        ];
-    }
-  }
-
-  function buildStyles() {
-    const style = {};
-    if (styleBackgroundColor) {
-      style.node = { ...(style.node || {}), backgroundColor: styleBackgroundColor };
-    }
-    if (styleBorderColor) {
-      style.node = { ...(style.node || {}), borderColor: styleBorderColor };
-    }
-    if (styleBorderWidth && !isNaN(styleBorderWidth)) {
-      style.node = {
-        ...(style.node || {}),
-        borderWidth: Number(styleBorderWidth),
+        },
       };
+
+      rulesStore.addRule(newRule);
+
+      // Reset form
+      ruleName = "";
+      titleContains = "";
+      caseSensitive = false;
+      profileSize = 90;
+    } catch (err) {
+      console.error("Failed to add rule:", err);
+      error = "Failed to create rule. Please try again.";
+    } finally {
+      loading = false;
     }
-    if (styleFontWeight) {
-      style.text = { ...(style.text || {}), fontWeight: styleFontWeight };
-    }
-    return style;
-  }
-
-  function validateForm() {
-    if (!name.trim()) return false;
-
-    // Validate condition-specific values
-    switch (conditionType) {
-      case "title_contains":
-        if (!condSubstring.trim()) return false;
-        break;
-      case "level_equals":
-        if (isNaN(condLevel)) return false;
-        break;
-      case "direct_reports_gte":
-        if (isNaN(condDirectReports) || condDirectReports < 0) return false;
-        break;
-    }
-
-    // Validate style – at least one property chosen
-    const styles = buildStyles();
-    if (Object.keys(styles).length === 0) return false;
-
-    return true;
-  }
-
-  $: formValid = validateForm();
-
-  function addRule() {
-    if (!formValid) return;
-
-    const newRule = {
-      name: name.trim(),
-      enabled: true,
-      priority: rules.length,
-      conditions: buildConditions(),
-      styles: buildStyles(),
-    };
-
-    rulesStore.addRule(newRule);
-
-    // Reset form fields
-    name = "";
-    condSubstring = "";
-    condLevel = 0;
-    condDirectReports = 0;
-    styleBackgroundColor = "";
-    styleBorderColor = "";
-    styleBorderWidth = "";
-    styleFontWeight = "";
   }
 
   function toggleRule(rule) {
@@ -129,253 +93,617 @@
   }
 
   function deleteRule(rule) {
-    if (confirm(`Delete rule "${rule.name}"?`)) {
-      rulesStore.deleteRule(rule.id);
+    rulesStore.deleteRule(rule.id);
+  }
+
+  function handleClose() {
+    // Reset form
+    ruleName = "";
+    titleContains = "";
+    caseSensitive = false;
+    profileSize = 90;
+    error = "";
+    dispatch("close");
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === "Escape") {
+      handleClose();
     }
   }
-
-  function moveRule(index, direction) {
-    const newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= rules.length) return;
-    const ordered = [...rules];
-    const [moved] = ordered.splice(index, 1);
-    ordered.splice(newIndex, 0, moved);
-    rulesStore.reorderRules(ordered.map((r) => r.id));
-  }
-
-  // ----------------- End builder -----------------
 </script>
 
-<div class="overlay" on:click={() => dispatch("close")}></div>
-<div class="modal">
-  <header>
-    <h2>Rule Manager</h2>
-    <button class="close-btn" on:click={() => dispatch("close")}>✕</button>
-  </header>
+{#if open}
+  <div
+    class="modal-overlay"
+    on:click|self={handleClose}
+    transition:fade={{ duration: 200 }}
+  >
+    <div
+      class="modal"
+      on:keydown={handleKeyDown}
+      tabindex="-1"
+      bind:this={modalElement}
+      transition:fly={{ x: 400, duration: 300 }}
+    >
+      <header class="modal-header">
+        <h2>Profile Size Rules</h2>
+        <button class="close-btn" on:click={handleClose}>×</button>
+      </header>
 
-  <section class="rule-list">
-    {#if rules.length === 0}
-      <p class="empty">No rules yet.</p>
-    {:else}
-      {#each rules as rule, i (rule.id)}
-        <div class="rule-item">
-          <button class="move-btn" title="Move up" disabled={i === 0} on:click={() => moveRule(i, -1)}>▲</button>
-          <button class="move-btn" title="Move down" disabled={i === rules.length - 1} on:click={() => moveRule(i, 1)}>▼</button>
-          <input type="checkbox" bind:checked={rule.enabled} on:change={() => toggleRule(rule)} />
-          <span class="rule-name">{rule.name}</span>
-          <span class="rule-priority">#{rule.priority}</span>
-          <button class="delete-btn" on:click={() => deleteRule(rule)}>🗑</button>
+      <div class="modal-body">
+        <!-- Existing Rules -->
+        {#if rules.length > 0}
+          <div class="rules-section">
+            <h3>Active Rules</h3>
+            <div class="rules-list">
+              {#each rules as rule (rule.id)}
+                <div class="rule-item" class:disabled={!rule.enabled}>
+                  <div class="rule-info">
+                    <div class="rule-name">{rule.name}</div>
+                    <div class="rule-condition">
+                      "{rule.conditions[0]?.value}" → {rule.styles?.node
+                        ?.diameter || 90}px diameter
+                    </div>
+                  </div>
+                  <div class="rule-actions">
+                    <button
+                      class="toggle-btn"
+                      class:enabled={rule.enabled}
+                      on:click={() => toggleRule(rule)}
+                      title={rule.enabled ? "Disable rule" : "Enable rule"}
+                    >
+                      {rule.enabled ? "ON" : "OFF"}
+                    </button>
+                    <button
+                      class="delete-btn"
+                      on:click={() => deleteRule(rule)}
+                      title="Delete rule"
+                    >
+                      <svg
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <!-- Create New Rule -->
+        <div class="create-section">
+          <h3>Create New Rule</h3>
+
+          <div class="form-group">
+            <label class="input-label" for="rule-name">Rule Name</label>
+            <input
+              id="rule-name"
+              type="text"
+              placeholder="e.g., Manager Size Rule"
+              bind:value={ruleName}
+              disabled={loading}
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="input-label" for="title-contains"
+              >When job title contains</label
+            >
+            <input
+              id="title-contains"
+              type="text"
+              placeholder="e.g., Manager, Director, CEO"
+              bind:value={titleContains}
+              disabled={loading}
+            />
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                bind:checked={caseSensitive}
+                disabled={loading}
+              />
+              <span class="checkbox-text">Case sensitive</span>
+            </label>
+          </div>
+
+          <div class="form-group last-form-group">
+            <label class="input-label">Profile Picture Size</label>
+
+            <!-- Size Presets -->
+            <div class="size-presets">
+              {#each sizePresets as preset}
+                <button
+                  type="button"
+                  class="preset-btn"
+                  class:selected={profileSize === preset.value}
+                  on:click={() => selectPreset(preset.value)}
+                  disabled={loading}
+                >
+                  <div
+                    class="preset-circle"
+                    style="width: {preset.value *
+                      0.3}px; height: {preset.value * 0.3}px;"
+                  ></div>
+                  <div class="preset-info">
+                    <div class="preset-label">{preset.label}</div>
+                    <div class="preset-size">{preset.value}px</div>
+                  </div>
+                </button>
+              {/each}
+            </div>
+
+            <!-- Custom Size Input -->
+            <div class="custom-size">
+              <label class="input-label" for="custom-size"
+                >Custom size (40-200px)</label
+              >
+              <input
+                id="custom-size"
+                type="range"
+                min="40"
+                max="200"
+                step="10"
+                bind:value={profileSize}
+                disabled={loading}
+              />
+              <div class="size-display">
+                <div
+                  class="size-preview"
+                  style="width: {profileSize * 0.4}px; height: {profileSize *
+                    0.4}px;"
+                ></div>
+                <span class="size-value">{profileSize}px</span>
+              </div>
+            </div>
+          </div>
+
+          {#if error}
+            <div class="error-message">{error}</div>
+          {/if}
         </div>
-      {/each}
-    {/if}
-  </section>
+      </div>
 
-  <form class="new-rule" on:submit|preventDefault={addRule}>
-    <h3>Create Rule</h3>
-    <label>
-      <span>Name</span>
-      <input type="text" bind:value={name} required />
-    </label>
-
-    <fieldset class="condition-section">
-      <legend>Condition</legend>
-      <select bind:value={conditionType}>
-        <option value="title_contains">Title contains</option>
-        <option value="level_equals">Level equals</option>
-        <option value="direct_reports_gte">Direct reports ≥</option>
-      </select>
-
-      {#if conditionType === 'title_contains'}
-        <input type="text" placeholder="Substring" bind:value={condSubstring} required />
-        <label class="inline"><input type="checkbox" bind:checked={condCaseSensitive}/> Case sensitive</label>
-      {:else if conditionType === 'level_equals'}
-        <input type="number" min="0" step="1" bind:value={condLevel} required />
-      {:else}
-        <input type="number" min="0" step="1" bind:value={condDirectReports} required />
-      {/if}
-    </fieldset>
-
-    <fieldset class="style-section">
-      <legend>Styles (any)</legend>
-      <label class="color-picker">
-        <span>Background</span>
-        <input type="color" bind:value={styleBackgroundColor} />
-      </label>
-      <label class="color-picker">
-        <span>Border color</span>
-        <input type="color" bind:value={styleBorderColor} />
-      </label>
-      <label class="inline">
-        Border width <input type="number" min="0" max="10" style="width:60px" bind:value={styleBorderWidth}/> px
-      </label>
-      <label class="inline">
-        Font weight
-        <select bind:value={styleFontWeight}>
-          <option value="">—</option>
-          <option value="400">Normal</option>
-          <option value="500">500</option>
-          <option value="600">600</option>
-          <option value="700">Bold</option>
-        </select>
-      </label>
-    </fieldset>
-
-    <button type="submit" class="add-btn" disabled={!formValid}>Add Rule</button>
-  </form>
-</div>
+      <footer class="modal-footer">
+        <button
+          class="create-btn"
+          on:click={handleSubmit}
+          disabled={!formValid || loading}
+        >
+          {#if loading}
+            <span class="spinner" />
+            Creating...
+          {:else}
+            Create Rule
+          {/if}
+        </button>
+        <button class="cancel-btn" on:click={handleClose} disabled={loading}>
+          Cancel
+        </button>
+      </footer>
+    </div>
+  </div>
+{/if}
 
 <style>
-  .overlay {
+  .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(2px);
-    z-index: 1000;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    z-index: 2000;
+    padding-right: 24px;
   }
 
   .modal {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--background, #ffffff);
-    color: var(--text-primary, #111);
-    padding: var(--spacing-6, 1.5rem) var(--spacing-8, 2rem);
-    border-radius: var(--radius-lg, 12px);
-    width: 320px;
-    max-width: 90vw;
-    z-index: 1001;
-    box-shadow: var(--shadow-lg, 0 10px 25px rgba(0,0,0,0.15));
+    background: var(--background);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 500px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    padding: var(--spacing-6);
+    max-height: 85vh;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--spacing-4);
   }
 
-  header {
+  .modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
 
+  .modal-header h2 {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
   .close-btn {
     background: none;
     border: none;
-    font-size: 1.25rem;
+    font-size: var(--font-size-xl);
+    color: var(--text-secondary);
     cursor: pointer;
-    color: inherit;
+    padding: var(--spacing-2);
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
   }
 
-  .rule-list {
-    max-height: 180px;
-    overflow-y: auto;
-    border: 1px solid var(--border, #ddd);
-    padding: 0.5rem;
-    border-radius: var(--radius-md, 8px);
+  .close-btn:hover {
+    background: var(--surface);
+    color: var(--text-primary);
+  }
+
+  .modal-body {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: var(--spacing-4);
+  }
+
+  .rules-section {
+    margin-bottom: var(--spacing-6);
+  }
+
+  .rules-section h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-4) 0;
+  }
+
+  .create-section h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-4) 0;
+  }
+
+  .rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+    background: var(--surface);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-4);
   }
 
   .rule-item {
     display: flex;
     align-items: center;
-    gap: 0.3rem;
+    justify-content: space-between;
+    padding: var(--spacing-3);
+    background: var(--background);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    transition: all 0.2s ease;
   }
 
-  .rule-name {
+  .rule-item.disabled {
+    opacity: 0.6;
+  }
+
+  .rule-info {
     flex: 1;
   }
 
-  .rule-priority {
-    font-size: 0.75rem;
-    color: var(--text-secondary,#666);
+  .rule-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-1);
+  }
+
+  .rule-condition {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+  }
+
+  .rule-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+
+  .toggle-btn {
+    background: var(--surface);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: var(--spacing-1) var(--spacing-3);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .toggle-btn.enabled {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
   }
 
   .delete-btn {
     background: none;
     border: none;
+    color: var(--text-secondary);
     cursor: pointer;
+    padding: var(--spacing-2);
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
   }
 
-  .empty {
-    text-align: center;
-    color: var(--text-secondary,#666);
+  .delete-btn:hover {
+    background: var(--error);
+    color: white;
   }
 
-  .new-rule {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+  .delete-btn svg {
+    width: 16px;
+    height: 16px;
   }
 
-  .color-picker {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+  .form-group {
+    margin-bottom: var(--spacing-4);
   }
 
-  .add-btn {
-    align-self: flex-end;
-    padding: 0.5rem 1rem;
-    background: var(--primary,#6366f1);
-    color: #fff;
-    border: none;
-    border-radius: var(--radius-md,6px);
-    cursor: pointer;
-    font-size: 0.85rem;
+  .form-group.last-form-group {
+    margin-bottom: 0;
   }
 
-  .move-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    font-size: 0.8rem;
-    line-height: 1;
-    color: var(--text-secondary,#666);
-  }
-  .move-btn:disabled {
-    opacity: 0.3;
-    cursor: default;
+  .input-label {
+    display: block;
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-2);
   }
 
-  .inline {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  .condition-section, .style-section {
-    border: 1px solid var(--border,#ddd);
-    padding: 0.5rem;
-    border-radius: var(--radius-md,8px);
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-block: 0.5rem;
-  }
-
-  .condition-section select {
+  input[type="text"] {
     width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-3) var(--spacing-4);
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    transition: all 0.2s ease;
   }
 
-  .new-rule label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+  input[type="text"]:focus {
+    border-color: var(--primary);
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
   }
 
-  .new-rule input[type="text"],
-  .new-rule input[type="number"],
-  .new-rule select {
-    width: 100%;
-    padding: 0.25rem 0.5rem;
-    border: 1px solid var(--border,#ddd);
-    border-radius: var(--radius-md,6px);
-  }
-
-  .add-btn[disabled] {
-    opacity: 0.5;
+  input[type="text"]:disabled {
+    opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    margin-top: var(--spacing-2);
+    cursor: pointer;
+  }
+
+  .checkbox-text {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+  }
+
+  .size-presets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-3);
+    margin-bottom: var(--spacing-4);
+  }
+
+  .preset-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-3);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+  }
+
+  .preset-btn:hover {
+    border-color: var(--primary-light);
+  }
+
+  .preset-btn.selected {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  .preset-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .preset-circle {
+    background: var(--primary);
+    border-radius: 50%;
+    border: 2px solid var(--background);
+    box-shadow: 0 0 0 1px var(--primary);
+  }
+
+  .preset-info {
+    text-align: left;
+  }
+
+  .preset-label {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+  }
+
+  .preset-size {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
+  .custom-size {
+    background: var(--surface);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-4);
+    border: 1px solid var(--border);
+  }
+
+  input[type="range"] {
+    width: 100%;
+    margin: var(--spacing-3) 0;
+  }
+
+  .size-display {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    justify-content: center;
+  }
+
+  .size-preview {
+    background: var(--primary);
+    border-radius: 50%;
+    border: 2px solid var(--background);
+    box-shadow: 0 0 0 1px var(--primary);
+  }
+
+  .size-value {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .error-message {
+    background: color-mix(in srgb, var(--error) 10%, transparent);
+    border: 1px solid var(--error);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-3);
+    color: var(--error);
+    font-size: var(--font-size-sm);
+    margin-top: var(--spacing-3);
+  }
+
+  .modal-footer {
+    display: flex;
+    gap: var(--spacing-3);
+  }
+
+  .create-btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: var(--spacing-3) var(--spacing-6);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-2);
+    flex: 1;
+  }
+
+  .create-btn:hover:not(:disabled) {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+  }
+
+  .create-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .cancel-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    padding: var(--spacing-3) var(--spacing-6);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cancel-btn:hover:not(:disabled) {
+    background: var(--surface);
+    border-color: var(--text-secondary);
+  }
+
+  .cancel-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Responsive design */
+  @media (max-width: 768px) {
+    .modal-overlay {
+      padding-right: 16px;
+      padding-left: 16px;
+    }
+
+    .modal {
+      max-width: none;
+    }
+
+    .size-presets {
+      grid-template-columns: 1fr;
+    }
+
+    .modal-footer {
+      flex-direction: column-reverse;
+    }
+
+    .create-btn,
+    .cancel-btn {
+      width: 100%;
+      justify-content: center;
+    }
   }
 </style>

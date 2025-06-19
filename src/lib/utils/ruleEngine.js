@@ -89,3 +89,14 @@ export function evaluateStyles(node, rules) {
 
   return aggregated;
 }
+
+/**
+ * Get the profile picture diameter for a member based on rules.
+ * @param {any} member – Member data object
+ * @param {Rule[]} rules – Array of rules
+ * @returns {number} Diameter in pixels (defaults to 90)
+ */
+export function getMemberDiameter(member, rules) {
+  const styles = evaluateStyles(member, rules);
+  return styles?.node?.diameter ?? 90;
+}

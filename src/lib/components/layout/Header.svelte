@@ -3,13 +3,11 @@
   import { themeStore } from "$lib/stores/theme.js";
   import { Moon, Sun } from "lucide-svelte";
   import { goto } from "$app/navigation";
-  import RuleManagerModal from "$lib/components/RuleManagerModal.svelte";
 
   export let user = null;
 
   let currentTheme = "light";
   let imageLoadError = false;
-  let showRules = false;
 
   // Subscribe to theme changes
   themeStore.subscribe((theme) => {
@@ -145,14 +143,9 @@
           <Sun size={18} />
         {/if}
       </button>
-      <button class="rules-btn" on:click={() => (showRules = true)}>Rules</button>
       <button class="logout-btn" on:click={handleSignOut}>Logout</button>
     </div>
   </header>
-{/if}
-
-{#if showRules}
-  <RuleManagerModal on:close={() => (showRules = false)} />
 {/if}
 
 <style>
@@ -268,21 +261,6 @@
   }
 
   .theme-toggle:hover {
-    background: rgba(255, 255, 255, 0.3);
-  }
-
-  .rules-btn {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    padding: var(--spacing-2) var(--spacing-4);
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s ease;
-  }
-
-  .rules-btn:hover {
     background: rgba(255, 255, 255, 0.3);
   }
 
