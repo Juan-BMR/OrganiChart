@@ -4,6 +4,7 @@ export const COLLECTIONS = {
   ORGANIZATIONS: "organizations",
   MEMBERS: "members",
   ORGANIZATION_PERMISSIONS: "organization_permissions",
+  RULES: "rules",
 };
 
 // Organization permission roles
@@ -69,6 +70,24 @@ export const createPermissionData = (
   createdAt: new Date(),
   updatedAt: new Date(),
   invitedBy,
+});
+
+export const createRuleData = (
+  organizationId,
+  name,
+  enabled,
+  priority,
+  conditions,
+  styles,
+) => ({
+  organizationId,
+  name: name.trim(),
+  enabled: Boolean(enabled),
+  priority: Number(priority),
+  conditions: conditions || [],
+  styles: styles || {},
+  createdAt: new Date(),
+  updatedAt: new Date(),
 });
 
 // Helper to generate permission document ID

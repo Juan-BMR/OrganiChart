@@ -92,25 +92,35 @@
       organizationId = $page.params.id;
     });
 
-    // Start listening for members when we have org id
-    if (organizationId) {
-      membersStore.listen(organizationId);
-      // Also fetch organization details from organizationsStore (already in memory)
-      const orgUnsub = organizationsStore.subscribe(({ organizations }) => {
-        organization = organizations.find((o) => o.id === organizationId);
-      });
-      // Cleanup membership
-      return () => {
-        authUnsub();
-        pageUnsub();
-        orgUnsub();
-        membersStore.stop();
-        unsubscribeCanvas();
-        unsubscribeRules();
-        unsubscribeMembers();
-      };
-    }
+    // Also fetch organization details from organizationsStore (already in memory)
+    const orgUnsub = organizationsStore.subscribe(({ organizations }) => {
+      organization = organizations.find((o) => o.id === organizationId);
+    });
+
+    // Cleanup
+    return () => {
+      authUnsub();
+      pageUnsub();
+      orgUnsub();
+      membersStore.stop();
+      unsubscribeCanvas();
+      unsubscribeRules();
+      unsubscribeMembers();
+    };
   });
+
+  // Reactive: Start listening for members and load rules when organizationId changes
+  $: if (organizationId && user) {
+    console.log("Loading data for organization:", organizationId);
+
+    // Start listening for members
+    membersStore.listen(organizationId);
+
+    // Load rules for this organization
+    rulesStore.loadRules(organizationId).catch((error) => {
+      console.error("Failed to load rules:", error);
+    });
+  }
 
   /********************
    * Pan and Zoom Logic
@@ -1858,7 +1868,7 @@
 
   <ChartColorPicker {organizationId} />
 
-  <RuleManagerModal open={showRules} on:close={closeRules} />
+  <RuleManagerModal open={showRules} {organizationId} on:close={closeRules} />
 
   <!-- PDF Framing Mode Overlay -->
   {#if pdfFramingMode}
@@ -1923,7 +1933,7 @@
 <style>
   .page-container {
     min-height: calc(100vh - var(--header-height));
-    margin-top: var(--header-height);
+    /* margin-top: var(--header-height); */
     background: var(--background);
     position: relative;
   }

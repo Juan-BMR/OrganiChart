@@ -7,6 +7,7 @@
 
   // Export the open prop to control visibility
   export let open = false;
+  export let organizationId = null;
 
   let rules = [];
   let unsubscribe;
@@ -25,9 +26,19 @@
   let error = "";
   let modalElement;
 
+  // Delete confirmation state
+  let showDeleteConfirmation = false;
+  let ruleToDelete = null;
+  let deleteModalElement;
+
   // Focus modal when it becomes visible
   $: if (open && modalElement) {
     modalElement.focus();
+  }
+
+  // Focus delete modal when it opens
+  $: if (showDeleteConfirmation && deleteModalElement) {
+    deleteModalElement.focus();
   }
 
   // Predefined size options
@@ -73,7 +84,7 @@
         },
       };
 
-      rulesStore.addRule(newRule);
+      await rulesStore.addRule(organizationId, newRule);
 
       // Reset form
       ruleName = "";
@@ -89,11 +100,27 @@
   }
 
   function toggleRule(rule) {
+    // Optimistic update - no need to await or handle errors in UI
     rulesStore.updateRule(rule.id, { enabled: !rule.enabled });
   }
 
   function deleteRule(rule) {
-    rulesStore.deleteRule(rule.id);
+    ruleToDelete = rule;
+    showDeleteConfirmation = true;
+  }
+
+  function confirmDelete() {
+    if (ruleToDelete) {
+      // Optimistic update - no need to await or handle errors in UI
+      rulesStore.deleteRule(ruleToDelete.id);
+    }
+    showDeleteConfirmation = false;
+    ruleToDelete = null;
+  }
+
+  function cancelDelete() {
+    showDeleteConfirmation = false;
+    ruleToDelete = null;
   }
 
   function handleClose() {
@@ -109,6 +136,13 @@
   function handleKeyDown(event) {
     if (event.key === "Escape") {
       handleClose();
+    }
+  }
+
+  function handleDeleteModalKeyDown(event) {
+    if (event.key === "Escape") {
+      event.stopPropagation(); // Prevent ESC from bubbling up to close the main modal
+      cancelDelete();
     }
   }
 </script>
@@ -292,6 +326,65 @@
       </footer>
     </div>
   </div>
+
+  <!-- Delete Confirmation Modal -->
+  {#if showDeleteConfirmation && ruleToDelete}
+    <div
+      class="confirmation-overlay"
+      on:click|self={cancelDelete}
+      transition:fade={{ duration: 200 }}
+    >
+      <div
+        class="confirmation-modal"
+        on:keydown={handleDeleteModalKeyDown}
+        tabindex="-1"
+        bind:this={deleteModalElement}
+        transition:fly={{ y: -20, duration: 300 }}
+      >
+        <div class="confirmation-header">
+          <div class="warning-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"
+              />
+            </svg>
+          </div>
+          <h3>Delete Rule</h3>
+        </div>
+
+        <div class="confirmation-body">
+          <p>
+            Are you sure you want to delete the rule <strong
+              >"{ruleToDelete.name}"</strong
+            >?
+          </p>
+          <p class="rule-details">
+            This rule applies to job titles containing <strong
+              >"{ruleToDelete.conditions[0]?.value}"</strong
+            >
+            and sets profile pictures to
+            <strong>{ruleToDelete.styles?.node?.diameter || 90}px</strong>.
+          </p>
+          <p class="warning-text">
+            This action cannot be undone. The rule will be permanently removed
+            and affected profile pictures will return to their default size.
+          </p>
+        </div>
+
+        <div class="confirmation-footer">
+          <button class="confirm-delete-btn" on:click={confirmDelete}>
+            Delete Rule
+          </button>
+          <button class="cancel-delete-btn" on:click={cancelDelete}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -681,6 +774,135 @@
     }
   }
 
+  /* Delete Confirmation Modal */
+  .confirmation-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    backdrop-filter: blur(4px);
+  }
+
+  .confirmation-modal {
+    background: var(--background);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 400px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    margin: var(--spacing-4);
+    padding: var(--spacing-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-4);
+  }
+
+  .confirmation-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+  }
+
+  .warning-icon {
+    width: 48px;
+    height: 48px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--error);
+    flex-shrink: 0;
+  }
+
+  .warning-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .confirmation-header h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .confirmation-body {
+    padding: 0;
+  }
+
+  .confirmation-body p {
+    margin: 0 0 var(--spacing-3) 0;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+  }
+
+  .confirmation-body p:last-child {
+    margin-bottom: 0;
+  }
+
+  .rule-details {
+    background: rgba(59, 130, 246, 0.05);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-3);
+    color: var(--text-primary) !important;
+    font-size: var(--font-size-sm) !important;
+  }
+
+  .warning-text {
+    color: var(--text-secondary) !important;
+    font-size: var(--font-size-xs) !important;
+  }
+
+  .confirmation-footer {
+    display: flex;
+    gap: var(--spacing-3);
+    padding: 0;
+  }
+
+  .cancel-delete-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    padding: var(--spacing-3) var(--spacing-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+  }
+
+  .cancel-delete-btn:hover {
+    background: var(--secondary);
+    color: var(--text-primary);
+    border-color: var(--primary);
+  }
+
+  .confirm-delete-btn {
+    background: var(--error);
+    color: white;
+    padding: var(--spacing-3) var(--spacing-4);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+  }
+
+  .confirm-delete-btn:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
   /* Responsive design */
   @media (max-width: 768px) {
     .modal-overlay {
@@ -704,6 +926,15 @@
     .cancel-btn {
       width: 100%;
       justify-content: center;
+    }
+
+    .confirmation-footer {
+      flex-direction: column-reverse;
+    }
+
+    .cancel-delete-btn,
+    .confirm-delete-btn {
+      width: 100%;
     }
   }
 </style>

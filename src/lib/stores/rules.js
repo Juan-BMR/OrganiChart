@@ -1,16 +1,18 @@
 /**
  * Rule Engine – Core store for dynamic styling rules applied to OrganiChart nodes.
  *
- * Phase-1 scope: purely client-side persistence via localStorage. When the app
- * eventually syncs rules to Firestore we can swap the `loadInitialRules`/`persist`
- * helpers with async versions without touching the public store API.
- *
- * The design intentionally mirrors the other stores (authStore, themeStore, …)
- * so that Svelte components interact with `rulesStore` in a familiar way.
+ * Now syncs with Firestore for organization-wide rule persistence.
+ * Rules are scoped to organizations and shared across all team members.
  */
 
 import { writable } from "svelte/store";
-import { browser } from "$app/environment";
+import {
+  createRule as dbCreateRule,
+  getRulesForOrganization,
+  updateRule as dbUpdateRule,
+  deleteRule as dbDeleteRule,
+  updateRulePriorities,
+} from "$lib/db/rules.js";
 
 /**
  * @typedef {object} TitleContainsCondition
@@ -56,113 +58,176 @@ import { browser } from "$app/environment";
  * @property {StyleDefinition} styles
  */
 
-/**
- * Very light-weight UUID – good enough for local use. When we move to Firestore
- * we can rely on document IDs instead.
- * @returns {string}
- */
-const generateId = () =>
-  Date.now().toString(36) + Math.random().toString(36).slice(2);
-
-const STORAGE_KEY = "chartRules";
-
-/**
- * Read rules from localStorage (client only). Returns empty array if none.
- * @returns {Rule[]}
- */
-function loadInitialRules() {
-  if (!browser) return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-  } catch (err) {
-    console.error("[rulesStore] Failed to parse stored rules", err);
-  }
-  return [];
-}
-
-/**
- * Persist rules array to localStorage (client only).
- * @param {Rule[]} rules
- */
-function persist(rules) {
-  if (!browser) return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(rules));
-  } catch (err) {
-    console.error("[rulesStore] Failed to persist rules", err);
-  }
-}
+// Store state
+let isLoading = false;
 
 function createRulesStore() {
-  // Initial load.
-  const { subscribe, set, update } = writable(loadInitialRules());
-
-  // Keep a live subscription for persistence.
-  subscribe((current) => persist(current));
+  const { subscribe, set, update } = writable([]);
 
   return {
     subscribe,
 
     /**
-     * Replace entire rules collection (rarely used).
-     * @param {Rule[]} rules
+     * Load rules for a specific organization
+     * @param {string} organizationId
      */
-    set: (rules) => set(rules),
+    async loadRules(organizationId) {
+      if (!organizationId) {
+        set([]);
+        return;
+      }
 
-    /**
-     * Create a new rule.
-     * @param {Omit<Rule, "id">} ruleWithoutId – caller provides everything except `id`.
-     * @returns {string} id of the newly created rule
-     */
-    addRule: (ruleWithoutId) => {
-      const id = generateId();
-      update((rules) => {
-        const newRules = [...rules, { id, ...ruleWithoutId }].sort(
-          (a, b) => a.priority - b.priority
-        );
-        return newRules;
-      });
-      return id;
+                   try {
+        isLoading = true;
+        const rules = await getRulesForOrganization(organizationId);
+        set(rules);
+      } catch (error) {
+        console.error("[rulesStore] Failed to load rules:", error);
+        set([]);
+        throw error;
+      } finally {
+        isLoading = false;
+      }
     },
 
     /**
-     * Update partial fields of a rule.
-     * @param {string} id
+     * Create a new rule for the current organization
+     * @param {string} organizationId
+     * @param {Omit<Rule, "id" | "organizationId">} ruleData
+     * @returns {Promise<string>} rule document ID
+     */
+    async addRule(organizationId, ruleData) {
+      try {
+        const ruleId = await dbCreateRule(
+          organizationId,
+          ruleData.name,
+          ruleData.enabled,
+          ruleData.priority,
+          ruleData.conditions,
+          ruleData.styles,
+        );
+
+        // Add to local store
+        update((rules) => {
+          const newRule = {
+            id: ruleId,
+            organizationId,
+            ...ruleData,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          return [...rules, newRule].sort((a, b) => a.priority - b.priority);
+        });
+
+        return ruleId;
+      } catch (error) {
+        console.error("[rulesStore] Failed to add rule:", error);
+        throw error;
+      }
+    },
+
+    /**
+     * Update a rule with optimistic updates
+     * @param {string} ruleId
      * @param {Partial<Rule>} updates
      */
-    updateRule: (id, updates) =>
+    async updateRule(ruleId, updates) {
+      // Optimistic update - update UI immediately
       update((rules) =>
-        rules.map((r) => (r.id === id ? { ...r, ...updates } : r))
-      ),
+        rules.map((r) =>
+          r.id === ruleId
+            ? { ...r, ...updates, updatedAt: new Date() }
+            : r,
+        ),
+      );
+
+      try {
+        // Update database in background
+        await dbUpdateRule(ruleId, updates);
+      } catch (error) {
+        console.error("[rulesStore] Failed to update rule:", error);
+        
+        // Revert optimistic update on error
+        update((rules) =>
+          rules.map((r) =>
+            r.id === ruleId
+              ? { ...r, ...updates, enabled: !updates.enabled } // Revert the main change
+              : r,
+          ),
+        );
+        
+        throw error;
+      }
+    },
 
     /**
-     * Remove a rule.
-     * @param {string} id
+     * Delete a rule with optimistic updates
+     * @param {string} ruleId
      */
-    deleteRule: (id) =>
-      update((rules) => rules.filter((r) => r.id !== id)),
+    async deleteRule(ruleId) {
+      // Store the rule for potential rollback
+      let deletedRule = null;
+      
+      // Optimistic update - remove from UI immediately
+      update((rules) => {
+        deletedRule = rules.find((r) => r.id === ruleId);
+        return rules.filter((r) => r.id !== ruleId);
+      });
+
+      try {
+        // Delete from database in background
+        await dbDeleteRule(ruleId);
+      } catch (error) {
+        console.error("[rulesStore] Failed to delete rule:", error);
+        
+        // Revert optimistic update on error - restore the rule
+        if (deletedRule) {
+          update((rules) => [...rules, deletedRule].sort((a, b) => a.priority - b.priority));
+        }
+        
+        throw error;
+      }
+    },
 
     /**
-     * Re-order rules according to the supplied ordered array of ids. Also
-     * rewrites `priority` to match the new ordering.
+     * Reorder rules
      * @param {string[]} orderedIds
      */
-    reorderRules: (orderedIds) =>
-      update((rules) => {
-        const map = new Map(rules.map((r) => [r.id, r]));
-        const reordered = orderedIds
-          .map((id, idx) => ({ ...map.get(id), priority: idx }))
-          .filter(Boolean);
-        return reordered;
-      }),
+    async reorderRules(orderedIds) {
+      try {
+        // Prepare priority updates
+        const priorityUpdates = orderedIds.map((id, index) => ({
+          id,
+          priority: index,
+        }));
+
+        await updateRulePriorities(priorityUpdates);
+
+        // Update local store
+        update((rules) => {
+          const map = new Map(rules.map((r) => [r.id, r]));
+          return orderedIds
+            .map((id, idx) => {
+              const rule = map.get(id);
+              return rule ? { ...rule, priority: idx, updatedAt: new Date() } : null;
+            })
+            .filter(Boolean);
+        });
+      } catch (error) {
+        console.error("[rulesStore] Failed to reorder rules:", error);
+        throw error;
+      }
+    },
 
     /**
-     * Clear every stored rule.
+     * Clear all rules (local store only)
      */
     reset: () => set([]),
+
+    /**
+     * Get loading state
+     */
+    isLoading: () => isLoading,
   };
 }
 
