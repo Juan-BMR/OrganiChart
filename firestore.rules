@@ -49,5 +49,18 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/organizations/$(resource.data.organizationId)) &&
         get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.ownerId == request.auth.uid;
     }
+    
+    // Rules collection - styling rules for organization charts
+    match /rules/{ruleId} {
+      // Allow creating rules if user owns the organization
+      allow create: if request.auth != null && 
+        exists(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)) &&
+        get(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)).data.ownerId == request.auth.uid;
+      
+      // Allow reading/updating/deleting if user owns the organization
+      allow read, update, delete: if request.auth != null && 
+        exists(/databases/$(database)/documents/organizations/$(resource.data.organizationId)) &&
+        get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.ownerId == request.auth.uid;
+    }
   }
 } 
