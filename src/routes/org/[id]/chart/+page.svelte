@@ -16,7 +16,10 @@
   import ChartColorPicker from "$lib/components/ChartColorPicker.svelte";
   import RuleManagerModal from "$lib/components/RuleManagerModal.svelte";
   import { rulesStore } from "$lib/stores/rules.js";
-  import { getMemberDiameter } from "$lib/utils/ruleEngine.js";
+  import {
+    getMemberDiameter,
+    getMemberFontSize,
+  } from "$lib/utils/ruleEngine.js";
 
   import * as d3 from "d3";
   import html2canvas from "html2canvas";
@@ -352,17 +355,31 @@
         const treeLayout = d3.tree().nodeSize(nodeSize);
         const treeData = treeLayout(rootTree);
 
-        // Post-process: adjust positions proportionally for nodes with larger avatars
+        // Post-process: adjust positions proportionally for nodes with larger avatars and fonts
         const adjustPositionsForLargeAvatars = (node) => {
           const member = node.data;
           const avatarDiameter = getMemberDiameter(member, rules) || 90;
+          const fontSizeString = getMemberFontSize(member, rules) || "14px";
+          const fontSize = parseInt(fontSizeString); // Convert "14px" to 14
           const defaultDiameter = 90;
+          const defaultFontSize = 14;
 
-          // Calculate proportional extra space for any avatar larger than default
+          let totalExtraSpace = 0;
+
+          // Calculate extra space for larger avatars
           if (avatarDiameter > defaultDiameter) {
-            // More responsive scaling: 1.2x the diameter difference + base spacing
-            const extraSpace = (avatarDiameter - defaultDiameter) * 1;
+            const avatarExtraSpace = (avatarDiameter - defaultDiameter) * 1;
+            totalExtraSpace += avatarExtraSpace;
+          }
 
+          // Calculate extra space for larger fonts
+          if (fontSize > defaultFontSize) {
+            const fontExtraSpace = (fontSize - defaultFontSize) * 3;
+            totalExtraSpace += fontExtraSpace;
+          }
+
+          // Apply total spacing adjustment if needed
+          if (totalExtraSpace > 0) {
             // Recursively push down all descendants
             const pushDownDescendants = (n, yOffset) => {
               if (n.children) {
@@ -373,7 +390,7 @@
               }
             };
 
-            pushDownDescendants(node, extraSpace);
+            pushDownDescendants(node, totalExtraSpace);
           }
 
           // Recursively process children
@@ -1620,11 +1637,23 @@
           {@const childAvatarSize =
             getMemberDiameter(childMember || {}, rules) || 90}
           {@const borderWidth = 4}
+          {@const parentFontSize =
+            getMemberFontSize(parentMember || {}, rules) || "14px"}
 
           <!-- Avatar is centered within the fixed-width node -->
           {@const parentCenterX = l.x1 + fixedNodeWidth / 2}
+          <!-- Calculate dynamic bottom position based on font size -->
+          {@const parentFontSizeNum = parseInt(parentFontSize)}
+          {@const parentExtraTextHeight = Math.max(
+            0,
+            (parentFontSizeNum - 14) * 2.5,
+          )}
           {@const parentBottomY =
-            l.y1 + parentAvatarSize + borderWidth * 2 + 50}
+            l.y1 +
+            parentAvatarSize +
+            borderWidth * 2 +
+            50 +
+            parentExtraTextHeight}
           {@const childCenterX = l.x2 + fixedNodeWidth / 2}
           {@const childTopY = l.y2 - 4}
 
@@ -1634,6 +1663,10 @@
           <!-- Container for this specific connector -->
           {@const minX = Math.min(parentCenterX, childCenterX) - 10}
           {@const maxX = Math.max(parentCenterX, childCenterX) + 10}
+          {@const extraTextHeight = Math.max(
+            0,
+            (parseInt(parentFontSize) - 14) * 1,
+          )}
           {@const minY = Math.min(parentBottomY, childTopY) - 10}
           {@const maxY = Math.max(parentBottomY, childTopY) + 10}
 

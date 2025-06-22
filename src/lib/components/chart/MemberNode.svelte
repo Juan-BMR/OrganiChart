@@ -32,6 +32,13 @@
   // Get diameter from rules, fallback to prop
   $: actualSize = getMemberDiameter(member, $rulesStore) || size;
 
+  // Calculate proportional font sizes
+  $: baseFontSize = textStyle.fontSize ? parseInt(textStyle.fontSize) : 14; // Default to 14px if no rule
+  $: roleFontSize = Math.max(10, Math.round(baseFontSize * 0.8)); // Role is 85% of name size, minimum 10px
+
+  // Calculate proportional container width (base 200px, scales with font size)
+  $: containerWidth = Math.round(200 * (baseFontSize / 14)); // Scale based on 14px baseline
+
   // Build inline style strings for elements that will use dynamic props
   $: avatarInlineStyle =
     `width:${actualSize}px; height:${actualSize}px;` +
@@ -45,6 +52,10 @@
     (textStyle.color ? `color:${textStyle.color};` : "") +
     (textStyle.fontWeight ? `font-weight:${textStyle.fontWeight};` : "") +
     (textStyle.fontSize ? `font-size:${textStyle.fontSize};` : "");
+
+  $: roleInlineStyle = `font-size:${roleFontSize}px;`;
+
+  $: memberInfoInlineStyle = `max-width:${containerWidth}px;`;
 
   function handleContextMenu(event) {
     event.preventDefault();
@@ -89,10 +100,10 @@
       <span>{initials}</span>
     {/if}
   </div>
-  <div class="member-info">
+  <div class="member-info" style={memberInfoInlineStyle}>
     <div class="name" style={nameInlineStyle}>{member.name}</div>
     {#if member.role}
-      <div class="role">{member.role}</div>
+      <div class="role" style={roleInlineStyle}>{member.role}</div>
     {/if}
   </div>
   {#if showMenu}
