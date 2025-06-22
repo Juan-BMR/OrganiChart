@@ -100,3 +100,14 @@ export function getMemberDiameter(member, rules) {
   const styles = evaluateStyles(member, rules);
   return styles?.node?.diameter ?? 90;
 }
+
+/**
+ * Get the font size for a member based on rules.
+ * @param {any} member – Member data object
+ * @param {Rule[]} rules – Array of rules
+ * @returns {string} Font size (defaults to "14px")
+ */
+export function getMemberFontSize(member, rules) {
+  const styles = evaluateStyles(member, rules);
+  return styles?.text?.fontSize ?? "14px";
+}

@@ -22,6 +22,7 @@
   let titleContains = "";
   let caseSensitive = false;
   let profileSize = 90; // Default size
+  let fontSize = 14; // Default font size
   let loading = false;
   let error = "";
   let modalElement;
@@ -49,15 +50,28 @@
     { label: "Extra Large", value: 150, description: "Leadership" },
   ];
 
+  // Predefined font size options
+  const fontSizePresets = [
+    { label: "Small", value: 12, description: "Subtle text" },
+    { label: "Medium", value: 14, description: "Standard size" },
+    { label: "Large", value: 16, description: "Emphasized" },
+    { label: "Extra Large", value: 18, description: "Leadership" },
+  ];
+
   function selectPreset(size) {
     profileSize = size;
+  }
+
+  function selectFontPreset(size) {
+    fontSize = size;
   }
 
   // Direct reactive validation - more reliable than function call
   $: nameValid = ruleName && ruleName.trim().length > 0;
   $: titleValid = titleContains && titleContains.trim().length > 0;
   $: sizeValid = profileSize >= 40 && profileSize <= 200;
-  $: formValid = nameValid && titleValid && sizeValid;
+  $: fontSizeValid = fontSize >= 10 && fontSize <= 24;
+  $: formValid = nameValid && titleValid && sizeValid && fontSizeValid;
 
   async function handleSubmit() {
     if (!formValid || loading) return;
@@ -81,6 +95,9 @@
           node: {
             diameter: profileSize,
           },
+          text: {
+            fontSize: fontSize + "px",
+          },
         },
       };
 
@@ -91,6 +108,7 @@
       titleContains = "";
       caseSensitive = false;
       profileSize = 90;
+      fontSize = 14;
     } catch (err) {
       console.error("Failed to add rule:", err);
       error = "Failed to create rule. Please try again.";
@@ -129,6 +147,7 @@
     titleContains = "";
     caseSensitive = false;
     profileSize = 90;
+    fontSize = 14;
     error = "";
     dispatch("close");
   }
@@ -177,7 +196,8 @@
                     <div class="rule-name">{rule.name}</div>
                     <div class="rule-condition">
                       "{rule.conditions[0]?.value}" → {rule.styles?.node
-                        ?.diameter || 90}px diameter
+                        ?.diameter || 90}px diameter, {rule.styles?.text
+                        ?.fontSize || "14px"} font
                     </div>
                   </div>
                   <div class="rule-actions">
@@ -250,8 +270,12 @@
             </label>
           </div>
 
-          <div class="form-group last-form-group">
-            <label class="input-label">Profile Picture Size</label>
+          <div class="form-group">
+            <label class="input-label"
+              >Profile Picture Size <span class="default-note"
+                >(Default: 90px)</span
+              ></label
+            >
 
             <!-- Size Presets -->
             <div class="size-presets">
@@ -260,6 +284,7 @@
                   type="button"
                   class="preset-btn"
                   class:selected={profileSize === preset.value}
+                  class:default={preset.value === 90}
                   on:click={() => selectPreset(preset.value)}
                   disabled={loading}
                 >
@@ -269,7 +294,12 @@
                       0.3}px; height: {preset.value * 0.3}px;"
                   ></div>
                   <div class="preset-info">
-                    <div class="preset-label">{preset.label}</div>
+                    <div class="preset-label">
+                      {preset.label}
+                      {#if preset.value === 90}
+                        <span class="default-badge">Default</span>
+                      {/if}
+                    </div>
                     <div class="preset-size">{preset.value}px</div>
                   </div>
                 </button>
@@ -297,6 +327,69 @@
                     0.4}px;"
                 ></div>
                 <span class="size-value">{profileSize}px</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Font Size Section -->
+          <div class="form-group">
+            <label class="input-label"
+              >Font Size <span class="default-note">(Default: 14px)</span
+              ></label
+            >
+
+            <!-- Font Size Presets -->
+            <div class="size-presets">
+              {#each fontSizePresets as preset}
+                <button
+                  type="button"
+                  class="preset-btn"
+                  class:selected={fontSize === preset.value}
+                  class:default={preset.value === 14}
+                  on:click={() => selectFontPreset(preset.value)}
+                  disabled={loading}
+                >
+                  <div
+                    class="font-preview"
+                    style="font-size: {preset.value}px;"
+                  >
+                    Aa
+                  </div>
+                  <div class="preset-info">
+                    <div class="preset-label">
+                      {preset.label}
+                      {#if preset.value === 14}
+                        <span class="default-badge">Default</span>
+                      {/if}
+                    </div>
+                    <div class="preset-size">{preset.value}px</div>
+                  </div>
+                </button>
+              {/each}
+            </div>
+
+            <!-- Custom Font Size Input -->
+            <div class="custom-size">
+              <label class="input-label" for="custom-font-size"
+                >Custom size (10-24px)</label
+              >
+              <input
+                id="custom-font-size"
+                type="range"
+                min="10"
+                max="24"
+                step="1"
+                bind:value={fontSize}
+                disabled={loading}
+              />
+              <div class="size-display">
+                <div
+                  class="font-preview-large"
+                  style="font-size: {fontSize}px;"
+                >
+                  Sample Text
+                </div>
+                <span class="size-value">{fontSize}px</span>
               </div>
             </div>
           </div>
@@ -366,11 +459,13 @@
               >"{ruleToDelete.conditions[0]?.value}"</strong
             >
             and sets profile pictures to
-            <strong>{ruleToDelete.styles?.node?.diameter || 90}px</strong>.
+            <strong>{ruleToDelete.styles?.node?.diameter || 90}px</strong>
+            and font size to
+            <strong>{ruleToDelete.styles?.text?.fontSize || "14px"}</strong>.
           </p>
           <p class="warning-text">
             This action cannot be undone. The rule will be permanently removed
-            and affected profile pictures will return to their default size.
+            and affected elements will return to their default styling.
           </p>
         </div>
 
@@ -566,6 +661,12 @@
     margin-bottom: var(--spacing-2);
   }
 
+  .default-note {
+    font-weight: 400;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+  }
+
   input[type="text"] {
     width: 100%;
     background: var(--surface);
@@ -629,6 +730,15 @@
     background: color-mix(in srgb, var(--primary) 10%, transparent);
   }
 
+  .preset-btn.default {
+    /* No special styling - keep it subtle */
+  }
+
+  .preset-btn.selected.default {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
   .preset-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -649,6 +759,21 @@
     font-weight: 500;
     color: var(--text-primary);
     font-size: var(--font-size-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    flex-wrap: wrap;
+  }
+
+  .default-badge {
+    font-size: var(--font-size-xs);
+    font-weight: 400;
+    color: var(--text-tertiary);
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    line-height: 1;
+    opacity: 0.7;
   }
 
   .preset-size {
@@ -687,6 +812,34 @@
     color: var(--text-primary);
   }
 
+  /* Font preview styles */
+  .font-preview {
+    width: 24px;
+    height: 24px;
+    background: var(--primary);
+    color: white;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-family: var(--font-family);
+  }
+
+  .font-preview-large {
+    color: var(--text-primary);
+    font-weight: 500;
+    font-family: var(--font-family);
+    white-space: nowrap;
+  }
+
+  .modal-footer {
+    display: flex;
+    gap: var(--spacing-3);
+    padding-top: var(--spacing-4);
+    border-top: 1px solid var(--border);
+  }
+
   .error-message {
     background: color-mix(in srgb, var(--error) 10%, transparent);
     border: 1px solid var(--error);
@@ -695,11 +848,6 @@
     color: var(--error);
     font-size: var(--font-size-sm);
     margin-top: var(--spacing-3);
-  }
-
-  .modal-footer {
-    display: flex;
-    gap: var(--spacing-3);
   }
 
   .create-btn {
