@@ -261,7 +261,7 @@
 <style>
   .color-picker {
     position: fixed;
-    bottom: var(--spacing-16);
+    /* bottom: var(--spacing-16); */
     left: var(--spacing-6);
     background: var(--background);
     border: 1px solid var(--border);
