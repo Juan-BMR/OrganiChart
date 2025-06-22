@@ -178,6 +178,7 @@
   function cancelPDFFraming() {
     pdfFramingMode = false;
     pdfFrameRect = null;
+    hasValidFrame = false;
     isFraming = false;
     containerEl && (containerEl.style.cursor = "grab");
   }
@@ -292,7 +293,7 @@
       canvasStore.panBy(dx, dy);
     }
   }
-
+  $: hasValidFrame = false;
   function handlePointerUp(event) {
     if (isSelecting) {
       isSelecting = false;
@@ -303,6 +304,7 @@
           pdfFrameRect.width > 10 &&
           pdfFrameRect.height > 10
         ) {
+          hasValidFrame = true;
           isFraming = false; // Finished framing - show modal again
         }
         // Don't zoom, just finish framing
@@ -916,12 +918,13 @@
           await writableStream.close();
 
           console.log("PDF saved successfully");
-
+          hasValidFrame = false;
           setTimeout(() => {
             showPDFModal = false;
             pdfFrameRect = null;
           }, 500);
         } catch (err) {
+          hasValidFrame = false;
           if (err.name === "AbortError") {
             // User cancelled the save dialog
             console.log("PDF save cancelled by user");
@@ -1994,7 +1997,14 @@
 
     <!-- Instructions panel - hide while actively framing -->
     {#if !isFraming}
-      <div class="pdf-framing-instructions-overlay">
+      <div
+        class="pdf-framing-instructions-overlay"
+        on:mouseenter={() => {
+          if (!hasValidFrame) {
+            isFraming = true;
+          }
+        }}
+      >
         <div class="pdf-framing-instructions">
           <div class="instruction-content">
             <h3>Frame Your Export</h3>
