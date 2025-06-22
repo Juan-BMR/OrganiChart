@@ -1876,14 +1876,12 @@
       <!-- Dark overlay with cutout for the selected frame -->
       <div
         class="pdf-framing-cutout-overlay"
-        style="left:{pdfFrameRect.left}px; top:{pdfFrameRect.top +
-          60}px; width:{pdfFrameRect.width}px; height:{pdfFrameRect.height}px;"
+        style="left:{pdfFrameRect.left}px; top:{pdfFrameRect.top}px; width:{pdfFrameRect.width}px; height:{pdfFrameRect.height}px;"
       ></div>
       <!-- Frame border -->
       <div
         class="pdf-framing-border"
-        style="left:{pdfFrameRect.left}px; top:{pdfFrameRect.top +
-          60}px; width:{pdfFrameRect.width}px; height:{pdfFrameRect.height}px;"
+        style="left:{pdfFrameRect.left}px; top:{pdfFrameRect.top}px; width:{pdfFrameRect.width}px; height:{pdfFrameRect.height}px;"
       ></div>
     {:else}
       <!-- Full dark overlay when no frame is drawn -->
