@@ -1741,127 +1741,129 @@
       {/if}
     </div>
 
-    <!-- Floating action buttons -->
-    <div class="floating-controls">
-      <!-- Zoom controls -->
-      <div class="zoom-controls">
-        <button
-          class="zoom-btn"
-          class:active={selectionToolActive}
-          aria-label="Zoom to selection"
-          title="Zoom to selection"
-          on:click={toggleSelectionTool}
-        >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <rect
-              x="3"
-              y="3"
-              width="12"
-              height="12"
-              rx="1"
-              ry="1"
-              stroke-dasharray="2 2"
-            />
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M16 16l5 5"
-            />
-          </svg>
-        </button>
-        <button
-          class="zoom-btn"
-          aria-label="Zoom in"
-          on:click={zoomIn}
-          title="Zoom in"
-        >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-            />
-          </svg>
-        </button>
-        <button
-          class="zoom-btn"
-          aria-label="Zoom out"
-          on:click={zoomOut}
-          title="Zoom out"
-        >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M20 12H4"
-            />
-          </svg>
-        </button>
+    {#if !pdfFramingMode}
+      <!-- Floating action buttons -->
+      <div class="floating-controls">
+        <!-- Zoom controls -->
+        <div class="zoom-controls">
+          <button
+            class="zoom-btn"
+            class:active={selectionToolActive}
+            aria-label="Zoom to selection"
+            title="Zoom to selection"
+            on:click={toggleSelectionTool}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect
+                x="3"
+                y="3"
+                width="12"
+                height="12"
+                rx="1"
+                ry="1"
+                stroke-dasharray="2 2"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M16 16l5 5"
+              />
+            </svg>
+          </button>
+          <button
+            class="zoom-btn"
+            aria-label="Zoom in"
+            on:click={zoomIn}
+            title="Zoom in"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+              />
+            </svg>
+          </button>
+          <button
+            class="zoom-btn"
+            aria-label="Zoom out"
+            on:click={zoomOut}
+            title="Zoom out"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M20 12H4"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="action-controls">
+          <button class="action-btn secondary" on:click={openRules}>
+            <svg
+              class="button-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
+            Chart Design Rules
+          </button>
+
+          <button class="action-btn secondary" on:click={startPDFFraming}>
+            <svg
+              class="button-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+            Export PDF
+          </button>
+
+          <button class="action-btn primary" on:click={openAddMember}>
+            <svg
+              class="button-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+              />
+            </svg>
+            Add member
+          </button>
+        </div>
       </div>
-
-      <!-- Action buttons -->
-      <div class="action-controls">
-        <button class="action-btn secondary" on:click={openRules}>
-          <svg
-            class="button-icon"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-            />
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-          </svg>
-          Chart Design Rules
-        </button>
-
-        <button class="action-btn secondary" on:click={startPDFFraming}>
-          <svg
-            class="button-icon"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
-          </svg>
-          Export PDF
-        </button>
-
-        <button class="action-btn primary" on:click={openAddMember}>
-          <svg
-            class="button-icon"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-            />
-          </svg>
-          Add member
-        </button>
-      </div>
-    </div>
+    {/if}
   </div>
 
   <!-- Modals -->
@@ -1976,12 +1978,12 @@
     min-height: calc(100vh - var(--header-height));
     /* margin-top: var(--header-height); */
     background: var(--background);
-    position: relative;
+    /* position: relative; */
   }
 
   .chart-container {
     width: 100%;
-    height: calc(100vh - var(--header-height));
+    height: calc(100vh);
     background: var(--background);
     cursor: grab;
     user-select: none;
