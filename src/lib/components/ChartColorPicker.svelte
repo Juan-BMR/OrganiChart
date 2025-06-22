@@ -261,7 +261,7 @@
 <style>
   .color-picker {
     position: fixed;
-    /* bottom: var(--spacing-16); */
+    bottom: var(--spacing-3);
     left: var(--spacing-6);
     background: var(--background);
     border: 1px solid var(--border);
@@ -370,7 +370,7 @@
   }
 
   .tooltip-text {
-    font-size: var(--font-size-xs);
+    font-size: var(--font-size-sm);
     color: var(--text-secondary);
     font-weight: 500;
     opacity: 0.8;
