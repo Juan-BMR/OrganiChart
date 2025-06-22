@@ -15,7 +15,9 @@
   import UserInfoSidebar from "$lib/components/UserInfoSidebar.svelte";
   import ChartColorPicker from "$lib/components/ChartColorPicker.svelte";
   import RuleManagerModal from "$lib/components/RuleManagerModal.svelte";
+  import ZoomSensitivityControl from "$lib/components/ZoomSensitivityControl.svelte";
   import { rulesStore } from "$lib/stores/rules.js";
+  import { zoomStore } from "$lib/stores/zoom.js";
   import {
     getMemberDiameter,
     getMemberFontSize,
@@ -49,6 +51,12 @@
   // Rules store subscription
   let rules = [];
   const unsubscribeRules = rulesStore.subscribe((r) => (rules = r));
+
+  // Zoom sensitivity store subscription
+  let zoomSensitivity = 1.02;
+  const unsubscribeZoom = zoomStore.subscribe((sensitivity) => {
+    zoomSensitivity = sensitivity;
+  });
 
   // Subscribe to members store
   const unsubscribeMembers = membersStore.subscribe(
@@ -109,6 +117,7 @@
       unsubscribeCanvas();
       unsubscribeRules();
       unsubscribeMembers();
+      unsubscribeZoom();
     };
   });
 
@@ -162,12 +171,14 @@
   function startPDFFraming() {
     pdfFramingMode = true;
     pdfFrameRect = null;
+    isFraming = false; // Start with modal visible
     containerEl && (containerEl.style.cursor = "crosshair");
   }
 
   function cancelPDFFraming() {
     pdfFramingMode = false;
     pdfFrameRect = null;
+    isFraming = false;
     containerEl && (containerEl.style.cursor = "grab");
   }
 
@@ -225,6 +236,7 @@
     if (pdfFramingMode) {
       // PDF framing mode
       isSelecting = true;
+      isFraming = true; // Start framing - hide modal
       const offsetX = event.clientX - rect.left;
       const offsetY = event.clientY - rect.top;
       selectionStart = { x: offsetX, y: offsetY };
@@ -285,6 +297,14 @@
     if (isSelecting) {
       isSelecting = false;
       if (pdfFramingMode) {
+        // Show modal again only if we have a valid frame
+        if (
+          pdfFrameRect &&
+          pdfFrameRect.width > 10 &&
+          pdfFrameRect.height > 10
+        ) {
+          isFraming = false; // Finished framing - show modal again
+        }
         // Don't zoom, just finish framing
         return;
       } else {
@@ -301,7 +321,7 @@
   function handleWheel(event) {
     event.preventDefault();
     const delta = -event.deltaY;
-    const zoomFactor = delta > 0 ? 1.02 : 0.98; // Reduced from 1.1/0.9 to 1.05/0.95
+    const zoomFactor = delta > 0 ? zoomSensitivity : 2 - zoomSensitivity;
     const newScale = Math.min(Math.max(transform.scale * zoomFactor, 0.2), 3);
     const rect = containerEl.getBoundingClientRect();
     const center = {
@@ -497,6 +517,7 @@
   // PDF Export Framing State
   let pdfFramingMode = false;
   let pdfFrameRect = null; // { left, top, width, height }
+  let isFraming = false; // Track if user is actively dragging to create frame
 
   // Sidebar state
   let sidebarOpen = false;
@@ -1836,6 +1857,9 @@
           </button>
         </div>
 
+        <!-- Zoom sensitivity control -->
+        <ZoomSensitivityControl />
+
         <!-- Action buttons -->
         <div class="action-controls">
           <button class="action-btn secondary" on:click={openRules}>
@@ -1944,7 +1968,9 @@
     }}
   />
 
-  <ChartColorPicker {organizationId} />
+  {#if !pdfFramingMode}
+    <ChartColorPicker {organizationId} />
+  {/if}
 
   <RuleManagerModal open={showRules} {organizationId} on:close={closeRules} />
 
@@ -1966,43 +1992,45 @@
       <div class="pdf-framing-dark-overlay"></div>
     {/if}
 
-    <!-- Instructions panel -->
-    <div class="pdf-framing-instructions-overlay">
-      <div class="pdf-framing-instructions">
-        <div class="instruction-content">
-          <h3>Frame Your Export</h3>
-          {#if pdfFrameRect && pdfFrameRect.width > 10 && pdfFrameRect.height > 10}
-            <div class="frame-info">
-              <span class="frame-dimensions">
-                {Math.round(pdfFrameRect.width)} × {Math.round(
-                  pdfFrameRect.height,
-                )} px
-              </span>
-              <span class="frame-orientation">
-                {pdfFrameRect.width > pdfFrameRect.height
-                  ? "Landscape"
-                  : "Portrait"}
-              </span>
-            </div>
-          {:else}
-            <p>Draw a rectangle around the content to export</p>
-          {/if}
-        </div>
+    <!-- Instructions panel - hide while actively framing -->
+    {#if !isFraming}
+      <div class="pdf-framing-instructions-overlay">
+        <div class="pdf-framing-instructions">
+          <div class="instruction-content">
+            <h3>Frame Your Export</h3>
+            {#if pdfFrameRect && pdfFrameRect.width > 10 && pdfFrameRect.height > 10}
+              <div class="frame-info">
+                <span class="frame-dimensions">
+                  {Math.round(pdfFrameRect.width)} × {Math.round(
+                    pdfFrameRect.height,
+                  )} px
+                </span>
+                <span class="frame-orientation">
+                  {pdfFrameRect.width > pdfFrameRect.height
+                    ? "Landscape"
+                    : "Portrait"}
+                </span>
+              </div>
+            {:else}
+              <p>Draw a rectangle around the content to export</p>
+            {/if}
+          </div>
 
-        <div class="pdf-framing-controls">
-          <button
-            class="export-btn"
-            on:click={confirmPDFExport}
-            disabled={!pdfFrameRect || pdfFrameRect.width < 10}
-          >
-            Export PDF
-          </button>
-          <button class="cancel-btn" on:click={cancelPDFFraming}>
-            Cancel
-          </button>
+          <div class="pdf-framing-controls">
+            <button
+              class="export-btn"
+              on:click={confirmPDFExport}
+              disabled={!pdfFrameRect || pdfFrameRect.width < 10}
+            >
+              Export PDF
+            </button>
+            <button class="cancel-btn" on:click={cancelPDFFraming}>
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    {/if}
   {/if}
 {/if}
 
@@ -2152,7 +2180,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: var(--spacing-4);
+    gap: var(--spacing-3);
     z-index: 200;
   }
 
