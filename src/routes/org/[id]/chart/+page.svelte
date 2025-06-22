@@ -583,9 +583,31 @@
                 try {
                   const canvas = document.createElement("canvas");
                   const ctx = canvas.getContext("2d");
-                  canvas.width = testImg.naturalWidth;
-                  canvas.height = testImg.naturalHeight;
-                  ctx.drawImage(testImg, 0, 0);
+                  // Make canvas square and scale image to cover (object-fit: cover behavior)
+                  const size = Math.min(
+                    testImg.naturalWidth,
+                    testImg.naturalHeight,
+                  );
+                  canvas.width = size;
+                  canvas.height = size;
+
+                  // Calculate crop area to center the image
+                  const sourceSize = size;
+                  const sourceX = (testImg.naturalWidth - sourceSize) / 2;
+                  const sourceY = (testImg.naturalHeight - sourceSize) / 2;
+
+                  // Draw the cropped square portion
+                  ctx.drawImage(
+                    testImg,
+                    sourceX,
+                    sourceY,
+                    sourceSize,
+                    sourceSize,
+                    0,
+                    0,
+                    size,
+                    size,
+                  );
                   const dataURL = canvas.toDataURL("image/png");
                   img.src = dataURL;
                   resolve();
@@ -958,10 +980,31 @@
                   const canvas = document.createElement("canvas");
                   const ctx = canvas.getContext("2d");
 
-                  canvas.width = testImg.naturalWidth;
-                  canvas.height = testImg.naturalHeight;
+                  // Make canvas square and scale image to cover (object-fit: cover behavior)
+                  const size = Math.min(
+                    testImg.naturalWidth,
+                    testImg.naturalHeight,
+                  );
+                  canvas.width = size;
+                  canvas.height = size;
 
-                  ctx.drawImage(testImg, 0, 0);
+                  // Calculate crop area to center the image
+                  const sourceSize = size;
+                  const sourceX = (testImg.naturalWidth - sourceSize) / 2;
+                  const sourceY = (testImg.naturalHeight - sourceSize) / 2;
+
+                  // Draw the cropped square portion
+                  ctx.drawImage(
+                    testImg,
+                    sourceX,
+                    sourceY,
+                    sourceSize,
+                    sourceSize,
+                    0,
+                    0,
+                    size,
+                    size,
+                  );
                   const dataURL = canvas.toDataURL("image/png");
 
                   // Store replacement info
