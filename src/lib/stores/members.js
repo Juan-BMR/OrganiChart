@@ -233,7 +233,7 @@ function createMembersStore() {
     },
 
     // Update member fields (name, role, email, etc.)
-    updateMember: async (memberId, updates, photoFile = undefined) => {
+    updateMember: async (memberId, updates, photoFile = undefined, cvFile = undefined) => {
       try {
         const memberRef = doc(db, COLLECTIONS.MEMBERS, memberId);
         await updateDoc(memberRef, {
@@ -269,6 +269,31 @@ function createMembersStore() {
             await updateDoc(memberRef, { photoURL: url });
           }
           // If photoFile is undefined, don't change the photo
+
+          // Handle CV operations
+          if (cvFile === null) {
+            // Remove existing CV
+            try {
+              const path = `organizations/${organizationId}/members/${memberId}_cv.pdf`;
+              const fileRef = storageRef(storage, path);
+              await deleteObject(fileRef);
+              // Remove cvURL from member document
+              await updateDoc(memberRef, { cvURL: null });
+            } catch (e) {
+              // Ignore if CV doesn't exist
+              console.debug("CV removal - file not found:", e.code);
+              // Still remove cvURL from document even if file doesn't exist
+              await updateDoc(memberRef, { cvURL: null });
+            }
+          } else if (cvFile) {
+            // Upload new CV
+            const path = `organizations/${organizationId}/members/${memberId}_cv.pdf`;
+            const fileRef = storageRef(storage, path);
+            await uploadBytes(fileRef, cvFile);
+            const url = await getDownloadURL(fileRef);
+            await updateDoc(memberRef, { cvURL: url });
+          }
+          // If cvFile is undefined, don't change the CV
         }
       } catch (error) {
         console.error("Failed to update member", error);
@@ -334,6 +359,16 @@ function createMembersStore() {
           } catch (e) {
             // ignore if doesn't exist
             console.debug("ignore missing photo", e.code);
+          }
+          
+          // Remove CV
+          const cvPath = `organizations/${organizationId}/members/${memberId}_cv.pdf`;
+          const cvFileRef = storageRef(storage, cvPath);
+          try {
+            await deleteObject(cvFileRef);
+          } catch (e) {
+            // ignore if doesn't exist
+            console.debug("ignore missing CV", e.code);
           }
         }
         

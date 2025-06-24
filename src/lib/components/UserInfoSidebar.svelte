@@ -202,6 +202,30 @@
               <span class="info-label">Member Since:</span>
               <span class="info-value">{joinDate}</span>
             </div>
+            {#if member?.cvURL}
+              <div class="info-item">
+                <span class="info-label">CV/Resume:</span>
+                <span class="info-value">
+                  <a 
+                    href={member.cvURL} 
+                    download="{member.name}_CV.pdf"
+                    class="cv-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    Download CV
+                  </a>
+                </span>
+              </div>
+            {/if}
           </div>
         </div>
 
@@ -595,6 +619,26 @@
   .email-link:hover {
     color: var(--primary-dark);
     text-decoration: underline;
+  }
+
+  .cv-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  .cv-link svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .cv-link:hover {
+    color: var(--primary-dark);
+    transform: translateY(-1px);
   }
 
   .reports-to-container {
