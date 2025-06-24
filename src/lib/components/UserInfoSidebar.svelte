@@ -50,8 +50,7 @@
 
   // CV preview state
   let showCVPreview = false;
-  let cvPreviewX = 0;
-  let cvPreviewY = 0;
+  let cvTargetElement = null;
 
   // Focus delete modal when it opens
   $: if (showDeleteConfirmation && deleteModalElement) {
@@ -134,19 +133,12 @@
 
   function handleCVHover(event) {
     showCVPreview = true;
-    cvPreviewX = event.clientX;
-    cvPreviewY = event.clientY;
-  }
-
-  function handleCVMouseMove(event) {
-    if (showCVPreview) {
-      cvPreviewX = event.clientX;
-      cvPreviewY = event.clientY;
-    }
+    cvTargetElement = event.currentTarget;
   }
 
   function handleCVLeave() {
     showCVPreview = false;
+    cvTargetElement = null;
   }
 </script>
 
@@ -236,7 +228,6 @@
               <div 
                 class="cv-file-display"
                 on:mouseenter={handleCVHover}
-                on:mousemove={handleCVMouseMove}
                 on:mouseleave={handleCVLeave}
               >
                 <div class="cv-icon">
@@ -465,8 +456,7 @@
     cvURL={member?.cvURL}
     cvFileName={member?.cvFileName}
     show={showCVPreview}
-    x={cvPreviewX}
-    y={cvPreviewY}
+    targetElement={cvTargetElement}
   />
 {/if}
 
@@ -688,13 +678,15 @@
     align-items: center;
     gap: var(--spacing-3);
     padding: var(--spacing-3);
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
   }
 
   .cv-file-display:hover {
     background: var(--secondary);
     cursor: pointer;
+    transform: translateX(4px);
+    box-shadow: var(--shadow-md);
   }
 
   .cv-icon {
@@ -712,6 +704,12 @@
   .cv-icon svg {
     width: 24px;
     height: 24px;
+    transition: all 0.3s ease;
+  }
+  
+  .cv-file-display:hover .cv-icon svg {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.4));
   }
 
   .cv-details {
@@ -735,22 +733,25 @@
   }
 
   .cv-file-display::after {
-    content: "👁️ Hover to preview";
+    content: "👁️ Hover for preview";
     font-size: var(--font-size-xs);
     color: var(--primary);
     opacity: 0;
-    transition: opacity 0.2s ease;
+    transition: all 0.3s ease;
     position: absolute;
     bottom: 8px;
     right: 8px;
     background: var(--background);
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
+    padding: 4px 8px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--primary);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(4px);
   }
 
   .cv-file-display:hover::after {
     opacity: 1;
+    transform: translateY(0);
   }
 
   .cv-download-btn {

@@ -4,8 +4,7 @@
   export let cvURL = '';
   export let cvFileName = '';
   export let show = false;
-  export let x = 0;
-  export let y = 0;
+  export let targetElement = null; // The element to position relative to
   
   let previewContainer;
   let loading = true;
@@ -105,36 +104,41 @@
     return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
   }
   
-  // Position the preview near the cursor but keep it in viewport
+  // Position the preview to the right of the target element
   function updatePosition() {
-    if (!previewContainer) return;
+    if (!previewContainer || !targetElement) return;
     
-    const rect = previewContainer.getBoundingClientRect();
+    const targetRect = targetElement.getBoundingClientRect();
+    const previewRect = previewContainer.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     
-    let newX = x + 20; // Offset from cursor
-    let newY = y + 20;
+    let newX = targetRect.right + 20; // 20px gap to the right
+    let newY = targetRect.top;
     
-    // Adjust if preview would go off-screen
-    if (newX + rect.width > viewportWidth) {
-      newX = x - rect.width - 20;
+    // If there's not enough space on the right, show on the left
+    if (newX + previewRect.width > viewportWidth - 20) {
+      newX = targetRect.left - previewRect.width - 20;
     }
     
-    if (newY + rect.height > viewportHeight) {
-      newY = y - rect.height - 20;
+    // Ensure preview doesn't go below viewport
+    if (newY + previewRect.height > viewportHeight - 20) {
+      newY = viewportHeight - previewRect.height - 20;
     }
     
-    // Ensure preview stays within viewport bounds
-    newX = Math.max(10, Math.min(newX, viewportWidth - rect.width - 10));
-    newY = Math.max(10, Math.min(newY, viewportHeight - rect.height - 10));
+    // Ensure preview doesn't go above viewport
+    newY = Math.max(20, newY);
+    
+    // Ensure preview doesn't go off-screen horizontally
+    newX = Math.max(20, Math.min(newX, viewportWidth - previewRect.width - 20));
     
     previewContainer.style.left = `${newX}px`;
     previewContainer.style.top = `${newY}px`;
   }
   
-  $: if (show && previewContainer && x !== undefined && y !== undefined) {
-    updatePosition();
+  $: if (show && previewContainer && targetElement) {
+    // Small delay to ensure DOM is updated
+    setTimeout(updatePosition, 10);
   }
 </script>
 
@@ -142,7 +146,7 @@
   <div 
     class="cv-preview-tooltip" 
     bind:this={previewContainer}
-    style="left: {x + 20}px; top: {y + 20}px;"
+    class:show
   >
     <div class="preview-header">
       <div class="file-info">
@@ -205,7 +209,7 @@
     </div>
     
     <div class="preview-footer">
-      <small>Hover to preview • Click to download</small>
+      <small>📄 Live Preview • Click CV to download full document</small>
     </div>
   </div>
 {/if}
@@ -218,15 +222,57 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-xl);
-    width: 320px;
-    max-height: 400px;
+    width: 380px;
+    max-height: 450px;
     overflow: hidden;
     pointer-events: none;
-    backdrop-filter: blur(8px);
-    animation: fadeIn 0.2s ease-out;
+    backdrop-filter: blur(12px);
+    opacity: 0;
+    transform: translateX(-20px) scale(0.95);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border: 2px solid transparent;
+    background: linear-gradient(var(--background), var(--background)) padding-box,
+                linear-gradient(45deg, var(--primary), var(--primary-light)) border-box;
   }
   
-  @keyframes fadeIn {
+  .cv-preview-tooltip.show {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  
+  .cv-preview-tooltip::before {
+    content: '';
+    position: absolute;
+    top: 20px;
+    left: -8px;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 8px 8px 8px 0;
+    border-color: transparent var(--border) transparent transparent;
+    z-index: -1;
+  }
+  
+  .cv-preview-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 21px;
+    left: -6px;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 7px 7px 7px 0;
+    border-color: transparent var(--background) transparent transparent;
+  }
+  
+  .preview-header {
+    padding: var(--spacing-3);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    animation: slideInFromTop 0.4s ease-out 0.1s both;
+  }
+  
+  @keyframes slideInFromTop {
     from {
       opacity: 0;
       transform: translateY(-10px);
@@ -235,12 +281,6 @@
       opacity: 1;
       transform: translateY(0);
     }
-  }
-  
-  .preview-header {
-    padding: var(--spacing-3);
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
   }
   
   .file-info {
@@ -277,9 +317,21 @@
   }
   
   .preview-content {
-    height: 240px;
+    height: 280px;
     position: relative;
     background: var(--background);
+    animation: slideInFromRight 0.5s ease-out 0.2s both;
+  }
+  
+  @keyframes slideInFromRight {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
   
   .loading-state,
@@ -391,6 +443,18 @@
     background: var(--surface);
     border-top: 1px solid var(--border);
     text-align: center;
+    animation: slideInFromBottom 0.4s ease-out 0.3s both;
+  }
+  
+  @keyframes slideInFromBottom {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   
   .preview-footer small {
@@ -408,12 +472,25 @@
   /* Responsive design */
   @media (max-width: 768px) {
     .cv-preview-tooltip {
-      width: 280px;
-      max-height: 350px;
+      width: 300px;
+      max-height: 380px;
+      position: fixed;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+    
+    .cv-preview-tooltip.show {
+      transform: translate(-50%, -50%) scale(1);
+    }
+    
+    .cv-preview-tooltip::before,
+    .cv-preview-tooltip::after {
+      display: none;
     }
     
     .preview-content {
-      height: 200px;
+      height: 220px;
     }
   }
 </style>

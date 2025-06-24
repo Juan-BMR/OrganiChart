@@ -27,8 +27,7 @@
 
   // CV preview state
   let showCVPreview = false;
-  let cvPreviewX = 0;
-  let cvPreviewY = 0;
+  let cvTargetElement = null;
 
   // Initialize form values when modal opens or when member changes
   $: if (open && member && member.id !== currentMemberId) {
@@ -195,20 +194,13 @@
   function handleCVHover(event) {
     if (member?.cvURL && member?.cvFileName && cvFile !== "REMOVE_CV") {
       showCVPreview = true;
-      cvPreviewX = event.clientX;
-      cvPreviewY = event.clientY;
-    }
-  }
-
-  function handleCVMouseMove(event) {
-    if (showCVPreview) {
-      cvPreviewX = event.clientX;
-      cvPreviewY = event.clientY;
+      cvTargetElement = event.currentTarget;
     }
   }
 
   function handleCVLeave() {
     showCVPreview = false;
+    cvTargetElement = null;
   }
 
   function handleKeyDown(event) {
@@ -565,7 +557,6 @@
               <div 
                 class="cv-preview"
                 on:mouseenter={handleCVHover}
-                on:mousemove={handleCVMouseMove}
                 on:mouseleave={handleCVLeave}
               >
                 <div class="cv-file-info">
@@ -733,8 +724,7 @@
     cvURL={member?.cvURL}
     cvFileName={member?.cvFileName}
     show={showCVPreview}
-    x={cvPreviewX}
-    y={cvPreviewY}
+    targetElement={cvTargetElement}
   />
 {/if}
 

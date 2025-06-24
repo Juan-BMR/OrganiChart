@@ -12,15 +12,19 @@ A comprehensive CV/Resume upload feature has been implemented for the organichar
 - Hover over any CV entry to see a live preview
 - **PDF Support**: Renders first page using PDF.js with fallback to iframe
 - **Document Support**: Shows file information and type for DOC/DOCX files
-- **Smart Positioning**: Preview tooltip automatically positions to stay in viewport
+- **Fixed Positioning**: Preview appears to the right of CV component (not following mouse)
+- **Cool Animations**: Smooth slide-in effects with spring-like transitions
 - **Loading States**: Smooth loading animations and error handling
 
 **Preview Features:**
 - Real-time PDF rendering with PDF.js
 - File type detection and appropriate icons
 - Upload date and file size information
-- "Click to download" guidance
-- Responsive design for mobile devices
+- **Animated UI Elements**: Sliding animations with staggered timing
+- **Fixed Positioning**: Appears to the right with smart viewport detection
+- **Spring Animations**: Smooth cubic-bezier transitions with bounce effect
+- **Visual Feedback**: Hover effects with glow and transform animations
+- Responsive design for mobile devices (centers on small screens)
 
 ### 2. Database Schema Updates
 
@@ -179,7 +183,8 @@ Potential future improvements could include:
 ## Technical Notes
 
 - **PDF.js Integration**: Uses PDF.js CDN for high-quality PDF rendering with iframe fallback
-- **Smart Preview Positioning**: Tooltips automatically adjust position to stay within viewport
+- **Fixed Preview Positioning**: Previews appear to the right of CV components with smart viewport detection
+- **Advanced Animations**: CSS3 animations with cubic-bezier easing and staggered timing
 - **Performance Optimized**: Lazy loading of previews only when hovering
 - Uses Firebase Storage for reliable, scalable file hosting
 - Implements proper error handling for upload failures and preview generation
