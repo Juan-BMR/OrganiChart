@@ -671,6 +671,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--background);
+    overflow: hidden; /* Prevent background bleeding */
   }
 
   .cv-file-display {
@@ -680,13 +681,17 @@
     padding: var(--spacing-3);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
+    margin: 0; /* Ensure no margin issues */
   }
 
   .cv-file-display:hover {
     background: var(--secondary);
     cursor: pointer;
-    transform: translateX(4px);
+    /* Remove translateX to prevent background bleeding */
     box-shadow: var(--shadow-md);
+    /* Add a subtle left border instead for visual feedback */
+    border-left: 4px solid var(--primary);
+    padding-left: calc(var(--spacing-3) - 4px); /* Adjust padding to maintain alignment */
   }
 
   .cv-icon {
