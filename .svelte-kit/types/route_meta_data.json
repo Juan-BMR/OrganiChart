@@ -3,6 +3,9 @@
 		"src/routes/+layout.js",
 		"src/routes/+layout.js"
 	],
+	"/api": [
+		"src/routes/api/+layout.js"
+	],
 	"/api/og-image/[id]": [
 		"src/routes/api/og-image/[id]/+server.js"
 	],
@@ -15,8 +18,14 @@
 	"/login": [
 		"src/routes/+layout.js"
 	],
+	"/org": [
+		"src/routes/org/+layout.js",
+		"src/routes/+layout.js"
+	],
 	"/org/[id]/chart": [
+		"src/routes/org/[id]/chart/+page.js",
 		"src/routes/org/[id]/chart/+page.server.js",
+		"src/routes/org/+layout.js",
 		"src/routes/+layout.js"
 	],
 	"/sitemap.xml": [

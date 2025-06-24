@@ -27,6 +27,10 @@ if (!getApps().length) {
 export async function load({ params, url }) {
   const { id: organizationId } = params;
   
+  console.log('[SSR] Loading organization:', organizationId);
+  console.log('[SSR] Firebase Admin initialized:', !!app);
+  console.log('[SSR] Has service account key:', !!FIREBASE_SERVICE_ACCOUNT_KEY);
+  
   // Default metadata for when Firebase Admin is not available
   const defaultMetadata = {
     organization: null,
@@ -40,6 +44,7 @@ export async function load({ params, url }) {
 
   // If Firebase Admin is not initialized, return default metadata
   if (!app) {
+    console.log('[SSR] Firebase Admin not initialized, returning default metadata');
     return defaultMetadata;
   }
 
