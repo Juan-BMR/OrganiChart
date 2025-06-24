@@ -732,27 +732,7 @@
     color: var(--text-secondary);
   }
 
-  .cv-file-display::after {
-    content: "👁️ Hover for preview";
-    font-size: var(--font-size-xs);
-    color: var(--primary);
-    opacity: 0;
-    transition: all 0.3s ease;
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    background: var(--background);
-    padding: 4px 8px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--primary);
-    box-shadow: var(--shadow-sm);
-    transform: translateY(4px);
-  }
 
-  .cv-file-display:hover::after {
-    opacity: 1;
-    transform: translateY(0);
-  }
 
   .cv-download-btn {
     display: inline-flex;
