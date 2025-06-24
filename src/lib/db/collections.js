@@ -53,6 +53,9 @@ export const createMemberData = (
   startDate: startDate || new Date(), // Default to today if not provided
   level: 0, // Will be calculated based on hierarchy
   position: null, // Chart positioning
+  cvURL: null, // CV/Resume file URL
+  cvFileName: null, // Original CV file name
+  cvUploadedAt: null, // When CV was uploaded
   createdAt: new Date(),
   updatedAt: new Date(),
   isActive: true,

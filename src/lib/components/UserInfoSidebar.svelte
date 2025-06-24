@@ -205,6 +205,48 @@
           </div>
         </div>
 
+        <!-- CV Section -->
+        {#if member?.cvURL && member?.cvFileName}
+          <div class="info-section">
+            <h4 class="section-title">CV / Resume</h4>
+            <div class="cv-info-container">
+              <div class="cv-file-display">
+                <div class="cv-icon">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                </div>
+                <div class="cv-details">
+                  <div class="cv-filename">{member.cvFileName}</div>
+                  <div class="cv-uploaded-date">
+                    Uploaded {member.cvUploadedAt ? new Date(member.cvUploadedAt.toDate ? member.cvUploadedAt.toDate() : member.cvUploadedAt).toLocaleDateString() : 'Unknown'}
+                  </div>
+                </div>
+                <button
+                  class="cv-download-btn"
+                  on:click={() => window.open(member.cvURL, '_blank')}
+                  title="Download CV"
+                >
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  Download
+                </button>
+              </div>
+            </div>
+          </div>
+        {/if}
+
         <!-- Reports To Section -->
         {#if manager}
           <div class="info-section">
@@ -595,6 +637,88 @@
   .email-link:hover {
     color: var(--primary-dark);
     text-decoration: underline;
+  }
+
+  /* CV Section Styles */
+  .cv-info-container {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--background);
+  }
+
+  .cv-file-display {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    padding: var(--spacing-3);
+    transition: all 0.2s ease;
+  }
+
+  .cv-file-display:hover {
+    background: var(--secondary);
+  }
+
+  .cv-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(99, 102, 241, 0.1);
+    border-radius: var(--radius-md);
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+
+  .cv-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .cv-details {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cv-filename {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: var(--spacing-1);
+  }
+
+  .cv-uploaded-date {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
+  .cv-download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-2) var(--spacing-3);
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .cv-download-btn:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+  }
+
+  .cv-download-btn svg {
+    width: 14px;
+    height: 14px;
   }
 
   .reports-to-container {
