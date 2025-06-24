@@ -158,7 +158,7 @@
         <button class="close-btn" on:click={handleClose}>×</button>
       </header>
 
-      <div class="modal-body">
+      <div class="modal-body scrollbar-custom">
         <!-- User Header -->
         <div class="user-header">
           <div class="avatar">
@@ -295,7 +295,7 @@
         {#if directReports.length > 0}
           <div class="info-section">
             <h4 class="section-title">Subordinates ({directReports.length})</h4>
-            <div class="subordinates-container">
+            <div class="subordinates-container scrollbar-thin">
               <div class="subordinates-list">
                 {#each directReports as subordinate}
                   <button

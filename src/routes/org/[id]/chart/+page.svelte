@@ -1638,7 +1638,7 @@
     <!-- Chart viewport -->
     <div
       bind:this={containerEl}
-      class="chart-container"
+      class="chart-container scrollbar-hidden"
       class:selection-mode={selectionToolActive}
       on:pointerdown|capture={handlePointerDown}
       on:pointermove={handlePointerMove}

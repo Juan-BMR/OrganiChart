@@ -267,7 +267,7 @@
 {#if open}
   <div class="modal-overlay" on:click|self={handleClose}>
     <div
-      class="modal"
+      class="modal scrollbar-custom"
       on:keydown={handleKeyDown}
       on:click={handleClickOutside}
       tabindex="-1"
@@ -351,7 +351,7 @@
           </button>
 
           {#if managerDropdownOpen}
-            <div class="dropdown-menu">
+            <div class="dropdown-menu scrollbar-thin">
               <!-- None option -->
               <button
                 type="button"
@@ -426,7 +426,7 @@
           </button>
 
           {#if dropdownOpen}
-            <div class="dropdown-menu">
+            <div class="dropdown-menu scrollbar-thin">
               {#each managerId ? getDirectReports(managerId) : members.filter((m) => !m.managerId) as member}
                 <label class="checkbox-item">
                   <input

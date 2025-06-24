@@ -252,7 +252,7 @@
 {#if open}
   <div class="modal-overlay" on:click|self={close}>
     <div
-      class="modal"
+      class="modal scrollbar-custom"
       on:keydown={handleKeyDown}
       tabindex="-1"
       bind:this={modalElement}

@@ -173,7 +173,7 @@
     transition:fade={{ duration: 200 }}
   >
     <div
-      class="modal"
+      class="modal scrollbar-custom"
       on:keydown={handleKeyDown}
       tabindex="-1"
       bind:this={modalElement}

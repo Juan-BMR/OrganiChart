@@ -125,6 +125,145 @@ a {
   text-decoration: none;
 }
 
+/* Custom Scrollbar Styles */
+/* Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--primary);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--surface);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--surface);
+}
+
+/* Enhanced scrollbar for specific containers */
+.scrollbar-custom {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--surface);
+}
+
+.scrollbar-custom::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  margin: 2px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--surface);
+  transition: all 0.2s ease;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+  border-color: var(--background);
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:active {
+  background: var(--primary);
+  border-color: var(--background);
+}
+
+/* Thin scrollbar variant */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s ease;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:active {
+  background: var(--primary);
+}
+
+/* Primary colored scrollbar */
+.scrollbar-primary {
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-light) var(--surface);
+}
+
+.scrollbar-primary::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-primary::-webkit-scrollbar-track {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+}
+
+.scrollbar-primary::-webkit-scrollbar-thumb {
+  background: var(--primary-light);
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s ease;
+}
+
+.scrollbar-primary::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+.scrollbar-primary::-webkit-scrollbar-thumb:active {
+  background: var(--primary-dark);
+}
+
+/* Invisible scrollbar (for custom scroll indicators) */
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 /* Utility classes */
 .sr-only {
   position: absolute;
