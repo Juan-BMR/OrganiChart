@@ -70,6 +70,7 @@ function createMembersStore() {
       photoFile = null,
       subordinateIds = [],
       startDate = null,
+      cvFile = null,
     ) => {
       const data = createMemberData(
         organizationId,
@@ -79,6 +80,7 @@ function createMembersStore() {
         null,
         managerId,
         startDate,
+        null,
       );
       const ref = await addDoc(collection(db, COLLECTIONS.MEMBERS), data);
       const newMemberId = ref.id;
@@ -111,6 +113,20 @@ function createMembersStore() {
         }
       }
 
+      // handle CV upload if provided
+      if (cvFile) {
+        try {
+          const fileExtension = cvFile.name.split('.').pop().toLowerCase();
+          const path = `organizations/${organizationId}/members/${newMemberId}/cv.${fileExtension}`;
+          const fileRef = storageRef(storage, path);
+          await uploadBytes(fileRef, cvFile);
+          const url = await getDownloadURL(fileRef);
+          await updateDoc(ref, { cvURL: url });
+        } catch (err) {
+          console.error("CV upload failed", err);
+        }
+      }
+
       return newMemberId;
     },
 
@@ -124,6 +140,7 @@ function createMembersStore() {
       subordinateId,
       photoFile = null,
       startDate = null,
+      cvFile = null,
     ) => {
       // We don't need to check the subordinate here since we trust the UI validation
       // The key operation is: new member gets newManagerId, subordinate gets new member as manager
@@ -137,6 +154,7 @@ function createMembersStore() {
         null,
         newManagerId, // Manager ID passed or subordinate's current manager
         startDate,
+        null,
       );
       const newMemberRef = await addDoc(collection(db, COLLECTIONS.MEMBERS), data);
       const newMemberId = newMemberRef.id;
@@ -163,6 +181,20 @@ function createMembersStore() {
         }
       }
 
+      // Handle CV upload if provided
+      if (cvFile) {
+        try {
+          const fileExtension = cvFile.name.split('.').pop().toLowerCase();
+          const path = `organizations/${organizationId}/members/${newMemberId}/cv.${fileExtension}`;
+          const fileRef = storageRef(storage, path);
+          await uploadBytes(fileRef, cvFile);
+          const url = await getDownloadURL(fileRef);
+          await updateDoc(newMemberRef, { cvURL: url });
+        } catch (err) {
+          console.error("CV upload failed", err);
+        }
+      }
+
       return newMemberId;
     },
 
@@ -176,6 +208,7 @@ function createMembersStore() {
       subordinateIds,
       photoFile = null,
       startDate = null,
+      cvFile = null,
     ) => {
       // Create the new member
       const data = createMemberData(
@@ -186,6 +219,7 @@ function createMembersStore() {
         null,
         newManagerId,
         startDate,
+        null,
       );
       const newMemberRef = await addDoc(collection(db, COLLECTIONS.MEMBERS), data);
       const newMemberId = newMemberRef.id;
@@ -216,6 +250,20 @@ function createMembersStore() {
         }
       }
 
+      // Handle CV upload if provided
+      if (cvFile) {
+        try {
+          const fileExtension = cvFile.name.split('.').pop().toLowerCase();
+          const path = `organizations/${organizationId}/members/${newMemberId}/cv.${fileExtension}`;
+          const fileRef = storageRef(storage, path);
+          await uploadBytes(fileRef, cvFile);
+          const url = await getDownloadURL(fileRef);
+          await updateDoc(newMemberRef, { cvURL: url });
+        } catch (err) {
+          console.error("CV upload failed", err);
+        }
+      }
+
       return newMemberId;
     },
 
@@ -233,7 +281,7 @@ function createMembersStore() {
     },
 
     // Update member fields (name, role, email, etc.)
-    updateMember: async (memberId, updates, photoFile = undefined) => {
+    updateMember: async (memberId, updates, photoFile = undefined, cvFile = undefined) => {
       try {
         const memberRef = doc(db, COLLECTIONS.MEMBERS, memberId);
         await updateDoc(memberRef, {
@@ -269,6 +317,40 @@ function createMembersStore() {
             await updateDoc(memberRef, { photoURL: url });
           }
           // If photoFile is undefined, don't change the photo
+
+          // Handle CV operations
+          if (cvFile === null) {
+            // Remove existing CV
+            try {
+              // Try to delete CV files with common extensions
+              const extensions = ['pdf', 'doc', 'docx'];
+              for (const ext of extensions) {
+                try {
+                  const path = `organizations/${organizationId}/members/${memberId}/cv.${ext}`;
+                  const fileRef = storageRef(storage, path);
+                  await deleteObject(fileRef);
+                  break; // If successful, stop trying other extensions
+                } catch (e) {
+                  // Continue to next extension
+                  console.debug(`CV removal attempt - file not found: ${ext}`, e.code);
+                }
+              }
+              // Remove cvURL from member document
+              await updateDoc(memberRef, { cvURL: null });
+            } catch (e) {
+              // Still remove cvURL from document even if file doesn't exist
+              await updateDoc(memberRef, { cvURL: null });
+            }
+          } else if (cvFile) {
+            // Upload new CV
+            const fileExtension = cvFile.name.split('.').pop().toLowerCase();
+            const path = `organizations/${organizationId}/members/${memberId}/cv.${fileExtension}`;
+            const fileRef = storageRef(storage, path);
+            await uploadBytes(fileRef, cvFile);
+            const url = await getDownloadURL(fileRef);
+            await updateDoc(memberRef, { cvURL: url });
+          }
+          // If cvFile is undefined, don't change the CV
         }
       } catch (error) {
         console.error("Failed to update member", error);
@@ -325,15 +407,29 @@ function createMembersStore() {
         // Now delete the member
         await deleteDoc(memberRef);
         
-        // Remove picture
+        // Remove picture and CV
         if (organizationId) {
-          const path = `organizations/${organizationId}/members/${memberId}.jpg`;
-          const fileRef = storageRef(storage, path);
+          // Remove photo
+          const photoPath = `organizations/${organizationId}/members/${memberId}.jpg`;
+          const photoRef = storageRef(storage, photoPath);
           try {
-            await deleteObject(fileRef);
+            await deleteObject(photoRef);
           } catch (e) {
             // ignore if doesn't exist
             console.debug("ignore missing photo", e.code);
+          }
+
+          // Remove CV files (try common extensions)
+          const extensions = ['pdf', 'doc', 'docx'];
+          for (const ext of extensions) {
+            try {
+              const cvPath = `organizations/${organizationId}/members/${memberId}/cv.${ext}`;
+              const cvRef = storageRef(storage, cvPath);
+              await deleteObject(cvRef);
+            } catch (e) {
+              // ignore if doesn't exist
+              console.debug(`ignore missing CV file: ${ext}`, e.code);
+            }
           }
         }
         

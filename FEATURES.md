@@ -9,6 +9,7 @@ OrganiChart provides essential functionality for managing organizational structu
 - **Google Sign-In Authentication** - Secure authentication using Google OAuth
 - **Organization Management** - Create, update, and delete company profiles
 - **Member Management** - Add team members with roles and reporting relationships
+- **CV/Resume Upload** - Upload and manage CV documents for each team member
 - **Interactive Org Chart** - Visual representation of company hierarchy
 - **Security Guards** - Protected routes ensuring data security
 
@@ -145,6 +146,42 @@ Based on the feature specifications, the application includes the following key 
 - Route protection for authenticated users only
 - Organization-level data isolation
 - Admin-only organization management
+
+---
+
+### 6. CV/Resume Upload & Management (Priority: P1)
+
+**User Story:** _As an org admin, I want to upload and manage CV/resume documents for team members so that I can maintain comprehensive employee records and allow easy access to member qualifications._
+
+**Acceptance Criteria:**
+
+#### Upload CV during member creation
+
+- **Given** I'm adding a new member on `/org/{id}/members/new`
+- **When** I upload a PDF, DOC, or DOCX file in the CV section (max 10MB)
+- **Then** the CV is stored in Firebase Storage and linked to the member record
+
+#### Manage existing member CVs
+
+- **Given** I'm editing a member and they have an existing CV
+- **When** I choose to replace, remove, or add a CV
+- **Then** the changes are saved and old files are properly cleaned up
+
+#### Download member CVs
+
+- **Given** a member has an uploaded CV
+- **When** I click the CV download button
+- **Then** the CV file downloads with a descriptive filename
+
+#### File validation
+
+- **Given** I attempt to upload an invalid file (wrong type or too large)
+- **Then** I receive a clear error message and the upload is rejected
+
+#### Automatic cleanup
+
+- **Given** a member with a CV is deleted
+- **Then** their CV file is automatically removed from storage
 
 ---
 

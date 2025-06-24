@@ -14,9 +14,11 @@
   let managerId = "";
   let photoFile = null;
   let photoPreviewUrl = null;
+  let cvFile = null;
   let error = "";
   let loading = false;
   let fileInput;
+  let cvFileInput;
   let subordinateIds = [];
   let dropdownOpen = false;
   let managerDropdownOpen = false;
@@ -118,6 +120,49 @@
     }
   }
 
+  // Handle CV file selection
+  function handleCVFileChange(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Check file type - allow PDF, DOC, DOCX
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    
+    if (!allowedTypes.includes(file.type)) {
+      error = "Please upload a PDF, DOC, or DOCX file";
+      // Reset the file input
+      if (cvFileInput) {
+        cvFileInput.value = "";
+      }
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit for CVs
+      error = "CV file size must be below 10MB";
+      // Reset the file input
+      if (cvFileInput) {
+        cvFileInput.value = "";
+      }
+      return;
+    }
+
+    cvFile = file;
+    error = "";
+  }
+
+  // Handle removing selected CV
+  function handleRemoveCV() {
+    cvFile = null;
+    // Reset the file input
+    if (cvFileInput) {
+      cvFileInput.value = "";
+    }
+  }
+
   async function handleSubmit() {
     error = "";
 
@@ -145,7 +190,8 @@
           managerId || null,
           subordinateIds,
           photoFile,
-          startDateObj
+          startDateObj,
+          cvFile
         );
       } else {
         // Regular add member (now with subordinate support)
@@ -157,7 +203,8 @@
           managerId || null,
           photoFile,
           subordinateIds,
-          startDateObj
+          startDateObj,
+          cvFile
         );
       }
       dispatch("close");
@@ -186,13 +233,17 @@
     managerDropdownOpen = false;
     photoFile = null;
     photoPreviewUrl = null;
+    cvFile = null;
     error = "";
     startDate = new Date().toISOString().split("T")[0]; // Reset to today
     open = false;
 
-    // Reset file input
+    // Reset file inputs
     if (fileInput) {
       fileInput.value = "";
+    }
+    if (cvFileInput) {
+      cvFileInput.value = "";
     }
 
     dispatch("close");
@@ -469,6 +520,88 @@
           style="display:none"
         />
 
+        <label class="input-label" for="cv-upload">
+          CV / Resume
+          <span class="help-text">Optional: Upload PDF, DOC, or DOCX file</span>
+        </label>
+        <div class="cv-upload-container">
+          <div class="upload-area cv-upload-area" on:click={() => cvFileInput.click()}>
+            {#if cvFile}
+              <div class="cv-file-info">
+                <svg
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="file-icon"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                <div class="file-details">
+                  <span class="file-name">{cvFile.name}</span>
+                  <span class="file-size">{(cvFile.size / 1024 / 1024).toFixed(1)} MB</span>
+                </div>
+              </div>
+            {:else}
+              <div class="upload-placeholder">
+                <svg
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="upload-icon"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
+                </svg>
+                <p>
+                  Upload CV <span class="upload-hint">(PDF, DOC, DOCX)</span>
+                </p>
+              </div>
+            {/if}
+          </div>
+          {#if cvFile}
+            <button
+              type="button"
+              class="remove-cv-btn"
+              on:click={handleRemoveCV}
+              title="Remove CV"
+            >
+              <svg
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
+              </svg>
+              Remove CV
+            </button>
+          {/if}
+        </div>
+        <input
+          id="cv-upload"
+          type="file"
+          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          on:change={handleCVFileChange}
+          bind:this={cvFileInput}
+          style="display:none"
+        />
+
         {#if error}
           <p class="error-message">{error}</p>
         {/if}
@@ -697,6 +830,88 @@
   }
 
   .remove-photo-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* CV Upload Styles */
+  .cv-upload-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+  }
+
+  .cv-upload-area {
+    min-height: 80px;
+    padding: var(--spacing-4);
+  }
+
+  .cv-file-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+  }
+
+  .file-icon {
+    width: 24px;
+    height: 24px;
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+
+  .file-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+  }
+
+  .file-name {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .file-size {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
+  .upload-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+
+  .upload-icon {
+    width: 32px;
+    height: 32px;
+    color: var(--text-secondary);
+  }
+
+  .remove-cv-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    padding: var(--spacing-2) var(--spacing-3);
+    background: var(--error);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    align-self: flex-start;
+  }
+
+  .remove-cv-btn:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+  }
+
+  .remove-cv-btn svg {
     width: 14px;
     height: 14px;
   }
