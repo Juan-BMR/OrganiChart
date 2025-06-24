@@ -148,6 +148,46 @@ Based on the feature specifications, the application includes the following key 
 
 ---
 
+---
+
+### 6. Member Search and Filter (Priority: P2)
+
+**User Story:** _As an org admin or viewer, I want to search and filter members by name, email, role, or department so I can quickly find specific team members in large organizations._
+
+**Acceptance Criteria:**
+
+#### Search functionality
+
+- **Given** I'm viewing an organization chart with multiple members
+- **When** I click the "Search Members" button
+- **Then** a search modal opens with a text input and filter options
+
+#### Real-time search
+
+- **Given** the search modal is open
+- **When** I type in the search field
+- **Then** results update in real-time showing matching members by name, email, or role
+
+#### Filter by attributes
+
+- **Given** members have roles and departments assigned
+- **When** I select a filter from the dropdown
+- **Then** only members matching the selected criteria are shown
+
+#### Navigate to member
+
+- **Given** search results are displayed
+- **When** I click on a member in the results
+- **Then** the chart centers on that member and opens their info sidebar
+
+#### Export results
+
+- **Given** I have search results displayed
+- **When** I click the "Export" button
+- **Then** I can download the filtered member list as CSV or JSON
+
+---
+
 ## Development Status
 
-All features listed above are **Priority 1 (P1)** and represent the core functionality required for the minimum viable product.
+All features listed above are **Priority 1 (P1)** and represent the core functionality required for the minimum viable product, except for Member Search and Filter which is **Priority 2 (P2)** and has been implemented as an enhancement.

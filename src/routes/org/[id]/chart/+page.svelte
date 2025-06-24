@@ -26,6 +26,8 @@
   import * as d3 from "d3";
   import html2canvas from "html2canvas";
   import jsPDF from "jspdf";
+  import MemberSearch from "$lib/components/MemberSearch.svelte";
+  import { exportMembersToCSV, exportMembersToJSON } from "$lib/utils/export.js";
 
   let user = null;
   let organizationId = null;
@@ -34,6 +36,10 @@
   // Members data
   let members = [];
   let membersLoading = true;
+  
+  // Search state
+  let showSearch = false;
+  let searchResults = [];
 
   // Canvas transform reactive store
   let transform = { scale: 1, x: 0, y: 0 };
@@ -1622,6 +1628,70 @@
       sidebarLoading = false;
     }
   }
+
+  // Search functions
+  function openSearch() {
+    showSearch = true;
+  }
+
+  function closeSearch() {
+    showSearch = false;
+    searchResults = [];
+  }
+
+  function handleSearch(event) {
+    const { results } = event.detail;
+    searchResults = results;
+  }
+
+  function handleSearchClear() {
+    searchResults = [];
+  }
+
+  function handleSearchSelect(event) {
+    const member = event.detail;
+    // Find the node position for this member
+    const nodeData = nodesWithPosition.find(n => n.member.id === member.id);
+    if (nodeData) {
+      // Center on the selected member
+      const rect = containerEl.getBoundingClientRect();
+      const viewportCenterX = rect.width / 2;
+      const viewportCenterY = rect.height / 2;
+
+      // Calculate new transform to center on member
+      const targetScale = 1.5; // Zoom in slightly
+      const newX = viewportCenterX - nodeData.x * targetScale;
+      const newY = viewportCenterY - nodeData.y * targetScale;
+
+      canvasStore.setTransform({
+        scale: targetScale,
+        x: newX,
+        y: newY,
+      });
+
+      // Open the member sidebar
+      selectedMember = member;
+      sidebarOpen = true;
+    }
+    
+    closeSearch();
+  }
+
+  function handleSearchExport(event) {
+    const membersToExport = event.detail;
+    // Create a custom file name based on search/filter
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `${organization?.name || 'org'}-members-${timestamp}`;
+    
+    // Show a simple modal or dropdown to choose format
+    const format = confirm('Export as CSV? (OK for CSV, Cancel for JSON)') ? 'csv' : 'json';
+    
+    if (format === 'csv') {
+      exportMembersToCSV(membersToExport, filename);
+    } else {
+      exportMembersToJSON(membersToExport, filename);
+    }
+  }
 </script>
 
 <svelte:head>
@@ -1865,6 +1935,23 @@
 
         <!-- Action buttons -->
         <div class="action-controls">
+          <button class="action-btn secondary" on:click={openSearch}>
+            <svg
+              class="button-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            Search Members
+          </button>
+
           <button class="action-btn secondary" on:click={openRules}>
             <svg
               class="button-icon"
@@ -1976,6 +2063,31 @@
   {/if}
 
   <RuleManagerModal open={showRules} {organizationId} on:close={closeRules} />
+
+  <!-- Member Search Modal -->
+  {#if showSearch}
+    <div class="search-modal-overlay" on:click={closeSearch}>
+      <div class="search-modal" on:click|stopPropagation>
+        <div class="search-modal-header">
+          <h2>Search Organization Members</h2>
+          <button class="close-btn" on:click={closeSearch}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="search-modal-content">
+          <MemberSearch
+            {members}
+            on:search={handleSearch}
+            on:clear={handleSearchClear}
+            on:select={handleSearchSelect}
+            on:export={handleSearchExport}
+          />
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <!-- PDF Framing Mode Overlay -->
   {#if pdfFramingMode}
@@ -2458,5 +2570,68 @@
   .zoom-btn.active {
     background: var(--primary);
     color: white;
+  }
+
+  /* Search Modal Styles */
+  .search-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--spacing-4);
+  }
+
+  .search-modal {
+    background: var(--background);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    width: 100%;
+    max-width: 700px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .search-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-6);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .search-modal-header h2 {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .close-btn {
+    padding: var(--spacing-2);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+    border-radius: var(--radius-md);
+  }
+
+  .close-btn:hover {
+    background: var(--secondary);
+    color: var(--text-primary);
+  }
+
+  .search-modal-content {
+    padding: var(--spacing-6);
+    overflow-y: auto;
   }
 </style>
