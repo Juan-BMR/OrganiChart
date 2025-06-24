@@ -34,6 +34,7 @@
 <script>
   import { createEventDispatcher } from "svelte";
   import { fly, fade } from "svelte/transition";
+  import CVPreview from "./CVPreview.svelte";
 
   export let open = false;
   export let member = null;
@@ -46,6 +47,11 @@
   // Delete confirmation state
   let showDeleteConfirmation = false;
   let deleteModalElement;
+
+  // CV preview state
+  let showCVPreview = false;
+  let cvPreviewX = 0;
+  let cvPreviewY = 0;
 
   // Focus delete modal when it opens
   $: if (showDeleteConfirmation && deleteModalElement) {
@@ -124,6 +130,23 @@
       event.stopPropagation(); // Prevent ESC from bubbling up to close the sidebar
       cancelDelete();
     }
+  }
+
+  function handleCVHover(event) {
+    showCVPreview = true;
+    cvPreviewX = event.clientX;
+    cvPreviewY = event.clientY;
+  }
+
+  function handleCVMouseMove(event) {
+    if (showCVPreview) {
+      cvPreviewX = event.clientX;
+      cvPreviewY = event.clientY;
+    }
+  }
+
+  function handleCVLeave() {
+    showCVPreview = false;
   }
 </script>
 
@@ -210,7 +233,12 @@
           <div class="info-section">
             <h4 class="section-title">CV / Resume</h4>
             <div class="cv-info-container">
-              <div class="cv-file-display">
+              <div 
+                class="cv-file-display"
+                on:mouseenter={handleCVHover}
+                on:mousemove={handleCVMouseMove}
+                on:mouseleave={handleCVLeave}
+              >
                 <div class="cv-icon">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -431,6 +459,15 @@
       </div>
     </div>
   {/if}
+
+  <!-- CV Preview Tooltip -->
+  <CVPreview 
+    cvURL={member?.cvURL}
+    cvFileName={member?.cvFileName}
+    show={showCVPreview}
+    x={cvPreviewX}
+    y={cvPreviewY}
+  />
 {/if}
 
 <style>
@@ -652,10 +689,12 @@
     gap: var(--spacing-3);
     padding: var(--spacing-3);
     transition: all 0.2s ease;
+    position: relative;
   }
 
   .cv-file-display:hover {
     background: var(--secondary);
+    cursor: pointer;
   }
 
   .cv-icon {
@@ -693,6 +732,25 @@
   .cv-uploaded-date {
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
+  }
+
+  .cv-file-display::after {
+    content: "👁️ Hover to preview";
+    font-size: var(--font-size-xs);
+    color: var(--primary);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: var(--background);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+
+  .cv-file-display:hover::after {
+    opacity: 1;
   }
 
   .cv-download-btn {

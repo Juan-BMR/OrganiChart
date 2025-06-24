@@ -6,14 +6,30 @@ A comprehensive CV/Resume upload feature has been implemented for the organichar
 
 ## Features Implemented
 
-### 1. Database Schema Updates
+### 1. **CV Hover Preview System** ⭐ NEW!
+
+**Instant CV Previews:**
+- Hover over any CV entry to see a live preview
+- **PDF Support**: Renders first page using PDF.js with fallback to iframe
+- **Document Support**: Shows file information and type for DOC/DOCX files
+- **Smart Positioning**: Preview tooltip automatically positions to stay in viewport
+- **Loading States**: Smooth loading animations and error handling
+
+**Preview Features:**
+- Real-time PDF rendering with PDF.js
+- File type detection and appropriate icons
+- Upload date and file size information
+- "Click to download" guidance
+- Responsive design for mobile devices
+
+### 2. Database Schema Updates
 
 **New Fields Added to Member Collection:**
 - `cvURL`: String - URL to the uploaded CV file in Firebase Storage
 - `cvFileName`: String - Original filename of the uploaded CV
 - `cvUploadedAt`: Timestamp - When the CV was uploaded
 
-### 2. File Storage
+### 3. File Storage
 
 **Supported Formats:**
 - PDF (.pdf)
@@ -23,7 +39,7 @@ A comprehensive CV/Resume upload feature has been implemented for the organichar
 - Maximum file size: 5MB
 - Files are stored in Firebase Storage at: `organizations/{organizationId}/members/{memberId}_cv.{extension}`
 
-### 3. User Interface Components
+### 4. User Interface Components
 
 #### EditMemberModal Enhancements
 - Added CV upload section with drag-and-drop interface
@@ -31,6 +47,7 @@ A comprehensive CV/Resume upload feature has been implemented for the organichar
 - Download button for existing CVs
 - Remove/Replace CV functionality
 - Visual feedback for file validation errors
+- **Hover preview functionality** - shows CV content preview when hovering over existing CVs
 
 #### AddMemberModal Enhancements
 - CV upload option when creating new members
@@ -42,8 +59,9 @@ A comprehensive CV/Resume upload feature has been implemented for the organichar
   - CV filename
   - Upload date
   - Download button with direct link to file
+  - **Hover preview functionality** - displays CV preview tooltip on hover
 
-### 4. Backend Functionality
+### 5. Backend Functionality
 
 #### Members Store Updates
 - Enhanced `updateMember()` function to handle CV uploads/deletions
@@ -57,7 +75,7 @@ A comprehensive CV/Resume upload feature has been implemented for the organichar
 - Cleanup of orphaned files when members are deleted
 - Support for multiple file formats with proper MIME type validation
 
-### 5. Security & Validation
+### 6. Security & Validation
 
 **File Validation:**
 - MIME type checking for supported formats
@@ -106,7 +124,8 @@ A comprehensive CV/Resume upload feature has been implemented for the organichar
 #### Viewing/Downloading a CV:
 1. Open the member sidebar by clicking on any member in the chart
 2. If a CV is uploaded, it will appear in the "CV / Resume" section
-3. Click "Download" to view or save the CV file
+3. **Hover over the CV entry to see an instant preview** ⭐
+4. Click "Download" to view or save the CV file
 
 #### Updating a CV:
 1. Edit the member details
@@ -138,12 +157,14 @@ organizations/
 
 ## Benefits
 
-1. **Centralized Storage**: All employee CVs stored in one secure location
-2. **Easy Access**: Quick access to team member qualifications and backgrounds
-3. **Professional Presentation**: Clean, integrated interface within the org chart
-4. **Version Control**: Easy updating and replacement of outdated CVs
-5. **Mobile Friendly**: Responsive design works on all devices
-6. **Secure**: Leverages Firebase's security model for file access control
+1. **Instant Preview**: Hover over any CV to see immediate preview without downloads ⭐
+2. **Centralized Storage**: All employee CVs stored in one secure location
+3. **Easy Access**: Quick access to team member qualifications and backgrounds
+4. **Professional Presentation**: Clean, integrated interface within the org chart
+5. **Smart PDF Rendering**: Advanced PDF.js integration for high-quality previews
+6. **Version Control**: Easy updating and replacement of outdated CVs
+7. **Mobile Friendly**: Responsive design works on all devices
+8. **Secure**: Leverages Firebase's security model for file access control
 
 ## Future Enhancements
 
@@ -157,8 +178,12 @@ Potential future improvements could include:
 
 ## Technical Notes
 
+- **PDF.js Integration**: Uses PDF.js CDN for high-quality PDF rendering with iframe fallback
+- **Smart Preview Positioning**: Tooltips automatically adjust position to stay within viewport
+- **Performance Optimized**: Lazy loading of previews only when hovering
 - Uses Firebase Storage for reliable, scalable file hosting
-- Implements proper error handling for upload failures
+- Implements proper error handling for upload failures and preview generation
 - Maintains data consistency between Storage and Firestore
-- Optimized for performance with lazy loading of CV metadata
+- **Responsive Preview Design**: Tooltips adapt to mobile screen sizes
 - Follows existing application patterns for consistent UX
+- **Cross-browser Compatible**: Works across modern browsers with graceful degradation
