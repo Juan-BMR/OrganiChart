@@ -2,14 +2,14 @@ import { error } from '@sveltejs/kit';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { COLLECTIONS } from '$lib/db/collections.js';
+import { FIREBASE_SERVICE_ACCOUNT_KEY } from '$env/static/private';
 
 // Initialize Firebase Admin SDK
 let app;
 if (!getApps().length) {
   try {
-    const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    if (serviceAccountKey) {
-      const serviceAccount = JSON.parse(serviceAccountKey);
+    if (FIREBASE_SERVICE_ACCOUNT_KEY) {
+      const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_KEY);
       app = initializeApp({
         credential: cert(serviceAccount)
       });
