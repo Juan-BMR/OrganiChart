@@ -34,6 +34,7 @@
 <script>
   import { createEventDispatcher } from "svelte";
   import { fly, fade } from "svelte/transition";
+  import CVPreview from "./CVPreview.svelte";
 
   export let open = false;
   export let member = null;
@@ -46,6 +47,10 @@
   // Delete confirmation state
   let showDeleteConfirmation = false;
   let deleteModalElement;
+
+  // CV preview state
+  let showCVPreview = false;
+  let cvTargetElement = null;
 
   // Focus delete modal when it opens
   $: if (showDeleteConfirmation && deleteModalElement) {
@@ -124,6 +129,16 @@
       event.stopPropagation(); // Prevent ESC from bubbling up to close the sidebar
       cancelDelete();
     }
+  }
+
+  function handleCVHover(event) {
+    showCVPreview = true;
+    cvTargetElement = event.currentTarget;
+  }
+
+  function handleCVLeave() {
+    showCVPreview = false;
+    cvTargetElement = null;
   }
 </script>
 
@@ -210,7 +225,11 @@
           <div class="info-section">
             <h4 class="section-title">CV / Resume</h4>
             <div class="cv-info-container">
-              <div class="cv-file-display">
+              <div 
+                class="cv-file-display"
+                on:mouseenter={handleCVHover}
+                on:mouseleave={handleCVLeave}
+              >
                 <div class="cv-icon">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -431,6 +450,14 @@
       </div>
     </div>
   {/if}
+
+  <!-- CV Preview Tooltip -->
+  <CVPreview 
+    cvURL={member?.cvURL}
+    cvFileName={member?.cvFileName}
+    show={showCVPreview}
+    targetElement={cvTargetElement}
+  />
 {/if}
 
 <style>
@@ -644,6 +671,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--background);
+    overflow: hidden; /* Prevent background bleeding */
   }
 
   .cv-file-display {
@@ -651,11 +679,19 @@
     align-items: center;
     gap: var(--spacing-3);
     padding: var(--spacing-3);
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    margin: 0; /* Ensure no margin issues */
   }
 
   .cv-file-display:hover {
     background: var(--secondary);
+    cursor: pointer;
+    /* Remove translateX to prevent background bleeding */
+    box-shadow: var(--shadow-md);
+    /* Add a subtle left border instead for visual feedback */
+    border-left: 4px solid var(--primary);
+    padding-left: calc(var(--spacing-3) - 4px); /* Adjust padding to maintain alignment */
   }
 
   .cv-icon {
@@ -673,6 +709,12 @@
   .cv-icon svg {
     width: 24px;
     height: 24px;
+    transition: all 0.3s ease;
+  }
+  
+  .cv-file-display:hover .cv-icon svg {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.4));
   }
 
   .cv-details {
@@ -694,6 +736,8 @@
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
   }
+
+
 
   .cv-download-btn {
     display: inline-flex;

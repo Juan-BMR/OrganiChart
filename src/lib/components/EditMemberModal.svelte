@@ -2,6 +2,7 @@
   import { createEventDispatcher, onMount } from "svelte";
   import { membersStore } from "$lib/stores/members.js";
   import { fade } from "svelte/transition";
+  import CVPreview from "./CVPreview.svelte";
 
   export let open = false;
   export let member; // existing member object
@@ -23,6 +24,10 @@
   let error = null;
   let loading = false;
   let currentMemberId = null; // Track which member we're currently editing
+
+  // CV preview state
+  let showCVPreview = false;
+  let cvTargetElement = null;
 
   // Initialize form values when modal opens or when member changes
   $: if (open && member && member.id !== currentMemberId) {
@@ -184,6 +189,18 @@
     if (cvInput) {
       cvInput.value = "";
     }
+  }
+
+  function handleCVHover(event) {
+    if (member?.cvURL && member?.cvFileName && cvFile !== "REMOVE_CV") {
+      showCVPreview = true;
+      cvTargetElement = event.currentTarget;
+    }
+  }
+
+  function handleCVLeave() {
+    showCVPreview = false;
+    cvTargetElement = null;
   }
 
   function handleKeyDown(event) {
@@ -537,7 +554,11 @@
                 </div>
               </div>
             {:else if member?.cvURL && member?.cvFileName}
-              <div class="cv-preview">
+              <div 
+                class="cv-preview"
+                on:mouseenter={handleCVHover}
+                on:mouseleave={handleCVLeave}
+              >
                 <div class="cv-file-info">
                   <svg
                     class="file-icon"
@@ -573,7 +594,7 @@
                       d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                     />
                   </svg>
-                  <span>Click to change</span>
+                  <span>Hover to preview • Click to change</span>
                 </div>
               </div>
             {:else}
@@ -697,6 +718,14 @@
       </footer>
     </div>
   </div>
+
+  <!-- CV Preview Tooltip -->
+  <CVPreview 
+    cvURL={member?.cvURL}
+    cvFileName={member?.cvFileName}
+    show={showCVPreview}
+    targetElement={cvTargetElement}
+  />
 {/if}
 
 <style>
