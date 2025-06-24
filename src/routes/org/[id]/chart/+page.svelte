@@ -16,6 +16,8 @@
   import ChartColorPicker from "$lib/components/ChartColorPicker.svelte";
   import RuleManagerModal from "$lib/components/RuleManagerModal.svelte";
   import ZoomSensitivityControl from "$lib/components/ZoomSensitivityControl.svelte";
+  import MemberSearchFilter from "$lib/components/MemberSearchFilter.svelte";
+  import ChartToolbar from "$lib/components/ChartToolbar.svelte";
   import { rulesStore } from "$lib/stores/rules.js";
   import { zoomStore } from "$lib/stores/zoom.js";
   import {
@@ -530,6 +532,12 @@
   // Rules modal state
   let showRules = false;
 
+  // Search functionality state
+  let showSearch = false;
+  let filteredMembers = [];
+  let highlightedMemberId = null;
+  let searchActive = false;
+
   function openAddMember() {
     showAddMember = true;
   }
@@ -542,6 +550,98 @@
   }
   function closeRules() {
     showRules = false;
+  }
+
+  // Search functionality
+  function handleToggleSearch() {
+    showSearch = !showSearch;
+    if (!showSearch) {
+      // Clear search state when closing
+      filteredMembers = [];
+      highlightedMemberId = null;
+      searchActive = false;
+    }
+  }
+
+  function handleSearchFilter(event) {
+    const { members: filtered, query, filters } = event.detail;
+    filteredMembers = filtered;
+    searchActive = !!(query || filters.department || filters.role || filters.manager);
+    
+    // Clear highlighting when search changes
+    highlightedMemberId = null;
+  }
+
+  function handleHighlightMember(event) {
+    const { memberId } = event.detail;
+    highlightedMemberId = memberId;
+    
+    // Find the member position and center on it
+    const memberNode = nodesWithPosition.find(n => n.member.id === memberId);
+    if (memberNode && containerEl) {
+      const rect = containerEl.getBoundingClientRect();
+      const viewportCenterX = rect.width / 2;
+      const viewportCenterY = rect.height / 2;
+      
+      // Calculate new transform to center the member
+      const newX = viewportCenterX - memberNode.x * transform.scale;
+      const newY = viewportCenterY - memberNode.y * transform.scale;
+      
+      canvasStore.setTransform({
+        scale: transform.scale,
+        x: newX,
+        y: newY
+      });
+      
+      // Auto-highlight for 3 seconds
+      setTimeout(() => {
+        highlightedMemberId = null;
+      }, 3000);
+    }
+  }
+
+  function handleCloseSearch() {
+    showSearch = false;
+    filteredMembers = [];
+    highlightedMemberId = null;
+    searchActive = false;
+  }
+
+  // Toolbar event handlers
+  function handleFitToScreen() {
+    if (!nodesWithPosition.length || !containerEl) return;
+    
+    // Calculate bounding box of all nodes
+    const minX = Math.min(...nodesWithPosition.map(n => n.x));
+    const maxX = Math.max(...nodesWithPosition.map(n => n.x));
+    const minY = Math.min(...nodesWithPosition.map(n => n.y));
+    const maxY = Math.max(...nodesWithPosition.map(n => n.y));
+    
+    const rect = containerEl.getBoundingClientRect();
+    const padding = 100; // Add some padding
+    
+    const contentWidth = maxX - minX + padding * 2;
+    const contentHeight = maxY - minY + padding * 2;
+    
+    const scaleX = rect.width / contentWidth;
+    const scaleY = rect.height / contentHeight;
+    const newScale = Math.min(scaleX, scaleY, 3); // Max scale of 3
+    
+    const contentCenterX = (minX + maxX) / 2;
+    const contentCenterY = (minY + maxY) / 2;
+    
+    const newX = rect.width / 2 - contentCenterX * newScale;
+    const newY = rect.height / 2 - contentCenterY * newScale;
+    
+    canvasStore.setTransform({
+      scale: newScale,
+      x: newX,
+      y: newY
+    });
+  }
+
+  function handleResetView() {
+    centerContent();
   }
 
   function handleEditMember(event) {
@@ -1728,6 +1828,8 @@
             x={n.x}
             y={n.y}
             size={100}
+            highlighted={highlightedMemberId === n.member.id}
+            dimmed={searchActive && filteredMembers.length > 0 && !filteredMembers.some(m => m.id === n.member.id)}
             on:edit={handleEditMember}
             on:delete={handleDeleteMember}
             on:select={handleSelectMember}
@@ -1798,8 +1900,31 @@
       {/if}
     </div>
 
+    <!-- Chart Toolbar -->
     {#if !pdfFramingMode}
-      <!-- Floating action buttons -->
+      <ChartToolbar
+        memberCount={members.length}
+        isSearchVisible={showSearch}
+        on:toggleSearch={handleToggleSearch}
+        on:addMember={openAddMember}
+        on:exportPDF={startPDFFraming}
+        on:manageRules={openRules}
+        on:fitToScreen={handleFitToScreen}
+        on:resetView={handleResetView}
+      />
+    {/if}
+
+    <!-- Member Search Filter -->
+    <MemberSearchFilter
+      {members}
+      isVisible={showSearch}
+      on:filter={handleSearchFilter}
+      on:highlight={handleHighlightMember}
+      on:close={handleCloseSearch}
+    />
+
+    {#if !pdfFramingMode}
+      <!-- Floating zoom controls -->
       <div class="floating-controls">
         <!-- Zoom controls -->
         <div class="zoom-controls">
@@ -1862,66 +1987,6 @@
 
         <!-- Zoom sensitivity control -->
         <ZoomSensitivityControl />
-
-        <!-- Action buttons -->
-        <div class="action-controls">
-          <button class="action-btn secondary" on:click={openRules}>
-            <svg
-              class="button-icon"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-            Chart Design Rules
-          </button>
-
-          <button class="action-btn secondary" on:click={startPDFFraming}>
-            <svg
-              class="button-icon"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
-            Export PDF
-          </button>
-
-          <button class="action-btn primary" on:click={openAddMember}>
-            <svg
-              class="button-icon"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-              />
-            </svg>
-            Add member
-          </button>
-        </div>
       </div>
     {/if}
   </div>

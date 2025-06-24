@@ -11,6 +11,7 @@
   let name = "";
   let email = "";
   let role = "";
+  let department = "";
   let managerId = "";
   let photoFile = null;
   let photoPreviewUrl = null;
@@ -142,6 +143,7 @@
           name,
           email,
           role,
+          department,
           managerId || null,
           subordinateIds,
           photoFile,
@@ -154,6 +156,7 @@
           name,
           email,
           role,
+          department,
           managerId || null,
           photoFile,
           subordinateIds,
@@ -180,6 +183,7 @@
     name = "";
     email = "";
     role = "";
+    department = "";
     managerId = "";
     subordinateIds = [];
     dropdownOpen = false;
@@ -255,6 +259,15 @@
           placeholder="Enter job title or role"
           bind:value={role}
           class:error={error && !role.trim()}
+          disabled={loading}
+        />
+
+        <label class="input-label" for="member-department">Department</label>
+        <input
+          id="member-department"
+          type="text"
+          placeholder="Enter department (e.g., Engineering, Marketing)"
+          bind:value={department}
           disabled={loading}
         />
 

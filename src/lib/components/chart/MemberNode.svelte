@@ -4,6 +4,8 @@
   export let x = 0;
   export let y = 0;
   export let size = 90; // diameter of avatar circle - can be overridden by rules
+  export let highlighted = false; // Whether this member is highlighted in search
+  export let dimmed = false; // Whether this member should be dimmed (not in search results)
   import NodeContextMenu from "./NodeContextMenu.svelte";
   import { createEventDispatcher } from "svelte";
   import { rulesStore } from "$lib/stores/rules.js";
@@ -87,6 +89,8 @@
 
 <div
   class="member-node"
+  class:highlighted
+  class:dimmed
   style="left: {x}px; top: {y}px;"
   on:contextmenu={handleContextMenu}
   on:click|stopPropagation={handleClick}
@@ -198,5 +202,43 @@
     color: var(--text-secondary);
     line-height: 1.2;
     font-weight: 500;
+  }
+
+  /* Search highlighting and dimming */
+  .member-node.highlighted {
+    z-index: 10;
+    transform: scale(1.05);
+  }
+
+  .member-node.highlighted .avatar {
+    border-color: #fbbf24;
+    border-width: 6px;
+    box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.3);
+    animation: pulse-highlight 2s ease-in-out infinite;
+  }
+
+  .member-node.highlighted .member-info {
+    background: #fef3c7;
+    border-color: #fbbf24;
+    box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2);
+  }
+
+  .member-node.dimmed {
+    opacity: 0.3;
+    transform: scale(0.95);
+  }
+
+  .member-node.dimmed:hover {
+    opacity: 0.6;
+    transform: scale(0.98);
+  }
+
+  @keyframes pulse-highlight {
+    0%, 100% {
+      box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 0 8px rgba(251, 191, 36, 0.1);
+    }
   }
 </style>

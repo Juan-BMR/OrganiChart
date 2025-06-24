@@ -148,6 +148,34 @@ Based on the feature specifications, the application includes the following key 
 
 ---
 
+---
+
+### 6. Member Search and Filter (Priority: P2)
+
+**User Story:** _As a user, I want to search and filter members in the organizational chart so I can quickly find specific team members in large organizations._
+
+**Acceptance Criteria:**
+
+#### Search functionality
+
+- **Given** I'm viewing an organizational chart with multiple members
+- **When** I click the search button and enter a search term
+- **Then** the chart highlights matching members and dims non-matching ones
+
+#### Advanced filtering
+
+- **Given** I have the search panel open
+- **When** I apply filters by department, role, or manager
+- **Then** only members matching the selected criteria are displayed
+
+#### Member highlighting
+
+- **Given** I click on a member in the search results
+- **When** the member is highlighted in the chart
+- **Then** the chart automatically centers on that member with visual highlighting
+
+---
+
 ## Development Status
 
-All features listed above are **Priority 1 (P1)** and represent the core functionality required for the minimum viable product.
+All features listed above with **Priority 1 (P1)** represent the core functionality required for the minimum viable product. **Priority 2 (P2)** features enhance the user experience and are recommended for production deployment.
