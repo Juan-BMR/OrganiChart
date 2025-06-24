@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /_app/
+
+# Sitemap location
+Sitemap: https://organichart.com/sitemap.xml

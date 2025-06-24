@@ -27,6 +27,9 @@
   import html2canvas from "html2canvas";
   import jsPDF from "jspdf";
 
+  // Import server data
+  export let data;
+
   let user = null;
   let organizationId = null;
   let organization = null;
@@ -1625,9 +1628,60 @@
 </script>
 
 <svelte:head>
-  <title
-    >{organization ? organization.name + " Chart" : "Org Chart"} - OrganiChart</title
-  >
+  {#if data.seo}
+    <title>{data.seo.title}</title>
+    <meta name="description" content={data.seo.description} />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={$page.url.href} />
+    <meta property="og:title" content={data.seo.title} />
+    <meta property="og:description" content={data.seo.description} />
+    <meta property="og:image" content={data.seo.imageUrl} />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content={$page.url.href} />
+    <meta property="twitter:title" content={data.seo.title} />
+    <meta property="twitter:description" content={data.seo.description} />
+    <meta property="twitter:image" content={data.seo.imageUrl} />
+    
+    <!-- Additional SEO -->
+    <meta property="og:site_name" content="OrganiChart" />
+    {#if data.organization}
+      <meta property="profile:username" content={data.seo.organizationName} />
+    {/if}
+  {:else}
+    <title>{organization ? organization.name + " Chart" : "Org Chart"} - OrganiChart</title>
+  {/if}
+  
+  <!-- Structured Data (JSON-LD) -->
+  {#if data.organization && data.members}
+    {@html `<script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "${data.organization.name}",
+      "url": "${$page.url.href}",
+      ${data.organization.logoURL ? `"logo": "${data.organization.logoURL}",` : ''}
+      "numberOfEmployees": ${data.organization.memberCount || 0},
+      ${data.members.length > 0 ? `"member": [
+        ${data.members.slice(0, 5).map(member => `{
+          "@type": "Person",
+          "name": "${member.name}",
+          ${member.role ? `"jobTitle": "${member.role}",` : ''}
+          ${member.email ? `"email": "${member.email}",` : ''}
+          ${member.photoURL ? `"image": "${member.photoURL}",` : ''}
+          "worksFor": {
+            "@type": "Organization",
+            "name": "${data.organization.name}"
+          }
+        }`).join(',')}
+      ],` : ''}
+      "dateModified": "${data.organization.updatedAt || new Date().toISOString()}"
+    }
+    </script>`}
+  {/if}
 </svelte:head>
 
 <Header {user} />

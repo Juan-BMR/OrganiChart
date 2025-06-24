@@ -3,6 +3,9 @@
 		"src/routes/+layout.js",
 		"src/routes/+layout.js"
 	],
+	"/api/og-image/[id]": [
+		"src/routes/api/og-image/[id]/+server.js"
+	],
 	"/api/proxy-image": [
 		"src/routes/api/proxy-image/+server.js"
 	],
@@ -13,6 +16,10 @@
 		"src/routes/+layout.js"
 	],
 	"/org/[id]/chart": [
+		"src/routes/org/[id]/chart/+page.server.js",
 		"src/routes/+layout.js"
+	],
+	"/sitemap.xml": [
+		"src/routes/sitemap.xml/+server.js"
 	]
 }
