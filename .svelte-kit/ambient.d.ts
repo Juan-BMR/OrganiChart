@@ -26,6 +26,13 @@
  * ```
  */
 declare module '$env/static/private' {
+	export const VITE_FIREBASE_API_KEY: string;
+	export const VITE_FIREBASE_AUTH_DOMAIN: string;
+	export const VITE_FIREBASE_PROJECT_ID: string;
+	export const VITE_FIREBASE_STORAGE_BUCKET: string;
+	export const VITE_FIREBASE_MESSAGING_SENDER_ID: string;
+	export const VITE_FIREBASE_APP_ID: string;
+	export const NODE_ENV: string;
 	export const npm_config_user_agent: string;
 	export const HOSTNAME: string;
 	export const GIT_ASKPASS: string;
@@ -89,7 +96,7 @@ declare module '$env/static/private' {
 	export const PIP_NO_INPUT: string;
 	export const INIT_CWD: string;
 	export const EDITOR: string;
-	export const NODE_ENV: string;
+	export const VITE_USER_NODE_ENV: string;
 }
 
 /**
@@ -121,6 +128,13 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
+		VITE_FIREBASE_API_KEY: string;
+		VITE_FIREBASE_AUTH_DOMAIN: string;
+		VITE_FIREBASE_PROJECT_ID: string;
+		VITE_FIREBASE_STORAGE_BUCKET: string;
+		VITE_FIREBASE_MESSAGING_SENDER_ID: string;
+		VITE_FIREBASE_APP_ID: string;
+		NODE_ENV: string;
 		npm_config_user_agent: string;
 		HOSTNAME: string;
 		GIT_ASKPASS: string;
@@ -184,7 +198,7 @@ declare module '$env/dynamic/private' {
 		PIP_NO_INPUT: string;
 		INIT_CWD: string;
 		EDITOR: string;
-		NODE_ENV: string;
+		VITE_USER_NODE_ENV: string;
 		[key: `PUBLIC_${string}`]: undefined;
 		[key: `${string}`]: string | undefined;
 	}
