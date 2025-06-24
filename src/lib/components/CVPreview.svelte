@@ -386,20 +386,33 @@
     object-fit: contain;
   }
   
-  .pdf-overlay {
+    .pdf-overlay {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.3) 20%, rgba(0, 0, 0, 0.85) 60%, rgba(0, 0, 0, 0.95));
     color: white;
-    padding: var(--spacing-3);
+    padding: var(--spacing-4) var(--spacing-3);
     text-align: center;
+    backdrop-filter: blur(2px);
+    min-height: 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
-  
+
+  .pdf-overlay span {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    margin-bottom: var(--spacing-1);
+  }
+
   .pdf-overlay small {
     font-size: var(--font-size-xs);
-    opacity: 0.9;
+    opacity: 0.95;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
   }
   
   .document-preview {
