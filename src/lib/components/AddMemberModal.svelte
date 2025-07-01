@@ -22,7 +22,9 @@
   let subordinateIds = [];
   let dropdownOpen = false;
   let managerDropdownOpen = false;
-  let startDate = new Date().toISOString().split("T")[0]; // Today's date in YYYY-MM-DD format
+  // Helper to get today's date in YYYY-MM-DD format (avoids duplication)
+  const getTodayDate = () => new Date().toISOString().split("T")[0];
+  let startDate = getTodayDate(); // Today's date in YYYY-MM-DD format
   let modalElement;
 
   // Focus modal when it becomes visible
@@ -47,18 +49,6 @@
     if (allHaveSameManager) {
       managerId = commonManagerId || "";
     }
-  }
-
-  // Helper function to check if memberId is a descendant of potentialAncestorId
-  function isDescendantOf(potentialAncestorId, memberId) {
-    if (!potentialAncestorId || !memberId) return false;
-
-    let current = members.find((m) => m.id === potentialAncestorId);
-    while (current && current.managerId) {
-      if (current.managerId === memberId) return true;
-      current = members.find((m) => m.id === current.managerId);
-    }
-    return false;
   }
 
   // Helper function to get direct reports of a member (one level down only)
@@ -234,7 +224,7 @@
     photoPreviewUrl = null;
     cvFile = null;
     error = "";
-    startDate = new Date().toISOString().split("T")[0]; // Reset to today
+    startDate = getTodayDate(); // Reset to today
     open = false;
 
     // Reset file inputs
