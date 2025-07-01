@@ -26,8 +26,8 @@
  * ```
  */
 declare module '$env/static/private' {
+	export const USER: string;
 	export const npm_config_user_agent: string;
-	export const HOSTNAME: string;
 	export const npm_node_execpath: string;
 	export const SHLVL: string;
 	export const npm_config_noproxy: string;
@@ -42,25 +42,19 @@ declare module '$env/static/private' {
 	export const _: string;
 	export const npm_config_prefix: string;
 	export const npm_config_npm_version: string;
-	export const TERM: string;
 	export const npm_config_cache: string;
-	export const RUSTUP_HOME: string;
 	export const npm_config_node_gyp: string;
 	export const PATH: string;
 	export const NODE: string;
 	export const npm_package_name: string;
-	export const LANG: string;
 	export const npm_lifecycle_script: string;
+	export const SHELL: string;
 	export const npm_package_version: string;
 	export const npm_lifecycle_event: string;
-	export const GIT_DISCOVERY_ACROSS_FILESYSTEM: string;
-	export const RUST_VERSION: string;
 	export const npm_config_globalconfig: string;
 	export const npm_config_init_module: string;
 	export const PWD: string;
-	export const LC_ALL: string;
 	export const npm_execpath: string;
-	export const CARGO_HOME: string;
 	export const NVM_CD_FLAGS: string;
 	export const npm_config_global_prefix: string;
 	export const npm_command: string;
@@ -98,8 +92,8 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
+		USER: string;
 		npm_config_user_agent: string;
-		HOSTNAME: string;
 		npm_node_execpath: string;
 		SHLVL: string;
 		npm_config_noproxy: string;
@@ -114,25 +108,19 @@ declare module '$env/dynamic/private' {
 		_: string;
 		npm_config_prefix: string;
 		npm_config_npm_version: string;
-		TERM: string;
 		npm_config_cache: string;
-		RUSTUP_HOME: string;
 		npm_config_node_gyp: string;
 		PATH: string;
 		NODE: string;
 		npm_package_name: string;
-		LANG: string;
 		npm_lifecycle_script: string;
+		SHELL: string;
 		npm_package_version: string;
 		npm_lifecycle_event: string;
-		GIT_DISCOVERY_ACROSS_FILESYSTEM: string;
-		RUST_VERSION: string;
 		npm_config_globalconfig: string;
 		npm_config_init_module: string;
 		PWD: string;
-		LC_ALL: string;
 		npm_execpath: string;
-		CARGO_HOME: string;
 		NVM_CD_FLAGS: string;
 		npm_config_global_prefix: string;
 		npm_command: string;
