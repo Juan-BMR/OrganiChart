@@ -11,7 +11,7 @@ function createAuthStore() {
     loading: true,
     error: null,
   });
-
+// Conflict 1.0
   return {
     subscribe,
 
@@ -71,4 +71,4 @@ function createAuthStore() {
   };
 }
 
-export const authStore = createAuthStore();
+export const authStore2 = createAuthStore();
