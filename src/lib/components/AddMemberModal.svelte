@@ -57,38 +57,51 @@
     return members.filter((m) => m.managerId === memberId);
   }
 
+  // ----- Validation Helpers -----
+  function validateImageFile(file) {
+    if (!file.type.startsWith("image/")) {
+      return "Please upload an image file (JPG, PNG, GIF, WebP)";
+    }
+
+    const unsupportedTypes = ["image/heic", "image/heif"];
+    if (unsupportedTypes.includes(file.type.toLowerCase())) {
+      return "HEIC/HEIF files are not supported. Please convert to JPG or PNG first.";
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      return "File size must be below 2MB";
+    }
+
+    return ""; // no error
+  }
+
+  function validateCVFile(file) {
+    const validTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ];
+
+    if (!validTypes.includes(file.type)) {
+      return "Please upload a PDF, DOC, or DOCX file";
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      return "CV file size must be below 5MB";
+    }
+
+    return "";
+  }
+
   // Handle file selection
   function handleFileChange(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      error = "Please upload an image file (JPG, PNG, GIF, WebP)";
-      // Reset the file input
-      if (fileInput) {
-        fileInput.value = "";
-      }
-      return;
-    }
-
-    // Check for unsupported image formats (HEIC, HEIF, etc.)
-    const unsupportedTypes = ["image/heic", "image/heif"];
-    if (unsupportedTypes.includes(file.type.toLowerCase())) {
-      error =
-        "HEIC/HEIF files are not supported. Please convert to JPG or PNG first.";
-      // Reset the file input
-      if (fileInput) {
-        fileInput.value = "";
-      }
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      error = "File size must be below 2MB";
-      // Reset the file input
-      if (fileInput) {
-        fileInput.value = "";
-      }
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      error = validationError;
+      if (fileInput) fileInput.value = "";
       return;
     }
 
@@ -115,31 +128,13 @@
     const file = event.target.files[0];
     if (!file) return;
 
-    // Check if file is a valid CV format
-    const validTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ];
-    
-    if (!validTypes.includes(file.type)) {
-      error = "Please upload a PDF, DOC, or DOCX file";
-      if (cvInput) {
-        cvInput.value = "";
-      }
+    const validationError = validateCVFile(file);
+    if (validationError) {
+      error = validationError;
+      if (cvInput) cvInput.value = "";
       return;
     }
 
-    // Check file size (5MB limit for CVs)
-    if (file.size > 5 * 1024 * 1024) {
-      error = "CV file size must be below 5MB";
-      if (cvInput) {
-        cvInput.value = "";
-      }
-      return;
-    }
-
-    // File is valid
     cvFile = file;
     error = "";
   }
@@ -206,13 +201,8 @@
     }
   }
 
-  function handleClose() {
-    // Clean up photo URL to prevent memory leaks
-    if (photoPreviewUrl) {
-      URL.revokeObjectURL(photoPreviewUrl);
-    }
-
-    // Reset state
+  // ----- State Management Helpers -----
+  function resetState() {
     name = "";
     email = "";
     role = "";
@@ -224,17 +214,18 @@
     photoPreviewUrl = null;
     cvFile = null;
     error = "";
-    startDate = getTodayDate(); // Reset to today
+    startDate = getTodayDate();
     open = false;
 
-    // Reset file inputs
-    if (fileInput) {
-      fileInput.value = "";
-    }
-    if (cvInput) {
-      cvInput.value = "";
-    }
+    if (fileInput) fileInput.value = "";
+    if (cvInput) cvInput.value = "";
+  }
 
+  function handleClose() {
+    if (photoPreviewUrl) {
+      URL.revokeObjectURL(photoPreviewUrl);
+    }
+    resetState();
     dispatch("close");
   }
 
