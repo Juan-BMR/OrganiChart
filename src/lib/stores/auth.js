@@ -11,7 +11,7 @@ function createAuthStore() {
     loading: true,
     error: null,
   });
-
+//Conflic 1
   return {
     subscribe,
 
