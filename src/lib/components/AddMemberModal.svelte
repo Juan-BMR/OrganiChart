@@ -51,13 +51,15 @@
     }
   }
 
-  // Helper function to get direct reports of a member (one level down only)
-  function getDirectReports(memberId) {
-    if (!memberId) return [];
-    return members.filter((m) => m.managerId === memberId);
-  }
+  // =============================
+  // Validation Helpers
+  // =============================
 
-  // ----- Validation Helpers -----
+  /**
+   * Validate image file (photo upload)
+   * @param {File} file - File selected from input
+   * @returns {string} Empty string if valid, otherwise error message.
+   */
   function validateImageFile(file) {
     if (!file.type.startsWith("image/")) {
       return "Please upload an image file (JPG, PNG, GIF, WebP)";
@@ -75,6 +77,11 @@
     return ""; // no error
   }
 
+  /**
+   * Validate CV / resume file
+   * @param {File} file - Selected file
+   * @returns {string} Empty string if valid, otherwise error message.
+   */
   function validateCVFile(file) {
     const validTypes = [
       "application/pdf",
@@ -91,6 +98,30 @@
     }
 
     return "";
+  }
+
+  /**
+   * Validate entire form before submission.
+   * @returns {string} Empty string when valid, otherwise error message.
+   */
+  function validateForm() {
+    if (!name.trim()) return "Name is required";
+    if (!role.trim()) return "Role/Title is required";
+    return "";
+  }
+
+  // =============================
+  // Dropdown Helpers
+  // =============================
+
+  /** Toggle Manager dropdown visibility */
+  function toggleManagerDropdown() {
+    managerDropdownOpen = !managerDropdownOpen;
+  }
+
+  /** Toggle Subordinate dropdown visibility */
+  function toggleSubordinateDropdown() {
+    dropdownOpen = !dropdownOpen;
   }
 
   // Handle file selection
@@ -148,17 +179,8 @@
   }
 
   async function handleSubmit() {
-    error = "";
-
-    if (!name.trim()) {
-      error = "Name is required";
-      return;
-    }
-
-    if (!role.trim()) {
-      error = "Role/Title is required";
-      return;
-    }
+    error = validateForm();
+    if (error) return;
 
     loading = true;
     try {
@@ -201,7 +223,9 @@
     }
   }
 
-  // ----- State Management Helpers -----
+  /**
+   * Reset all form and component state back to initial values
+   */
   function resetState() {
     name = "";
     email = "";
@@ -221,6 +245,9 @@
     if (cvInput) cvInput.value = "";
   }
 
+  /**
+   * Close modal and reset state
+   */
   function handleClose() {
     if (photoPreviewUrl) {
       URL.revokeObjectURL(photoPreviewUrl);
@@ -242,6 +269,16 @@
     if (event.key === "Escape") {
       handleClose();
     }
+  }
+
+  /**
+   * Retrieve direct reports (one level) for a member
+   * @param {string} memberId
+   * @returns {Array}
+   */
+  function getDirectReports(memberId) {
+    if (!memberId) return [];
+    return members.filter((m) => m.managerId === memberId);
   }
 </script>
 
@@ -307,7 +344,7 @@
           <button
             type="button"
             class="dropdown-trigger"
-            on:click={() => (managerDropdownOpen = !managerDropdownOpen)}
+            on:click={toggleManagerDropdown}
             disabled={loading || willInsertBetween}
           >
             <span class="selected-text">
@@ -380,7 +417,7 @@
           <button
             type="button"
             class="dropdown-trigger"
-            on:click={() => (dropdownOpen = !dropdownOpen)}
+            on:click={toggleSubordinateDropdown}
             disabled={loading}
           >
             <span class="selected-text">
