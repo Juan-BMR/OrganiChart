@@ -1,29 +1,19 @@
 <script>
   export let member;
-  import { spring } from "svelte/motion";
   import { scale } from "svelte/transition";
   export let x = 0;
   export let y = 0;
-  export let size = 90; // diameter of avatar circle
-  export let draggable = true;
-  import { canvasStore } from "$lib/stores/canvas.js";
-  import { membersStore } from "$lib/stores/members.js";
+  export let size = 90; // diameter of avatar circle - can be overridden by rules
   import NodeContextMenu from "./NodeContextMenu.svelte";
   import { createEventDispatcher } from "svelte";
+  import { rulesStore } from "$lib/stores/rules.js";
+  import { evaluateStyles, getMemberDiameter } from "$lib/utils/ruleEngine.js";
 
-  let isDragging = false;
-  let dragStart = { x: 0, y: 0 };
   let showMenu = false;
   let menuX = 0;
   let menuY = 0;
 
   const dispatch = createEventDispatcher();
-
-  const xSpring = spring(x, { stiffness: 0.12, damping: 0.4 });
-  const ySpring = spring(y, { stiffness: 0.12, damping: 0.4 });
-
-  $: xSpring.set(x);
-  $: ySpring.set(y);
 
   // Compute initials if no photo
   $: initials = member?.name
@@ -34,32 +24,38 @@
         .join("")
     : "";
 
-  function handlePointerDown(event) {
-    if (!draggable) return;
-    event.stopPropagation();
-    isDragging = true;
-    dragStart = { x: event.clientX, y: event.clientY };
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-  }
+  // Reactive evaluation of styling rules
+  $: computedStyles = evaluateStyles(member, $rulesStore);
+  $: nodeStyle = computedStyles.node || {};
+  $: textStyle = computedStyles.text || {};
 
-  function handlePointerMove(event) {
-    if (!isDragging) return;
-    const dx = (event.clientX - dragStart.x) / $canvasStore.scale;
-    const dy = (event.clientY - dragStart.y) / $canvasStore.scale;
-    x += dx;
-    y += dy;
-    dragStart = { x: event.clientX, y: event.clientY };
-  }
+  // Get diameter from rules, fallback to prop
+  $: actualSize = getMemberDiameter(member, $rulesStore) || size;
 
-  function handlePointerUp() {
-    if (!isDragging) return;
-    isDragging = false;
-    window.removeEventListener("pointermove", handlePointerMove);
-    window.removeEventListener("pointerup", handlePointerUp);
-    // Persist position
-    membersStore.updatePosition(member.id, { x, y });
-  }
+  // Calculate proportional font sizes
+  $: baseFontSize = textStyle.fontSize ? parseInt(textStyle.fontSize) : 14; // Default to 14px if no rule
+  $: roleFontSize = Math.max(10, Math.round(baseFontSize * 0.8)); // Role is 85% of name size, minimum 10px
+
+  // Calculate proportional container width (base 200px, scales with font size)
+  $: containerWidth = Math.round(200 * (baseFontSize / 14)); // Scale based on 14px baseline
+
+  // Build inline style strings for elements that will use dynamic props
+  $: avatarInlineStyle =
+    `width:${actualSize}px; height:${actualSize}px;` +
+    (nodeStyle.backgroundColor
+      ? `background:${nodeStyle.backgroundColor};`
+      : "") +
+    (nodeStyle.borderColor ? `border-color:${nodeStyle.borderColor};` : "") +
+    (nodeStyle.borderWidth ? `border-width:${nodeStyle.borderWidth}px;` : "");
+
+  $: nameInlineStyle =
+    (textStyle.color ? `color:${textStyle.color};` : "") +
+    (textStyle.fontWeight ? `font-weight:${textStyle.fontWeight};` : "") +
+    (textStyle.fontSize ? `font-size:${textStyle.fontSize};` : "");
+
+  $: roleInlineStyle = `font-size:${roleFontSize}px;`;
+
+  $: memberInfoInlineStyle = `max-width:${containerWidth}px;`;
 
   function handleContextMenu(event) {
     event.preventDefault();
@@ -82,27 +78,32 @@
     dispatch("delete", { member });
     closeMenu();
   }
+
+  // Emit select when user clicks the node
+  function handleClick(event) {
+    dispatch("select", { member });
+  }
 </script>
 
 <div
   class="member-node"
-  style="left: {$xSpring}px; top: {$ySpring}px;"
-  on:pointerdown={handlePointerDown}
+  style="left: {x}px; top: {y}px;"
   on:contextmenu={handleContextMenu}
+  on:click|stopPropagation={handleClick}
   in:scale={{ duration: 200 }}
   out:scale={{ duration: 150 }}
 >
-  <div class="avatar" style="width:{size}px; height:{size}px">
+  <div class="avatar" style={avatarInlineStyle}>
     {#if member.photoURL}
       <img src={member.photoURL} alt={member.name} />
     {:else}
       <span>{initials}</span>
     {/if}
   </div>
-  <div class="member-info">
-    <div class="name">{member.name}</div>
+  <div class="member-info" style={memberInfoInlineStyle}>
+    <div class="name" style={nameInlineStyle}>{member.name}</div>
     {#if member.role}
-      <div class="role">{member.role}</div>
+      <div class="role" style={roleInlineStyle}>{member.role}</div>
     {/if}
   </div>
   {#if showMenu}
@@ -122,22 +123,32 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    cursor: grab;
+    cursor: pointer;
     user-select: none;
-    touch-action: none;
+    transition: all 0.2s ease;
     z-index: 2;
     width: 160px; /* Fixed width for consistent positioning */
   }
 
+  .member-node:hover {
+    transform: translateY(-2px);
+    /* box-shadow: var(--shadow-md); */
+  }
+
   .avatar {
     background: var(--background);
-    border: 4px solid var(--primary);
+    border: 4px solid var(--chart-primary, var(--primary));
     border-radius: 50%;
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
-    touch-action: manipulation;
+    transition: all 0.2s ease;
+  }
+
+  .member-node:hover .avatar {
+    border-color: var(--chart-primary-light, var(--primary-light));
+    transform: scale(1.05);
   }
 
   .avatar img {
@@ -147,7 +158,7 @@
   }
 
   .avatar span {
-    color: var(--primary);
+    color: var(--chart-primary, var(--primary));
     font-weight: 600;
     font-size: 1.25rem;
   }
@@ -157,15 +168,21 @@
     text-align: center;
     max-width: 200px; /* Fixed width slightly smaller than node width */
     padding: var(--spacing-1) var(--spacing-2);
-    background: color-mix(in srgb, var(--background) 90%, transparent);
+    background: var(--background);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
-    border: 1px solid var(--border);
+    border: 0.5px solid var(--chart-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     backdrop-filter: blur(4px);
     width: fit-content;
+    transition: all 0.2s ease;
+  }
+
+  .member-node:hover .member-info {
+    background: var(--background);
+    border-color: var(--chart-primary, var(--primary));
   }
 
   .name {

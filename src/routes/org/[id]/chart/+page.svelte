@@ -12,6 +12,16 @@
   import AddMemberModal from "$lib/components/AddMemberModal.svelte";
   import EditMemberModal from "$lib/components/EditMemberModal.svelte";
   import PDFExportModal from "$lib/components/PDFExportModal.svelte";
+  import UserInfoSidebar from "$lib/components/UserInfoSidebar.svelte";
+  import ChartColorPicker from "$lib/components/ChartColorPicker.svelte";
+  import RuleManagerModal from "$lib/components/RuleManagerModal.svelte";
+  import ZoomSensitivityControl from "$lib/components/ZoomSensitivityControl.svelte";
+  import { rulesStore } from "$lib/stores/rules.js";
+  import { zoomStore } from "$lib/stores/zoom.js";
+  import {
+    getMemberDiameter,
+    getMemberFontSize,
+  } from "$lib/utils/ruleEngine.js";
 
   import * as d3 from "d3";
   import html2canvas from "html2canvas";
@@ -32,12 +42,48 @@
   // Track avatar centers separately to avoid reactive loops
   let avatarCenters = new Map();
 
+  // Sidebar state - declare before store subscription
+  let selectedMember = null;
+
+  // Modal state - declare before store subscription
+  let editingMember = null;
+
+  // Rules store subscription
+  let rules = [];
+  const unsubscribeRules = rulesStore.subscribe((r) => (rules = r));
+
+  // Zoom sensitivity store subscription
+  let zoomSensitivity = 1.02;
+  const unsubscribeZoom = zoomStore.subscribe((sensitivity) => {
+    zoomSensitivity = sensitivity;
+  });
+
   // Subscribe to members store
   const unsubscribeMembers = membersStore.subscribe(
     ({ members: m, loading }) => {
       members = m;
       membersLoading = loading;
-    }
+
+      // Update selectedMember reference if it exists and members changed
+      if (selectedMember && m.length > 0) {
+        const updatedMember = m.find(
+          (member) => member.id === selectedMember.id,
+        );
+        if (updatedMember) {
+          selectedMember = updatedMember;
+        }
+      }
+
+      // Update editingMember reference if it exists and members changed
+      if (editingMember && m.length > 0) {
+        const updatedEditingMember = m.find(
+          (member) => member.id === editingMember.id,
+        );
+        if (updatedEditingMember) {
+          editingMember = updatedEditingMember;
+        }
+      }
+    },
   );
 
   // Listen for auth and organization param
@@ -57,24 +103,36 @@
       organizationId = $page.params.id;
     });
 
-    // Start listening for members when we have org id
-    if (organizationId) {
-      membersStore.listen(organizationId);
-      // Also fetch organization details from organizationsStore (already in memory)
-      const orgUnsub = organizationsStore.subscribe(({ organizations }) => {
-        organization = organizations.find((o) => o.id === organizationId);
-      });
-      // Cleanup membership
-      return () => {
-        authUnsub();
-        pageUnsub();
-        orgUnsub();
-        membersStore.stop();
-        unsubscribeCanvas();
-        unsubscribeMembers();
-      };
-    }
+    // Also fetch organization details from organizationsStore (already in memory)
+    const orgUnsub = organizationsStore.subscribe(({ organizations }) => {
+      organization = organizations.find((o) => o.id === organizationId);
+    });
+
+    // Cleanup
+    return () => {
+      authUnsub();
+      pageUnsub();
+      orgUnsub();
+      membersStore.stop();
+      unsubscribeCanvas();
+      unsubscribeRules();
+      unsubscribeMembers();
+      unsubscribeZoom();
+    };
   });
+
+  // Reactive: Start listening for members and load rules when organizationId changes
+  $: if (organizationId && user) {
+    console.log("Loading data for organization:", organizationId);
+
+    // Start listening for members
+    membersStore.listen(organizationId);
+
+    // Load rules for this organization
+    rulesStore.loadRules(organizationId).catch((error) => {
+      console.error("Failed to load rules:", error);
+    });
+  }
 
   /********************
    * Pan and Zoom Logic
@@ -110,13 +168,35 @@
     containerEl && (containerEl.style.cursor = "grab");
   }
 
+  function startPDFFraming() {
+    pdfFramingMode = true;
+    pdfFrameRect = null;
+    isFraming = false; // Start with modal visible
+    containerEl && (containerEl.style.cursor = "crosshair");
+  }
+
+  function cancelPDFFraming() {
+    pdfFramingMode = false;
+    pdfFrameRect = null;
+    hasValidFrame = false;
+    isFraming = false;
+    containerEl && (containerEl.style.cursor = "grab");
+  }
+
+  function confirmPDFExport() {
+    if (!pdfFrameRect || pdfFrameRect.width < 10 || pdfFrameRect.height < 10) {
+      alert("Please draw a frame around the content you want to export.");
+      return;
+    }
+
+    // Start the actual PDF export with the framed area
+    exportFramedPDF();
+  }
+
   function zoomToSelection() {
     if (!selectionRect || !containerEl) return;
     const MIN_SIZE = 10;
-    if (
-      selectionRect.width < MIN_SIZE ||
-      selectionRect.height < MIN_SIZE
-    ) {
+    if (selectionRect.width < MIN_SIZE || selectionRect.height < MIN_SIZE) {
       deactivateSelectionTool();
       return;
     }
@@ -154,7 +234,20 @@
 
   function handlePointerDown(event) {
     const rect = containerEl.getBoundingClientRect();
-    if (selectionToolActive) {
+    if (pdfFramingMode) {
+      // PDF framing mode
+      isSelecting = true;
+      isFraming = true; // Start framing - hide modal
+      const offsetX = event.clientX - rect.left;
+      const offsetY = event.clientY - rect.top;
+      selectionStart = { x: offsetX, y: offsetY };
+      pdfFrameRect = {
+        left: offsetX,
+        top: offsetY,
+        width: 0,
+        height: 0,
+      };
+    } else if (selectionToolActive) {
       isSelecting = true;
       const offsetX = event.clientX - rect.left;
       const offsetY = event.clientY - rect.top;
@@ -177,12 +270,22 @@
     if (isSelecting) {
       const offsetX = event.clientX - rect.left;
       const offsetY = event.clientY - rect.top;
-      selectionRect = {
-        left: Math.min(selectionStart.x, offsetX),
-        top: Math.min(selectionStart.y, offsetY),
-        width: Math.abs(offsetX - selectionStart.x),
-        height: Math.abs(offsetY - selectionStart.y),
-      };
+
+      if (pdfFramingMode) {
+        pdfFrameRect = {
+          left: Math.min(selectionStart.x, offsetX),
+          top: Math.min(selectionStart.y, offsetY),
+          width: Math.abs(offsetX - selectionStart.x),
+          height: Math.abs(offsetY - selectionStart.y),
+        };
+      } else {
+        selectionRect = {
+          left: Math.min(selectionStart.x, offsetX),
+          top: Math.min(selectionStart.y, offsetY),
+          width: Math.abs(offsetX - selectionStart.x),
+          height: Math.abs(offsetY - selectionStart.y),
+        };
+      }
     } else if (isPanning) {
       const dx = event.clientX - panStart.x;
       const dy = event.clientY - panStart.y;
@@ -190,12 +293,26 @@
       canvasStore.panBy(dx, dy);
     }
   }
-
+  $: hasValidFrame = false;
   function handlePointerUp(event) {
     if (isSelecting) {
       isSelecting = false;
-      zoomToSelection();
-      return;
+      if (pdfFramingMode) {
+        // Show modal again only if we have a valid frame
+        if (
+          pdfFrameRect &&
+          pdfFrameRect.width > 10 &&
+          pdfFrameRect.height > 10
+        ) {
+          hasValidFrame = true;
+          isFraming = false; // Finished framing - show modal again
+        }
+        // Don't zoom, just finish framing
+        return;
+      } else {
+        zoomToSelection();
+        return;
+      }
     }
     if (isPanning) {
       isPanning = false;
@@ -206,7 +323,7 @@
   function handleWheel(event) {
     event.preventDefault();
     const delta = -event.deltaY;
-    const zoomFactor = delta > 0 ? 1.05 : 0.95; // Reduced from 1.1/0.9 to 1.05/0.95
+    const zoomFactor = delta > 0 ? zoomSensitivity : 2 - zoomSensitivity;
     const newScale = Math.min(Math.max(transform.scale * zoomFactor, 0.2), 3);
     const rect = containerEl.getBoundingClientRect();
     const center = {
@@ -230,7 +347,7 @@
       (m) =>
         m.position &&
         typeof m.position.x === "number" &&
-        typeof m.position.y === "number"
+        typeof m.position.y === "number",
     );
 
     if (allHavePositions) {
@@ -253,11 +370,62 @@
         });
       });
 
-      // Compute layout with d3.tree for each tree
-      const nodeSize = [200, 180]; // More spacing between nodes
+      // Use original fixed spacing, then post-process for individual nodes with large avatars
+      const nodeSize = [200, 180];
+
       trees.forEach((rootTree, i) => {
         const treeLayout = d3.tree().nodeSize(nodeSize);
         const treeData = treeLayout(rootTree);
+
+        // Post-process: adjust positions proportionally for nodes with larger avatars and fonts
+        const adjustPositionsForLargeAvatars = (node) => {
+          const member = node.data;
+          const avatarDiameter = getMemberDiameter(member, rules) || 90;
+          const fontSizeString = getMemberFontSize(member, rules) || "14px";
+          const fontSize = parseInt(fontSizeString); // Convert "14px" to 14
+          const defaultDiameter = 90;
+          const defaultFontSize = 14;
+
+          let totalExtraSpace = 0;
+
+          // Calculate extra space for larger avatars
+          if (avatarDiameter > defaultDiameter) {
+            const avatarExtraSpace = (avatarDiameter - defaultDiameter) * 1;
+            totalExtraSpace += avatarExtraSpace;
+          }
+
+          // Calculate extra space for larger fonts
+          if (fontSize > defaultFontSize) {
+            const fontExtraSpace = (fontSize - defaultFontSize) * 3;
+            totalExtraSpace += fontExtraSpace;
+          }
+
+          // Apply total spacing adjustment if needed
+          if (totalExtraSpace > 0) {
+            // Recursively push down all descendants
+            const pushDownDescendants = (n, yOffset) => {
+              if (n.children) {
+                n.children.forEach((child) => {
+                  child.y += yOffset;
+                  pushDownDescendants(child, yOffset);
+                });
+              }
+            };
+
+            pushDownDescendants(node, totalExtraSpace);
+          }
+
+          // Recursively process children
+          if (node.children) {
+            node.children.forEach((child) =>
+              adjustPositionsForLargeAvatars(child),
+            );
+          }
+        };
+
+        // Apply adjustments starting from root
+        adjustPositionsForLargeAvatars(rootTree);
+
         // Offset each tree horizontally to avoid overlap if multiple roots
         const offsetX = i * 600;
         treeData.each((node) => {
@@ -340,20 +508,40 @@
 
   let showAddMember = false;
   let showEditMember = false;
-  let editingMember = null;
 
   // PDF Export Modal State
   let showPDFModal = false;
   let pdfProgress = 0;
   let pdfCurrentStage = "";
   let pdfStageNumber = 0;
-  const pdfTotalStages = 6;
+  let pdfTotalStages = 6;
+
+  // PDF Export Framing State
+  let pdfFramingMode = false;
+  let pdfFrameRect = null; // { left, top, width, height }
+  let isFraming = false; // Track if user is actively dragging to create frame
+
+  // Sidebar state
+  let sidebarOpen = false;
+  let sidebarLoading = false;
+  let sidebarError = null;
+  let navigationHistory = []; // Stack of previous members for back navigation
+
+  // Rules modal state
+  let showRules = false;
 
   function openAddMember() {
     showAddMember = true;
   }
   function closeAddMember() {
     showAddMember = false;
+  }
+
+  function openRules() {
+    showRules = true;
+  }
+  function closeRules() {
+    showRules = false;
   }
 
   function handleEditMember(event) {
@@ -367,8 +555,416 @@
 
   async function handleDeleteMember(event) {
     const member = event.detail.member;
-    if (confirm(`Delete ${member.name}?`)) {
+    try {
       await membersStore.deleteMember(member.id, organizationId);
+
+      // Close sidebar if the deleted member was selected
+      if (selectedMember?.id === member.id) {
+        sidebarOpen = false;
+        selectedMember = null;
+      }
+
+      console.log(`Successfully deleted member: ${member.name}`);
+    } catch (error) {
+      console.error("Failed to delete member:", error);
+      alert(`Failed to delete ${member.name}: ${error.message}`);
+    }
+  }
+
+  // New framed PDF export function
+  async function exportFramedPDF() {
+    if (!containerEl || !pdfFrameRect) return;
+
+    try {
+      // Hide the framing UI
+      pdfFramingMode = false;
+
+      // Show modal and start progress
+      showPDFModal = true;
+      pdfProgress = 0;
+      pdfStageNumber = 1;
+      pdfCurrentStage = "Initializing export...";
+
+      console.log("Starting framed PDF export...", pdfFrameRect);
+
+      // Convert Firebase images to use proxy URLs to avoid CORS issues
+      const firebaseImages = containerEl.querySelectorAll(
+        'img[src*="firebasestorage"]',
+      );
+      const imageReplacements = [];
+
+      console.log(`Found ${firebaseImages.length} Firebase images to process`);
+
+      // Update progress
+      pdfProgress = 15;
+      pdfStageNumber = 2;
+      pdfCurrentStage =
+        firebaseImages.length > 0
+          ? `Processing ${firebaseImages.length} profile images...`
+          : "Preparing chart for export...";
+
+      // Process images (same as before)
+      if (firebaseImages.length > 0) {
+        for (const img of firebaseImages) {
+          try {
+            const originalUrl = img.src;
+            const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(originalUrl)}`;
+
+            imageReplacements.push({
+              img,
+              originalSrc: originalUrl,
+            });
+
+            await new Promise((resolve) => {
+              const testImg = new Image();
+              testImg.crossOrigin = "anonymous";
+
+              testImg.onload = () => {
+                try {
+                  const canvas = document.createElement("canvas");
+                  const ctx = canvas.getContext("2d");
+                  // Make canvas square and scale image to cover (object-fit: cover behavior)
+                  const size = Math.min(
+                    testImg.naturalWidth,
+                    testImg.naturalHeight,
+                  );
+                  canvas.width = size;
+                  canvas.height = size;
+
+                  // Calculate crop area to center the image
+                  const sourceSize = size;
+                  const sourceX = (testImg.naturalWidth - sourceSize) / 2;
+                  const sourceY = (testImg.naturalHeight - sourceSize) / 2;
+
+                  // Draw the cropped square portion
+                  ctx.drawImage(
+                    testImg,
+                    sourceX,
+                    sourceY,
+                    sourceSize,
+                    sourceSize,
+                    0,
+                    0,
+                    size,
+                    size,
+                  );
+                  const dataURL = canvas.toDataURL("image/png");
+                  img.src = dataURL;
+                  resolve();
+                } catch (canvasError) {
+                  console.warn(
+                    "Failed to convert image to data URL:",
+                    canvasError,
+                  );
+                  resolve();
+                }
+              };
+
+              testImg.onerror = () => {
+                console.warn(
+                  `Failed to load image through proxy: ${originalUrl}`,
+                );
+                resolve();
+              };
+
+              testImg.src = proxyUrl;
+            });
+          } catch (error) {
+            console.warn("Failed to process image:", img.src, error);
+          }
+        }
+      }
+
+      console.log(`Successfully processed ${imageReplacements.length} images`);
+
+      // Update progress
+      pdfProgress = 40;
+      pdfStageNumber = 3;
+      pdfCurrentStage = "Using framed area for export...";
+
+      // Use the framed area directly
+      const frameWidth = pdfFrameRect.width;
+      const frameHeight = pdfFrameRect.height;
+
+      console.log("Framed area:", {
+        frame: pdfFrameRect,
+        dimensions: { frameWidth, frameHeight },
+      });
+
+      // Update progress
+      pdfProgress = 60;
+      pdfStageNumber = 4;
+      pdfCurrentStage = "Capturing framed area...";
+
+      // Capture the container element at high scale for better quality
+      const captureScale = 3;
+      const canvas = await html2canvas(containerEl, {
+        backgroundColor: "#ffffff",
+        scale: captureScale,
+        logging: false,
+        useCORS: true,
+        allowTaint: false,
+        ignoreElements: (element) => {
+          return (
+            element.classList.contains("color-picker") ||
+            element.classList.contains("floating-controls") ||
+            element.classList.contains("modal-overlay") ||
+            element.classList.contains("pdf-frame-rect")
+          );
+        },
+        onclone: (clonedDoc) => {
+          // Same theme detection and color replacement as before
+          const isLightMode =
+            document.documentElement.getAttribute("data-theme") === "light";
+
+          const backgroundRgba90 = isLightMode
+            ? "rgba(255, 255, 255, 0.9)"
+            : "rgba(30, 41, 59, 0.9)";
+          const backgroundRgba95 = isLightMode
+            ? "rgba(255, 255, 255, 0.95)"
+            : "rgba(30, 41, 59, 0.95)";
+
+          const allStyles = clonedDoc.querySelectorAll("style");
+          allStyles.forEach((styleEl) => {
+            if (styleEl.textContent) {
+              styleEl.textContent = styleEl.textContent
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--background\)\s*90%,\s*transparent\)/g,
+                  backgroundRgba90,
+                )
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--background\)\s*95%,\s*transparent\)/g,
+                  backgroundRgba95,
+                )
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--chart-primary[^)]*\)\s*15%,\s*transparent\)/g,
+                  "rgba(99, 102, 241, 0.15)",
+                );
+            }
+          });
+
+          const elementsWithStyle = clonedDoc.querySelectorAll("[style]");
+          elementsWithStyle.forEach((el) => {
+            if (el.style.cssText) {
+              el.style.cssText = el.style.cssText.replace(
+                /color-mix\([^)]+\)/g,
+                backgroundRgba90,
+              );
+            }
+          });
+
+          const style = clonedDoc.createElement("style");
+          style.textContent = `
+            * {
+              backdrop-filter: none !important;
+              -webkit-backdrop-filter: none !important;
+            }
+          `;
+          clonedDoc.head.appendChild(style);
+        },
+      });
+
+      console.log("Canvas captured:", canvas.width, "x", canvas.height);
+
+      // Update progress
+      pdfProgress = 80;
+      pdfStageNumber = 5;
+      pdfCurrentStage = "Cropping to framed area...";
+
+      if (canvas.width === 0 || canvas.height === 0) {
+        alert("Export failed - captured canvas has zero dimensions.");
+        return;
+      }
+
+      // Calculate source coordinates in the high-scale captured canvas
+      // Frame coordinates are now correctly relative to container (after visual fix)
+      let sourceX = pdfFrameRect.left * captureScale;
+      let sourceY = pdfFrameRect.top * captureScale;
+      let sourceWidth = frameWidth * captureScale;
+      let sourceHeight = frameHeight * captureScale;
+
+      console.log("Y-axis debugging:", {
+        "pdfFrameRect.top": pdfFrameRect.top,
+        "containerEl.scrollTop": containerEl.scrollTop,
+        captureScale: captureScale,
+        "calculated sourceY": sourceY,
+        "canvas.height": canvas.height,
+        "container getBoundingClientRect": containerEl.getBoundingClientRect(),
+        "window.scrollY": window.scrollY,
+      });
+
+      // Ensure coordinates stay within canvas boundaries
+      sourceX = Math.max(0, Math.min(sourceX, canvas.width));
+      sourceY = Math.max(0, Math.min(sourceY, canvas.height));
+
+      // Adjust width and height to not exceed canvas boundaries
+      sourceWidth = Math.min(sourceWidth, canvas.width - sourceX);
+      sourceHeight = Math.min(sourceHeight, canvas.height - sourceY);
+
+      // Create a canvas for the cropped output using the adjusted dimensions
+      const croppedCanvas = document.createElement("canvas");
+      croppedCanvas.width = sourceWidth;
+      croppedCanvas.height = sourceHeight;
+      const ctx = croppedCanvas.getContext("2d");
+
+      console.log("Cropping details:", {
+        frame: pdfFrameRect,
+        source: { sourceX, sourceY, sourceWidth, sourceHeight },
+        canvasSize: `${canvas.width}x${canvas.height}`,
+        targetSize: `${croppedCanvas.width}x${croppedCanvas.height}`,
+        adjustedForBounds: true,
+      });
+
+      // Draw the framed portion to the cropped canvas
+      ctx.drawImage(
+        canvas,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        0,
+        0,
+        sourceWidth,
+        sourceHeight,
+      );
+
+      // Restore original image sources
+      for (const replacement of imageReplacements) {
+        replacement.img.src = replacement.originalSrc;
+      }
+      console.log(`Restored ${imageReplacements.length} image sources`);
+
+      // Convert cropped canvas to image data
+      const imgData = croppedCanvas.toDataURL("image/png");
+      console.log(
+        "Final canvas dimensions:",
+        croppedCanvas.width,
+        "x",
+        croppedCanvas.height,
+      );
+
+      if (imgData.length < 1000) {
+        console.error("Image data too small, likely empty");
+        alert("Export failed - captured image appears to be empty.");
+        return;
+      }
+
+      // Update progress
+      pdfProgress = 95;
+      pdfStageNumber = 6;
+      pdfCurrentStage = "Creating PDF document...";
+
+      // Use actual cropped canvas dimensions for PDF
+      const actualWidth = croppedCanvas.width / captureScale;
+      const actualHeight = croppedCanvas.height / captureScale;
+
+      // Determine orientation based on actual cropped dimensions
+      const isLandscape = actualWidth > actualHeight;
+      const orientation = isLandscape ? "landscape" : "portrait";
+
+      // Use actual dimensions for PDF
+      const pdfWidth = actualWidth;
+      const pdfHeight = actualHeight;
+      const pdfFormat = [actualWidth, actualHeight];
+
+      console.log("PDF orientation:", {
+        originalFrame: { frameWidth, frameHeight },
+        actualDimensions: { actualWidth, actualHeight },
+        aspectRatio: (actualWidth / actualHeight).toFixed(2),
+        orientation,
+        isLandscape,
+        finalDimensions: { pdfWidth, pdfHeight },
+      });
+
+      // Create PDF with determined orientation and dimensions
+      const pdf = new jsPDF({
+        orientation: orientation,
+        unit: "px",
+        format: pdfFormat,
+      });
+
+      console.log(
+        "PDF internal dimensions:",
+        pdf.internal.pageSize.getWidth(),
+        "x",
+        pdf.internal.pageSize.getHeight(),
+      );
+
+      // Add the image to PDF using calculated dimensions
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight, "", "SLOW");
+
+      // Final progress update
+      pdfProgress = 100;
+      pdfCurrentStage = "Downloading PDF...";
+
+      // Save the PDF
+      const fileName = `${organization?.name || "orgchart"}.pdf`;
+
+      if ("showSaveFilePicker" in window) {
+        try {
+          const fileHandle = await window.showSaveFilePicker({
+            suggestedName: fileName,
+            types: [
+              {
+                description: "PDF files",
+                accept: { "application/pdf": [".pdf"] },
+              },
+            ],
+          });
+
+          const writableStream = await fileHandle.createWritable();
+          const pdfBlob = pdf.output("blob");
+          await writableStream.write(pdfBlob);
+          await writableStream.close();
+
+          console.log("PDF saved successfully");
+          hasValidFrame = false;
+          setTimeout(() => {
+            showPDFModal = false;
+            pdfFrameRect = null;
+          }, 500);
+        } catch (err) {
+          hasValidFrame = false;
+          if (err.name === "AbortError") {
+            // User cancelled the save dialog
+            console.log("PDF save cancelled by user");
+            setTimeout(() => {
+              showPDFModal = false;
+              pdfFrameRect = null;
+            }, 100);
+          } else {
+            console.error("Save failed:", err);
+            pdf.save(fileName);
+            setTimeout(() => {
+              showPDFModal = false;
+              pdfFrameRect = null;
+            }, 500);
+          }
+        }
+      } else {
+        pdf.save(fileName);
+
+        setTimeout(() => {
+          showPDFModal = false;
+          pdfFrameRect = null;
+        }, 500);
+      }
+    } catch (error) {
+      // Restore image sources in case of error
+      if (typeof imageReplacements !== "undefined") {
+        for (const replacement of imageReplacements) {
+          replacement.img.src = replacement.originalSrc;
+        }
+        console.log(
+          `Restored ${imageReplacements.length} image sources after error`,
+        );
+      }
+
+      console.error("Framed PDF export failed:", error);
+      alert("Failed to export PDF: " + error.message);
+
+      showPDFModal = false;
+      pdfFrameRect = null;
     }
   }
 
@@ -391,7 +987,7 @@
 
       // Convert Firebase images to use proxy URLs to avoid CORS issues
       const firebaseImages = containerEl.querySelectorAll(
-        'img[src*="firebasestorage"]'
+        'img[src*="firebasestorage"]',
       );
       const imageReplacements = [];
 
@@ -400,58 +996,94 @@
       // Update progress
       pdfProgress = 15;
       pdfStageNumber = 2;
-      pdfCurrentStage = `Processing ${firebaseImages.length} profile images...`;
+      pdfCurrentStage =
+        firebaseImages.length > 0
+          ? `Processing ${firebaseImages.length} profile images...`
+          : "Preparing chart for export...";
 
-      for (const img of firebaseImages) {
-        try {
-          const originalUrl = img.src;
+      // Only process images if there are any Firebase images
+      if (firebaseImages.length > 0) {
+        for (const img of firebaseImages) {
+          try {
+            const originalUrl = img.src;
 
-          // Use our proxy API to avoid CORS issues
-          const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(originalUrl)}`;
+            // Use our proxy API to avoid CORS issues
+            const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(originalUrl)}`;
 
-          // Create a new image element to test loading through proxy
-          const testImg = new Image();
-          testImg.crossOrigin = "anonymous";
+            // Create a new image element to test loading through proxy
+            const testImg = new Image();
+            testImg.crossOrigin = "anonymous";
 
-          await new Promise((resolve, reject) => {
-            testImg.onload = () => {
-              // Successfully loaded through proxy, now convert to data URL
-              const canvas = document.createElement("canvas");
-              const ctx = canvas.getContext("2d");
+            await new Promise((resolve, reject) => {
+              testImg.onload = () => {
+                try {
+                  // Successfully loaded through proxy, now convert to data URL
+                  const canvas = document.createElement("canvas");
+                  const ctx = canvas.getContext("2d");
 
-              canvas.width = testImg.naturalWidth;
-              canvas.height = testImg.naturalHeight;
+                  // Make canvas square and scale image to cover (object-fit: cover behavior)
+                  const size = Math.min(
+                    testImg.naturalWidth,
+                    testImg.naturalHeight,
+                  );
+                  canvas.width = size;
+                  canvas.height = size;
 
-              ctx.drawImage(testImg, 0, 0);
-              const dataURL = canvas.toDataURL("image/png");
+                  // Calculate crop area to center the image
+                  const sourceSize = size;
+                  const sourceX = (testImg.naturalWidth - sourceSize) / 2;
+                  const sourceY = (testImg.naturalHeight - sourceSize) / 2;
 
-              // Store replacement info
-              imageReplacements.push({
-                img: img,
-                originalSrc: originalUrl,
-                dataURL: dataURL,
-              });
+                  // Draw the cropped square portion
+                  ctx.drawImage(
+                    testImg,
+                    sourceX,
+                    sourceY,
+                    sourceSize,
+                    sourceSize,
+                    0,
+                    0,
+                    size,
+                    size,
+                  );
+                  const dataURL = canvas.toDataURL("image/png");
 
-              // Replace the image src with data URL
-              img.src = dataURL;
-              console.log(
-                `Successfully proxied and converted image for ${img.alt || "user"}`
-              );
-              resolve();
-            };
+                  // Store replacement info
+                  imageReplacements.push({
+                    img: img,
+                    originalSrc: originalUrl,
+                    dataURL: dataURL,
+                  });
 
-            testImg.onerror = () => {
-              console.warn(
-                `Failed to load image through proxy: ${originalUrl}`
-              );
-              // Keep original - will likely be replaced with initials placeholder
-              resolve();
-            };
+                  // Replace the image src with data URL
+                  img.src = dataURL;
+                  console.log(
+                    `Successfully proxied and converted image for ${img.alt || "user"}`,
+                  );
+                  resolve();
+                } catch (canvasError) {
+                  console.warn(
+                    "Failed to convert image to data URL:",
+                    canvasError,
+                  );
+                  resolve(); // Continue even if conversion fails
+                }
+              };
 
-            testImg.src = proxyUrl;
-          });
-        } catch (error) {
-          console.warn("Failed to process image:", img.src, error);
+              testImg.onerror = () => {
+                console.warn(
+                  `Failed to load image through proxy: ${originalUrl}`,
+                );
+                // Keep original - will likely be replaced with initials placeholder
+                resolve();
+              };
+
+              testImg.src = proxyUrl;
+            });
+          } catch (error) {
+            console.warn("Failed to process image:", img.src, error);
+            // Continue processing other images even if one fails
+          }
         }
       }
 
@@ -460,31 +1092,100 @@
       // Update progress
       pdfProgress = 40;
       pdfStageNumber = 3;
-      pdfCurrentStage = "Calculating chart boundaries...";
+      pdfCurrentStage = "Calculating visible chart boundaries...";
 
-      // Find the exact bounds of the actual chart elements (no padding)
-      const nodeWidth = 160;
-      const nodeHeight = 160; // Increased to capture full text below avatars
+      // Instead of calculating from node positions, use the current viewport bounds
+      // This ensures we capture exactly what's visible, accounting for zoom/pan
+      const viewportRect = containerEl.getBoundingClientRect();
 
-      // Get the absolute positions of the leftmost, rightmost, topmost, and bottommost elements
-      const leftmostX = Math.min(...nodesWithPosition.map((n) => n.x));
-      const rightmostX =
-        Math.max(...nodesWithPosition.map((n) => n.x)) + nodeWidth;
-      const topmostY = Math.min(...nodesWithPosition.map((n) => n.y));
-      const bottommostY =
-        Math.max(...nodesWithPosition.map((n) => n.y)) + nodeHeight;
+      // Get all visible nodes in screen coordinates
+      const visibleNodes = nodesWithPosition
+        .map((n) => {
+          // Convert canvas coordinates to screen coordinates
+          const screenX = n.x * transform.scale + transform.x;
+          const screenY = n.y * transform.scale + transform.y;
+          return { ...n, screenX, screenY };
+        })
+        .filter((n) => {
+          // Only include nodes that are at least partially visible
+          const nodeWidth = 160 * transform.scale;
+          const nodeHeight = 200 * transform.scale; // Generous height estimate
+          return (
+            n.screenX + nodeWidth > 0 &&
+            n.screenX < viewportRect.width &&
+            n.screenY + nodeHeight > 0 &&
+            n.screenY < viewportRect.height
+          );
+        });
 
-      // Calculate exact content dimensions
-      const contentWidth = rightmostX - leftmostX;
-      const contentHeight = bottommostY - topmostY;
+      if (visibleNodes.length === 0) {
+        alert(
+          "No visible chart content to export. Please adjust the view and try again.",
+        );
+        return;
+      }
 
-      console.log("Exact chart bounds:", {
-        leftmostX,
-        topmostY,
-        rightmostX,
-        bottommostY,
-        contentWidth,
-        contentHeight,
+      // Calculate bounds of visible content in screen coordinates
+      const padding = 40;
+      const leftmostScreen =
+        Math.min(...visibleNodes.map((n) => n.screenX)) - padding;
+      const rightmostScreen =
+        Math.max(
+          ...visibleNodes.map((n) => n.screenX + 160 * transform.scale),
+        ) + padding;
+      const topmostScreen =
+        Math.min(...visibleNodes.map((n) => n.screenY)) - padding;
+      const bottommostScreen =
+        Math.max(
+          ...visibleNodes.map((n) => n.screenY + 200 * transform.scale),
+        ) + padding;
+
+      // Ensure bounds are within the container
+      const boundedLeft = Math.max(0, leftmostScreen);
+      const boundedTop = Math.max(0, topmostScreen);
+      const boundedRight = Math.min(viewportRect.width, rightmostScreen);
+      const boundedBottom = Math.min(viewportRect.height, bottommostScreen);
+
+      const contentWidth = boundedRight - boundedLeft;
+      const contentHeight = boundedBottom - boundedTop;
+
+      // Convert back to canvas coordinates for cropping
+      const paddedLeftmostX = (boundedLeft - transform.x) / transform.scale;
+      const paddedTopmostY = (boundedTop - transform.y) / transform.scale;
+      const paddedContentWidth = contentWidth / transform.scale;
+      const paddedContentHeight = contentHeight / transform.scale;
+
+      console.log("Viewport-based chart bounds:", {
+        viewport: {
+          width: viewportRect.width,
+          height: viewportRect.height,
+        },
+        transform: {
+          scale: transform.scale,
+          x: transform.x,
+          y: transform.y,
+        },
+        visibleNodes: visibleNodes.length,
+        screenBounds: {
+          leftmostScreen,
+          rightmostScreen,
+          topmostScreen,
+          bottommostScreen,
+        },
+        boundedBounds: {
+          boundedLeft,
+          boundedRight,
+          boundedTop,
+          boundedBottom,
+          contentWidth,
+          contentHeight,
+        },
+        canvasBounds: {
+          paddedLeftmostX,
+          paddedTopmostY,
+          paddedContentWidth,
+          paddedContentHeight,
+        },
       });
 
       // Update progress
@@ -495,12 +1196,74 @@
       // Capture the container element at high scale for better quality
       const captureScale = 3; // Higher scale for better definition
       const canvas = await html2canvas(containerEl, {
-        backgroundColor: null, // Use natural background
+        backgroundColor: "#ffffff", // Use solid white background instead of null
         scale: captureScale,
         logging: false,
         useCORS: true,
         allowTaint: false, // Safe since we're using data URLs
-        // No ignoreElements needed - all images are now data URLs
+        ignoreElements: (element) => {
+          // Ignore elements that might cause issues
+          return (
+            element.classList.contains("color-picker") ||
+            element.classList.contains("floating-controls") ||
+            element.classList.contains("modal-overlay")
+          );
+        },
+        onclone: (clonedDoc) => {
+          // Detect current theme - dark mode is default (no data-theme), light mode has data-theme="light"
+          const isLightMode =
+            document.documentElement.getAttribute("data-theme") === "light";
+
+          // Set appropriate background colors based on theme
+          const backgroundRgba90 = isLightMode
+            ? "rgba(255, 255, 255, 0.9)"
+            : "rgba(30, 41, 59, 0.9)";
+          const backgroundRgba95 = isLightMode
+            ? "rgba(255, 255, 255, 0.95)"
+            : "rgba(30, 41, 59, 0.95)";
+
+          // Find all style elements and replace color-mix() functions
+          const allStyles = clonedDoc.querySelectorAll("style");
+          allStyles.forEach((styleEl) => {
+            if (styleEl.textContent) {
+              // Replace color-mix() functions with theme-appropriate rgba equivalents
+              styleEl.textContent = styleEl.textContent
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--background\)\s*90%,\s*transparent\)/g,
+                  backgroundRgba90,
+                )
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--background\)\s*95%,\s*transparent\)/g,
+                  backgroundRgba95,
+                )
+                .replace(
+                  /color-mix\(in srgb,\s*var\(--chart-primary[^)]*\)\s*15%,\s*transparent\)/g,
+                  "rgba(99, 102, 241, 0.15)",
+                );
+            }
+          });
+
+          // Also check inline styles
+          const elementsWithStyle = clonedDoc.querySelectorAll("[style]");
+          elementsWithStyle.forEach((el) => {
+            if (el.style.cssText) {
+              el.style.cssText = el.style.cssText.replace(
+                /color-mix\([^)]+\)/g,
+                backgroundRgba90,
+              );
+            }
+          });
+
+          // Remove problematic CSS properties
+          const style = clonedDoc.createElement("style");
+          style.textContent = `
+            * {
+              backdrop-filter: none !important;
+              -webkit-backdrop-filter: none !important;
+            }
+          `;
+          clonedDoc.head.appendChild(style);
+        },
       });
 
       console.log("Canvas captured:", canvas.width, "x", canvas.height);
@@ -519,20 +1282,20 @@
       const croppedCanvas = document.createElement("canvas");
 
       // Set canvas to high resolution (scale up for quality, then we'll scale down for PDF)
-      croppedCanvas.width = contentWidth * captureScale;
-      croppedCanvas.height = contentHeight * captureScale;
+      croppedCanvas.width = paddedContentWidth * captureScale;
+      croppedCanvas.height = paddedContentHeight * captureScale;
       const ctx = croppedCanvas.getContext("2d");
 
       // Get the canvas div to read its transform
       const canvasDiv = containerEl.querySelector(".canvas");
       const computedStyle = window.getComputedStyle(canvasDiv);
-      const transform = computedStyle.transform;
+      const cssTransform = computedStyle.transform;
 
       // Extract translate values from transform matrix
       let translateX = 0,
         translateY = 0;
-      if (transform && transform !== "none") {
-        const matrix = transform.match(/matrix\(([^)]+)\)/);
+      if (cssTransform && cssTransform !== "none") {
+        const matrix = cssTransform.match(/matrix\(([^)]+)\)/);
         if (matrix) {
           const values = matrix[1].split(",").map(Number);
           translateX = values[4] || 0;
@@ -544,19 +1307,37 @@
       const containerRect = containerEl.getBoundingClientRect();
 
       // Calculate the exact source position in the high-scale captured canvas
-      const sourceX = Math.max(0, (translateX + leftmostX) * captureScale);
-      const sourceY = Math.max(0, (translateY + topmostY) * captureScale);
+      // Use the padding variables already declared above
+
+      const sourceX = Math.max(
+        0,
+        (translateX + paddedLeftmostX) * captureScale,
+      );
+      const sourceY = Math.max(0, (translateY + paddedTopmostY) * captureScale);
       const sourceWidth = Math.min(
-        contentWidth * captureScale,
-        canvas.width - sourceX
+        paddedContentWidth * captureScale,
+        canvas.width - sourceX,
       );
       const sourceHeight = Math.min(
-        contentHeight * captureScale,
-        canvas.height - sourceY
+        paddedContentHeight * captureScale,
+        canvas.height - sourceY,
       );
 
       console.log("Cropping details:", {
-        chartBounds: { leftmostX, topmostY, rightmostX, bottommostY },
+        viewportBounds: {
+          boundedLeft,
+          boundedTop,
+          boundedRight,
+          boundedBottom,
+          contentWidth,
+          contentHeight,
+        },
+        canvasBounds: {
+          paddedLeftmostX,
+          paddedTopmostY,
+          paddedContentWidth,
+          paddedContentHeight,
+        },
         transform: { translateX, translateY },
         sourceRect: { sourceX, sourceY, sourceWidth, sourceHeight },
         canvasSize: `${canvas.width}x${canvas.height}`,
@@ -573,7 +1354,7 @@
         0,
         0,
         sourceWidth,
-        sourceHeight // destination rectangle (same high-res size)
+        sourceHeight, // destination rectangle (same high-res size)
       );
 
       // Restore original image sources
@@ -588,7 +1369,7 @@
         "Final canvas dimensions:",
         croppedCanvas.width,
         "x",
-        croppedCanvas.height
+        croppedCanvas.height,
       );
       console.log("Image data length:", imgData.length);
 
@@ -602,9 +1383,9 @@
       // Debug: Show what dimensions we're about to use for PDF
       console.log(
         "PDF will be created with dimensions:",
-        contentWidth,
+        paddedContentWidth,
         "x",
-        contentHeight
+        paddedContentHeight,
       );
 
       // Update progress
@@ -616,14 +1397,14 @@
       const pdf = new jsPDF({
         // orientation: "portrait", // We'll handle orientation with custom format
         unit: "px",
-        format: [contentWidth, contentHeight], // Custom format exactly matching chart
+        format: [paddedContentWidth, paddedContentHeight], // Custom format exactly matching chart
       });
 
       console.log(
         "PDF internal dimensions:",
         pdf.internal.pageSize.getWidth(),
         "x",
-        pdf.internal.pageSize.getHeight()
+        pdf.internal.pageSize.getHeight(),
       );
 
       // Add the high-resolution image to PDF, scaling down to exact content dimensions
@@ -632,10 +1413,10 @@
         "PNG",
         0,
         0,
-        contentWidth,
-        contentHeight,
+        paddedContentWidth,
+        paddedContentHeight,
         "",
-        "SLOW" // Use SLOW for better quality rendering
+        "SLOW", // Use SLOW for better quality rendering
       );
 
       // Final progress update
@@ -669,9 +1450,18 @@
             showPDFModal = false;
           }, 500);
         } catch (err) {
-          if (err.name !== "AbortError") {
+          if (err.name === "AbortError") {
+            // User cancelled the save dialog
+            console.log("PDF save cancelled by user");
+            setTimeout(() => {
+              showPDFModal = false;
+            }, 100);
+          } else {
             console.error("Save failed:", err);
             pdf.save(fileName);
+            setTimeout(() => {
+              showPDFModal = false;
+            }, 500);
           }
         }
       } else {
@@ -689,7 +1479,7 @@
           replacement.img.src = replacement.originalSrc;
         }
         console.log(
-          `Restored ${imageReplacements.length} image sources after error`
+          `Restored ${imageReplacements.length} image sources after error`,
         );
       }
 
@@ -758,7 +1548,11 @@
         canvasStore.panBy(-50, 0);
         break;
       case "Escape":
-        if (selectionToolActive) {
+        if (pdfFramingMode) {
+          cancelPDFFraming();
+        } else if (sidebarOpen) {
+          closeSidebar();
+        } else if (selectionToolActive) {
           deactivateSelectionTool();
         }
         break;
@@ -768,6 +1562,66 @@
     window.addEventListener("keydown", keyHandler);
     return () => window.removeEventListener("keydown", keyHandler);
   });
+
+  // Handler when a node is clicked
+  async function handleSelectMember(event) {
+    const { member } = event.detail;
+    // For now, we have member data already. If additional fetch needed, set loading.
+    sidebarLoading = true;
+    sidebarError = null;
+    sidebarOpen = true;
+
+    try {
+      // Placeholder for async fetch of detailed data, e.g. via store or API
+      // const data = await membersStore.fetchDetailed(member.id);
+      // selectedMember = data;
+      selectedMember = member;
+      sidebarLoading = false;
+    } catch (err) {
+      console.error(err);
+      sidebarError = "Failed to load member details.";
+      sidebarLoading = false;
+    }
+  }
+
+  function closeSidebar() {
+    sidebarOpen = false;
+    navigationHistory = []; // Clear navigation history when closing
+  }
+
+  function handleSidebarBack() {
+    if (navigationHistory.length > 0) {
+      const previousMember = navigationHistory.pop();
+      selectedMember = previousMember;
+      // Don't add to history since we're going back
+      navigationHistory = [...navigationHistory]; // Trigger reactivity
+    }
+  }
+
+  function handleSidebarNavigate(event) {
+    const { member: targetMember } = event.detail;
+    // Add current member to history before navigating
+    if (selectedMember) {
+      navigationHistory = [...navigationHistory, selectedMember];
+    }
+    selectedMember = targetMember;
+  }
+
+  // Retry fetch after error
+  async function retrySidebar() {
+    if (!selectedMember) return;
+    sidebarError = null;
+    sidebarLoading = true;
+    try {
+      // const data = await membersStore.fetchDetailed(selectedMember.id);
+      // selectedMember = data;
+      sidebarLoading = false;
+    } catch (err) {
+      console.error(err);
+      sidebarError = "Failed to load member details.";
+      sidebarLoading = false;
+    }
+  }
 </script>
 
 <svelte:head>
@@ -799,13 +1653,31 @@
         {#each lines as l, i}
           <!-- Calculate avatar centers using fixed node width -->
           {@const fixedNodeWidth = 160}
-          <!-- Fixed width from MemberNode CSS -->
-          {@const avatarSize = 100}
+          <!-- Look up member data for dynamic avatar sizes -->
+          {@const parentMember = members.find((m) => m.id === l.parentId)}
+          {@const childMember = members.find((m) => m.id === l.childId)}
+          {@const parentAvatarSize =
+            getMemberDiameter(parentMember || {}, rules) || 90}
+          {@const childAvatarSize =
+            getMemberDiameter(childMember || {}, rules) || 90}
           {@const borderWidth = 4}
+          {@const parentFontSize =
+            getMemberFontSize(parentMember || {}, rules) || "14px"}
 
           <!-- Avatar is centered within the fixed-width node -->
           {@const parentCenterX = l.x1 + fixedNodeWidth / 2}
-          {@const parentBottomY = l.y1 + avatarSize + borderWidth * 2 + 50}
+          <!-- Calculate dynamic bottom position based on font size -->
+          {@const parentFontSizeNum = parseInt(parentFontSize)}
+          {@const parentExtraTextHeight = Math.max(
+            0,
+            (parentFontSizeNum - 14) * 2.5,
+          )}
+          {@const parentBottomY =
+            l.y1 +
+            parentAvatarSize +
+            borderWidth * 2 +
+            50 +
+            parentExtraTextHeight}
           {@const childCenterX = l.x2 + fixedNodeWidth / 2}
           {@const childTopY = l.y2 - 4}
 
@@ -815,6 +1687,10 @@
           <!-- Container for this specific connector -->
           {@const minX = Math.min(parentCenterX, childCenterX) - 10}
           {@const maxX = Math.max(parentCenterX, childCenterX) + 10}
+          {@const extraTextHeight = Math.max(
+            0,
+            (parseInt(parentFontSize) - 14) * 1,
+          )}
           {@const minY = Math.min(parentBottomY, childTopY) - 10}
           {@const maxY = Math.max(parentBottomY, childTopY) + 10}
 
@@ -834,7 +1710,7 @@
                    L {parentCenterX - minX} {midY - minY}
                    L {childCenterX - minX} {midY - minY}
                    L {childCenterX - minX} {childTopY - minY}"
-                stroke="#6366f1"
+                stroke="var(--chart-primary, var(--primary))"
                 stroke-width="2"
                 fill="none"
                 stroke-linecap="round"
@@ -854,6 +1730,7 @@
             size={100}
             on:edit={handleEditMember}
             on:delete={handleDeleteMember}
+            on:select={handleSelectMember}
           />
         {/each}
 
@@ -921,91 +1798,132 @@
       {/if}
     </div>
 
-    <!-- Floating action buttons -->
-    <div class="floating-controls">
-      <!-- Zoom controls -->
-      <div class="zoom-controls">
-        <button
-          class="zoom-btn"
-          class:active={selectionToolActive}
-          aria-label="Zoom to selection"
-          title="Zoom to selection"
-          on:click={toggleSelectionTool}
-        >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <rect x="3" y="3" width="12" height="12" rx="1" ry="1" stroke-dasharray="2 2" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 16l5 5" />
-          </svg>
-        </button>
-        <button
-          class="zoom-btn"
-          aria-label="Zoom in"
-          on:click={zoomIn}
-          title="Zoom in"
-        >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-            />
-          </svg>
-        </button>
-        <button
-          class="zoom-btn"
-          aria-label="Zoom out"
-          on:click={zoomOut}
-          title="Zoom out"
-        >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M20 12H4"
-            />
-          </svg>
-        </button>
-      </div>
-
-      <!-- Action buttons -->
-      <div class="action-controls">
-        <button class="action-btn secondary" on:click={exportAsPDF}>
-          <svg
-            class="button-icon"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+    {#if !pdfFramingMode}
+      <!-- Floating action buttons -->
+      <div class="floating-controls">
+        <!-- Zoom controls -->
+        <div class="zoom-controls">
+          <button
+            class="zoom-btn"
+            class:active={selectionToolActive}
+            aria-label="Zoom to selection"
+            title="Zoom to selection"
+            on:click={toggleSelectionTool}
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
-          </svg>
-          Export PDF
-        </button>
-
-        <button class="action-btn primary" on:click={openAddMember}>
-          <svg
-            class="button-icon"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect
+                x="3"
+                y="3"
+                width="12"
+                height="12"
+                rx="1"
+                ry="1"
+                stroke-dasharray="2 2"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M16 16l5 5"
+              />
+            </svg>
+          </button>
+          <button
+            class="zoom-btn"
+            aria-label="Zoom in"
+            on:click={zoomIn}
+            title="Zoom in"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-            />
-          </svg>
-          Add member
-        </button>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+              />
+            </svg>
+          </button>
+          <button
+            class="zoom-btn"
+            aria-label="Zoom out"
+            on:click={zoomOut}
+            title="Zoom out"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M20 12H4"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Zoom sensitivity control -->
+        <ZoomSensitivityControl />
+
+        <!-- Action buttons -->
+        <div class="action-controls">
+          <button class="action-btn secondary" on:click={openRules}>
+            <svg
+              class="button-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
+            Chart Design Rules
+          </button>
+
+          <button class="action-btn secondary" on:click={startPDFFraming}>
+            <svg
+              class="button-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+            Export PDF
+          </button>
+
+          <button class="action-btn primary" on:click={openAddMember}>
+            <svg
+              class="button-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+              />
+            </svg>
+            Add member
+          </button>
+        </div>
       </div>
-    </div>
+    {/if}
   </div>
 
   <!-- Modals -->
@@ -1031,23 +1949,115 @@
     currentStageNumber={pdfStageNumber}
     totalStages={pdfTotalStages}
   />
+
+  <!-- User info sidebar -->
+  <UserInfoSidebar
+    open={sidebarOpen}
+    member={selectedMember}
+    {members}
+    {organizationId}
+    {navigationHistory}
+    on:close={closeSidebar}
+    on:back={handleSidebarBack}
+    on:navigate={handleSidebarNavigate}
+    on:edit={(e) => {
+      editingMember = e.detail.member;
+      showEditMember = true;
+    }}
+    on:delete={(e) => handleDeleteMember(e)}
+    on:viewInChart={() => {
+      // sidebar already open on the member's position; close?
+      sidebarOpen = false;
+    }}
+  />
+
+  {#if !pdfFramingMode}
+    <ChartColorPicker {organizationId} />
+  {/if}
+
+  <RuleManagerModal open={showRules} {organizationId} on:close={closeRules} />
+
+  <!-- PDF Framing Mode Overlay -->
+  {#if pdfFramingMode}
+    {#if pdfFrameRect && pdfFrameRect.width > 10 && pdfFrameRect.height > 10}
+      <!-- Dark overlay with cutout for the selected frame -->
+      <div
+        class="pdf-framing-cutout-overlay"
+        style="left:{pdfFrameRect.left}px; top:{pdfFrameRect.top}px; width:{pdfFrameRect.width}px; height:{pdfFrameRect.height}px;"
+      ></div>
+      <!-- Frame border -->
+      <div
+        class="pdf-framing-border"
+        style="left:{pdfFrameRect.left}px; top:{pdfFrameRect.top}px; width:{pdfFrameRect.width}px; height:{pdfFrameRect.height}px;"
+      ></div>
+    {:else}
+      <!-- Full dark overlay when no frame is drawn -->
+      <div class="pdf-framing-dark-overlay"></div>
+    {/if}
+
+    <!-- Instructions panel - hide while actively framing -->
+    {#if !isFraming}
+      <div
+        class="pdf-framing-instructions-overlay"
+        on:mouseenter={() => {
+          if (!hasValidFrame) {
+            isFraming = true;
+          }
+        }}
+      >
+        <div class="pdf-framing-instructions">
+          <div class="instruction-content">
+            <h3>Frame Your Export</h3>
+            {#if pdfFrameRect && pdfFrameRect.width > 10 && pdfFrameRect.height > 10}
+              <div class="frame-info">
+                <span class="frame-dimensions">
+                  {Math.round(pdfFrameRect.width)} × {Math.round(
+                    pdfFrameRect.height,
+                  )} px
+                </span>
+                <span class="frame-orientation">
+                  {pdfFrameRect.width > pdfFrameRect.height
+                    ? "Landscape"
+                    : "Portrait"}
+                </span>
+              </div>
+            {:else}
+              <p>Draw a rectangle around the content to export</p>
+            {/if}
+          </div>
+
+          <div class="pdf-framing-controls">
+            <button
+              class="export-btn"
+              on:click={confirmPDFExport}
+              disabled={!pdfFrameRect || pdfFrameRect.width < 10}
+            >
+              Export PDF
+            </button>
+            <button class="cancel-btn" on:click={cancelPDFFraming}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
+  {/if}
 {/if}
 
 <style>
   .page-container {
     min-height: calc(100vh - var(--header-height));
-    margin-top: var(--header-height);
+    /* margin-top: var(--header-height); */
     background: var(--background);
-    position: relative;
+    /* position: relative; */
   }
 
   .chart-container {
     width: 100%;
-    height: calc(100vh - var(--header-height));
+    height: calc(100vh);
     background: var(--background);
     cursor: grab;
     user-select: none;
-    overflow: hidden;
     position: relative;
   }
 
@@ -1180,7 +2190,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: var(--spacing-4);
+    gap: var(--spacing-3);
     z-index: 200;
   }
 
@@ -1297,6 +2307,147 @@
     background: color-mix(in srgb, var(--primary) 15%, transparent);
     pointer-events: none;
     z-index: 120;
+  }
+
+  /* PDF Frame rectangle */
+  .pdf-frame-rect {
+    position: absolute;
+    border: 3px solid #ff6b35;
+    background: color-mix(in srgb, #ff6b35 10%, transparent);
+    pointer-events: none;
+    z-index: 121;
+    box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.3);
+  }
+
+  /* PDF Framing Mode Overlay */
+  .pdf-framing-dark-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 2000;
+    pointer-events: none;
+  }
+  .pdf-framing-cutout-overlay {
+    position: absolute;
+    background: transparent;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+    z-index: 2001;
+    pointer-events: none;
+  }
+
+  .pdf-framing-border {
+    position: absolute;
+    background: transparent;
+    border: 3px solid var(--primary);
+    border-style: dashed;
+    z-index: 2002;
+    pointer-events: none;
+  }
+  .pdf-framing-instructions-overlay {
+    position: fixed;
+    top: calc(var(--header-height) + var(--spacing-10));
+    left: var(--spacing-6);
+    z-index: 2002;
+    pointer-events: none;
+  }
+
+  .pdf-framing-instructions {
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-4);
+    box-shadow: var(--shadow-lg);
+    max-width: 280px;
+    pointer-events: auto;
+  }
+
+  .instruction-content {
+    text-align: left;
+    margin-bottom: var(--spacing-3);
+  }
+
+  .pdf-framing-instructions h3 {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-2) 0;
+  }
+
+  .pdf-framing-instructions p {
+    color: var(--text-secondary);
+    margin: 0;
+    font-size: var(--font-size-sm);
+  }
+
+  .frame-info {
+    display: flex;
+    gap: var(--spacing-3);
+    align-items: center;
+    font-size: var(--font-size-sm);
+    margin: 0;
+  }
+
+  .frame-dimensions {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-family: monospace;
+  }
+
+  .frame-orientation {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .pdf-framing-controls {
+    display: flex;
+    gap: var(--spacing-2);
+  }
+
+  .export-btn {
+    background: var(--primary);
+    color: white;
+    padding: var(--spacing-3) var(--spacing-5);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    white-space: nowrap;
+  }
+
+  .export-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .export-btn:not(:disabled):hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  .pdf-framing-controls .cancel-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    padding: var(--spacing-3) var(--spacing-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    white-space: nowrap;
+  }
+
+  .pdf-framing-controls .cancel-btn:hover {
+    background: var(--secondary);
+    color: var(--text-primary);
   }
 
   /* Disable pointer events on canvas while selecting */

@@ -1,7 +1,7 @@
 <script>
   import { authStore } from "$lib/stores/auth.js";
   import { themeStore } from "$lib/stores/theme.js";
-  import { Moon, Sun, Network } from "lucide-svelte";
+  import { Moon, Sun } from "lucide-svelte";
   import { goto } from "$app/navigation";
 
   export let user = null;
@@ -25,29 +25,29 @@
 
   // Google-like avatar colors
   const avatarColors = [
-    '#1a73e8', // Google Blue
-    '#137333', // Google Green  
-    '#d93025', // Google Red
-    '#f9ab00', // Google Yellow
-    '#9aa0a6', // Google Grey
-    '#673ab7', // Purple
-    '#ff6d00', // Orange
-    '#00acc1', // Cyan
-    '#689f38', // Light Green
-    '#e91e63'  // Pink
+    "#1a73e8", // Google Blue
+    "#137333", // Google Green
+    "#d93025", // Google Red
+    "#f9ab00", // Google Yellow
+    "#9aa0a6", // Google Grey
+    "#673ab7", // Purple
+    "#ff6d00", // Orange
+    "#00acc1", // Cyan
+    "#689f38", // Light Green
+    "#e91e63", // Pink
   ];
 
   // Generate consistent color based on user email
   function getAvatarColor(user) {
     if (!user?.email) return avatarColors[0];
-    
+
     let hash = 0;
     for (let i = 0; i < user.email.length; i++) {
       const char = user.email.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
-    
+
     return avatarColors[Math.abs(hash) % avatarColors.length];
   }
 
@@ -85,9 +85,9 @@
     <div class="user-info">
       <div class="avatar" style="background-color: {avatarColor};">
         {#if user.photoURL && !imageLoadError}
-          <img 
-            src={user.photoURL} 
-            alt={user.displayName} 
+          <img
+            src={user.photoURL}
+            alt={user.displayName}
             on:error={handleImageError}
           />
         {:else}
@@ -103,7 +103,31 @@
       on:click={goToDashboard}
       title="Go to Dashboard"
     >
-      <Network size={28} />
+      <svg
+        class="logo-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M12 2L2 7L12 12L22 7L12 2Z"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M2 17L12 22L22 17"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M2 12L12 17L22 12"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linejoin="round"
+        />
+      </svg>
       <span class="logo-text">OrganiChart</span>
     </button>
 
@@ -198,6 +222,12 @@
   .logo-button:hover {
     background: rgba(255, 255, 255, 0.1);
     transform: scale(1.02);
+  }
+
+  .logo-icon {
+    width: 28px;
+    height: 28px;
+    color: white;
   }
 
   .logo-text {

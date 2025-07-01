@@ -15,7 +15,7 @@ const firebaseConfig = {
 };
 
 // Debug: log config to check if env vars are loading (remove this after debugging)
-console.log("Firebase Config:", firebaseConfig);
+console.log("Firebase Config loaded:", !!firebaseConfig.apiKey);
 
 // Initialize Firebase only in browser
 let app;
