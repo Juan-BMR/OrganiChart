@@ -26,6 +26,7 @@
   import * as d3 from "d3";
   import html2canvas from "html2canvas";
   import jsPDF from "jspdf";
+  import ChatPanel from "$lib/components/ChatPanel.svelte";
 
   let user = null;
   let organizationId = null;
@@ -2042,8 +2043,7 @@
       </div>
     {/if}
   {/if}
-{/if}
-
+</ChatPanel>
 <style>
   .page-container {
     min-height: calc(100vh - var(--header-height));
