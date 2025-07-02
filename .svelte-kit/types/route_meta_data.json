@@ -3,6 +3,9 @@
 		"src/routes/+layout.js",
 		"src/routes/+layout.js"
 	],
+	"/api/ai-chat": [
+		"src/routes/api/ai-chat/+server.ts"
+	],
 	"/api/proxy-image": [
 		"src/routes/api/proxy-image/+server.js"
 	],
