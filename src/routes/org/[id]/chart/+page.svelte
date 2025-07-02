@@ -28,6 +28,9 @@
   import jsPDF from "jspdf";
   import ChatPanel from "$lib/components/ChatPanel.svelte";
 
+  // Chat store helpers – keep AI aware of which organization it is working with
+  import { setOrganization, clearChat } from "$lib/stores/chat";
+
   let user = null;
   let organizationId = null;
   let organization = null;
@@ -119,11 +122,18 @@
       unsubscribeRules();
       unsubscribeMembers();
       unsubscribeZoom();
+
+      // Clear chat context when leaving page
+      clearChat();
+      setOrganization(null);
     };
   });
 
   // Reactive: Start listening for members and load rules when organizationId changes
   $: if (organizationId && user) {
+    // Update chat store context
+    setOrganization(organizationId);
+
     console.log("Loading data for organization:", organizationId);
 
     // Start listening for members
