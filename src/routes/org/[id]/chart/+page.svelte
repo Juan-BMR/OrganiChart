@@ -2053,7 +2053,9 @@
       </div>
     {/if}
   {/if}
+  <ChatPanel />
 </ChatPanel>
+
 <style>
   .page-container {
     min-height: calc(100vh - var(--header-height));
