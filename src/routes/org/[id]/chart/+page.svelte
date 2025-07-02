@@ -2053,7 +2053,7 @@
       </div>
     {/if}
   {/if}
-  <ChatPanel />
+  <ChatPanel>
 </ChatPanel>
 
 <style>

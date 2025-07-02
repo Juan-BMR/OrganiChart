@@ -20,8 +20,10 @@ const AI_AGENT_URL = "https://aiagent-usprdmd3na-uc.a.run.app"; // Tool-calling 
 export const orgIdContext = writable<string | null>(null);
 
 /**
- * Set / update the organization that subsequent AI requests should act on.
- * The chart page should call this whenever the route param changes.
+ * Update the organization context used by the AI agent.
+ * Pass `null` to clear the context when navigating away.
+ *
+ * @param orgId - The active organization ID or null.
  */
 export function setOrganization(orgId: string | null) {
   orgIdContext.set(orgId);
@@ -36,8 +38,19 @@ function appendMessage(role: "user" | "assistant", content: string) {
 }
 
 /**
- * Send a message to either the general chat endpoint (aiChat) or the tool-calling agent (aiAgent).
- * By default we use the agent when we have an org context; otherwise fall back to plain chat.
+ * Send a message to the assistant.
+ *
+ * Depending on the presence of an organization context (or an explicit `useAgent` flag),
+ * the function automatically chooses between the `aiAgent` (tool-calling) endpoint and
+ * the simpler `aiChat` endpoint.
+ *
+ * A user message is immediately appended to `$chatHistory`, `isThinking` is set to `true`,
+ * and the assistant's eventual reply (or an error placeholder) is also appended.
+ *
+ * @param text        The user's plain-text prompt.
+ * @param options.useAgent  Force usage of the agent endpoint regardless of context.
+ * @param options.orgId    Override the stored organization ID for this call.
+ * @returns            The assistant's raw reply text.
  */
 export async function sendMessage(
   text: string,
@@ -101,14 +114,19 @@ export async function sendMessage(
 }
 
 /**
- * Convenience wrapper for plain small-talk conversations that should never hit the agent.
+ * Shortcut for simple small-talk requests that should *never* call the tool-enabled agent.
+ * Equivalent to `sendMessage(msg, { useAgent: false })`.
+ *
+ * @param message - The user's chat text.
+ * @returns The assistant's reply text.
  */
 export async function sendSimpleMessage(message: string) {
   return await sendMessage(message, { useAgent: false });
 }
 
 /**
- * Clear chat history and errors (useful when switching organizations)
+ * Hard-reset the chat UI state: clears history, errors, and loading flags.
+ * Call this when leaving an org page or after a logout.
  */
 export function clearChat() {
   chatHistory.set([]);
