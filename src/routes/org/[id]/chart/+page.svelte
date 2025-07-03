@@ -26,6 +26,10 @@
   import * as d3 from "d3";
   import html2canvas from "html2canvas";
   import jsPDF from "jspdf";
+  import ChatPanel from "$lib/components/ChatPanel.svelte";
+
+  // Chat store helpers – keep AI aware of which organization it is working with
+  import { setOrganization, clearChat } from "$lib/stores/chat";
 
   let user = null;
   let organizationId = null;
@@ -67,7 +71,7 @@
       // Update selectedMember reference if it exists and members changed
       if (selectedMember && m.length > 0) {
         const updatedMember = m.find(
-          (member) => member.id === selectedMember.id,
+          (member) => member.id === selectedMember.id
         );
         if (updatedMember) {
           selectedMember = updatedMember;
@@ -77,13 +81,13 @@
       // Update editingMember reference if it exists and members changed
       if (editingMember && m.length > 0) {
         const updatedEditingMember = m.find(
-          (member) => member.id === editingMember.id,
+          (member) => member.id === editingMember.id
         );
         if (updatedEditingMember) {
           editingMember = updatedEditingMember;
         }
       }
-    },
+    }
   );
 
   // Listen for auth and organization param
@@ -118,11 +122,18 @@
       unsubscribeRules();
       unsubscribeMembers();
       unsubscribeZoom();
+
+      // Clear chat context when leaving page
+      clearChat();
+      setOrganization(null);
     };
   });
 
   // Reactive: Start listening for members and load rules when organizationId changes
   $: if (organizationId && user) {
+    // Update chat store context
+    setOrganization(organizationId);
+
     console.log("Loading data for organization:", organizationId);
 
     // Start listening for members
@@ -347,7 +358,7 @@
       (m) =>
         m.position &&
         typeof m.position.x === "number" &&
-        typeof m.position.y === "number",
+        typeof m.position.y === "number"
     );
 
     if (allHavePositions) {
@@ -418,7 +429,7 @@
           // Recursively process children
           if (node.children) {
             node.children.forEach((child) =>
-              adjustPositionsForLargeAvatars(child),
+              adjustPositionsForLargeAvatars(child)
             );
           }
         };
@@ -589,7 +600,7 @@
 
       // Convert Firebase images to use proxy URLs to avoid CORS issues
       const firebaseImages = containerEl.querySelectorAll(
-        'img[src*="firebasestorage"]',
+        'img[src*="firebasestorage"]'
       );
       const imageReplacements = [];
 
@@ -626,7 +637,7 @@
                   // Make canvas square and scale image to cover (object-fit: cover behavior)
                   const size = Math.min(
                     testImg.naturalWidth,
-                    testImg.naturalHeight,
+                    testImg.naturalHeight
                   );
                   canvas.width = size;
                   canvas.height = size;
@@ -646,7 +657,7 @@
                     0,
                     0,
                     size,
-                    size,
+                    size
                   );
                   const dataURL = canvas.toDataURL("image/png");
                   img.src = dataURL;
@@ -654,7 +665,7 @@
                 } catch (canvasError) {
                   console.warn(
                     "Failed to convert image to data URL:",
-                    canvasError,
+                    canvasError
                   );
                   resolve();
                 }
@@ -662,7 +673,7 @@
 
               testImg.onerror = () => {
                 console.warn(
-                  `Failed to load image through proxy: ${originalUrl}`,
+                  `Failed to load image through proxy: ${originalUrl}`
                 );
                 resolve();
               };
@@ -730,15 +741,15 @@
               styleEl.textContent = styleEl.textContent
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*90%,\s*transparent\)/g,
-                  backgroundRgba90,
+                  backgroundRgba90
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*95%,\s*transparent\)/g,
-                  backgroundRgba95,
+                  backgroundRgba95
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--chart-primary[^)]*\)\s*15%,\s*transparent\)/g,
-                  "rgba(99, 102, 241, 0.15)",
+                  "rgba(99, 102, 241, 0.15)"
                 );
             }
           });
@@ -748,7 +759,7 @@
             if (el.style.cssText) {
               el.style.cssText = el.style.cssText.replace(
                 /color-mix\([^)]+\)/g,
-                backgroundRgba90,
+                backgroundRgba90
               );
             }
           });
@@ -825,7 +836,7 @@
         0,
         0,
         sourceWidth,
-        sourceHeight,
+        sourceHeight
       );
 
       // Restore original image sources
@@ -840,7 +851,7 @@
         "Final canvas dimensions:",
         croppedCanvas.width,
         "x",
-        croppedCanvas.height,
+        croppedCanvas.height
       );
 
       if (imgData.length < 1000) {
@@ -887,7 +898,7 @@
         "PDF internal dimensions:",
         pdf.internal.pageSize.getWidth(),
         "x",
-        pdf.internal.pageSize.getHeight(),
+        pdf.internal.pageSize.getHeight()
       );
 
       // Add the image to PDF using calculated dimensions
@@ -956,7 +967,7 @@
           replacement.img.src = replacement.originalSrc;
         }
         console.log(
-          `Restored ${imageReplacements.length} image sources after error`,
+          `Restored ${imageReplacements.length} image sources after error`
         );
       }
 
@@ -987,7 +998,7 @@
 
       // Convert Firebase images to use proxy URLs to avoid CORS issues
       const firebaseImages = containerEl.querySelectorAll(
-        'img[src*="firebasestorage"]',
+        'img[src*="firebasestorage"]'
       );
       const imageReplacements = [];
 
@@ -1024,7 +1035,7 @@
                   // Make canvas square and scale image to cover (object-fit: cover behavior)
                   const size = Math.min(
                     testImg.naturalWidth,
-                    testImg.naturalHeight,
+                    testImg.naturalHeight
                   );
                   canvas.width = size;
                   canvas.height = size;
@@ -1044,7 +1055,7 @@
                     0,
                     0,
                     size,
-                    size,
+                    size
                   );
                   const dataURL = canvas.toDataURL("image/png");
 
@@ -1058,13 +1069,13 @@
                   // Replace the image src with data URL
                   img.src = dataURL;
                   console.log(
-                    `Successfully proxied and converted image for ${img.alt || "user"}`,
+                    `Successfully proxied and converted image for ${img.alt || "user"}`
                   );
                   resolve();
                 } catch (canvasError) {
                   console.warn(
                     "Failed to convert image to data URL:",
-                    canvasError,
+                    canvasError
                   );
                   resolve(); // Continue even if conversion fails
                 }
@@ -1072,7 +1083,7 @@
 
               testImg.onerror = () => {
                 console.warn(
-                  `Failed to load image through proxy: ${originalUrl}`,
+                  `Failed to load image through proxy: ${originalUrl}`
                 );
                 // Keep original - will likely be replaced with initials placeholder
                 resolve();
@@ -1120,7 +1131,7 @@
 
       if (visibleNodes.length === 0) {
         alert(
-          "No visible chart content to export. Please adjust the view and try again.",
+          "No visible chart content to export. Please adjust the view and try again."
         );
         return;
       }
@@ -1131,13 +1142,13 @@
         Math.min(...visibleNodes.map((n) => n.screenX)) - padding;
       const rightmostScreen =
         Math.max(
-          ...visibleNodes.map((n) => n.screenX + 160 * transform.scale),
+          ...visibleNodes.map((n) => n.screenX + 160 * transform.scale)
         ) + padding;
       const topmostScreen =
         Math.min(...visibleNodes.map((n) => n.screenY)) - padding;
       const bottommostScreen =
         Math.max(
-          ...visibleNodes.map((n) => n.screenY + 200 * transform.scale),
+          ...visibleNodes.map((n) => n.screenY + 200 * transform.scale)
         ) + padding;
 
       // Ensure bounds are within the container
@@ -1230,15 +1241,15 @@
               styleEl.textContent = styleEl.textContent
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*90%,\s*transparent\)/g,
-                  backgroundRgba90,
+                  backgroundRgba90
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--background\)\s*95%,\s*transparent\)/g,
-                  backgroundRgba95,
+                  backgroundRgba95
                 )
                 .replace(
                   /color-mix\(in srgb,\s*var\(--chart-primary[^)]*\)\s*15%,\s*transparent\)/g,
-                  "rgba(99, 102, 241, 0.15)",
+                  "rgba(99, 102, 241, 0.15)"
                 );
             }
           });
@@ -1249,7 +1260,7 @@
             if (el.style.cssText) {
               el.style.cssText = el.style.cssText.replace(
                 /color-mix\([^)]+\)/g,
-                backgroundRgba90,
+                backgroundRgba90
               );
             }
           });
@@ -1311,16 +1322,16 @@
 
       const sourceX = Math.max(
         0,
-        (translateX + paddedLeftmostX) * captureScale,
+        (translateX + paddedLeftmostX) * captureScale
       );
       const sourceY = Math.max(0, (translateY + paddedTopmostY) * captureScale);
       const sourceWidth = Math.min(
         paddedContentWidth * captureScale,
-        canvas.width - sourceX,
+        canvas.width - sourceX
       );
       const sourceHeight = Math.min(
         paddedContentHeight * captureScale,
-        canvas.height - sourceY,
+        canvas.height - sourceY
       );
 
       console.log("Cropping details:", {
@@ -1354,7 +1365,7 @@
         0,
         0,
         sourceWidth,
-        sourceHeight, // destination rectangle (same high-res size)
+        sourceHeight // destination rectangle (same high-res size)
       );
 
       // Restore original image sources
@@ -1369,7 +1380,7 @@
         "Final canvas dimensions:",
         croppedCanvas.width,
         "x",
-        croppedCanvas.height,
+        croppedCanvas.height
       );
       console.log("Image data length:", imgData.length);
 
@@ -1385,7 +1396,7 @@
         "PDF will be created with dimensions:",
         paddedContentWidth,
         "x",
-        paddedContentHeight,
+        paddedContentHeight
       );
 
       // Update progress
@@ -1404,7 +1415,7 @@
         "PDF internal dimensions:",
         pdf.internal.pageSize.getWidth(),
         "x",
-        pdf.internal.pageSize.getHeight(),
+        pdf.internal.pageSize.getHeight()
       );
 
       // Add the high-resolution image to PDF, scaling down to exact content dimensions
@@ -1416,7 +1427,7 @@
         paddedContentWidth,
         paddedContentHeight,
         "",
-        "SLOW", // Use SLOW for better quality rendering
+        "SLOW" // Use SLOW for better quality rendering
       );
 
       // Final progress update
@@ -1479,7 +1490,7 @@
           replacement.img.src = replacement.originalSrc;
         }
         console.log(
-          `Restored ${imageReplacements.length} image sources after error`,
+          `Restored ${imageReplacements.length} image sources after error`
         );
       }
 
@@ -1670,7 +1681,7 @@
           {@const parentFontSizeNum = parseInt(parentFontSize)}
           {@const parentExtraTextHeight = Math.max(
             0,
-            (parentFontSizeNum - 14) * 2.5,
+            (parentFontSizeNum - 14) * 2.5
           )}
           {@const parentBottomY =
             l.y1 +
@@ -1689,7 +1700,7 @@
           {@const maxX = Math.max(parentCenterX, childCenterX) + 10}
           {@const extraTextHeight = Math.max(
             0,
-            (parseInt(parentFontSize) - 14) * 1,
+            (parseInt(parentFontSize) - 14) * 1
           )}
           {@const minY = Math.min(parentBottomY, childTopY) - 10}
           {@const maxY = Math.max(parentBottomY, childTopY) + 10}
@@ -2012,7 +2023,7 @@
               <div class="frame-info">
                 <span class="frame-dimensions">
                   {Math.round(pdfFrameRect.width)} × {Math.round(
-                    pdfFrameRect.height,
+                    pdfFrameRect.height
                   )} px
                 </span>
                 <span class="frame-orientation">
@@ -2042,421 +2053,422 @@
       </div>
     {/if}
   {/if}
-{/if}
+  <ChatPanel {organizationId}></ChatPanel>
 
-<style>
-  .page-container {
-    min-height: calc(100vh - var(--header-height));
-    /* margin-top: var(--header-height); */
-    background: var(--background);
-    /* position: relative; */
-  }
-
-  .chart-container {
-    width: 100%;
-    height: calc(100vh);
-    background: var(--background);
-    cursor: grab;
-    user-select: none;
-    position: relative;
-  }
-
-  .chart-container:active {
-    cursor: grabbing;
-  }
-
-  .canvas {
-    position: absolute;
-    transform-origin: 0 0;
-    will-change: transform;
-    /* Improve rendering quality */
-    image-rendering: -webkit-optimize-contrast;
-    image-rendering: crisp-edges;
-    backface-visibility: hidden;
-    -webkit-font-smoothing: subpixel-antialiased;
-    font-smooth: always;
-  }
-
-  .lines-layer {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 1;
-    overflow: visible;
-  }
-
-  /* Loading state */
-  .loading-overlay {
-    position: absolute;
-    inset: 0;
-    background: color-mix(in srgb, var(--background) 90%, transparent);
-    backdrop-filter: blur(2px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-
-  .loading-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--spacing-4);
-    text-align: center;
-  }
-
-  .loading-spinner {
-    width: 32px;
-    height: 32px;
-    border: 3px solid var(--border);
-    border-radius: 50%;
-    border-top-color: var(--primary);
-    animation: spin 1s ease-in-out infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
+  <style>
+    .page-container {
+      min-height: calc(100vh - var(--header-height));
+      /* margin-top: var(--header-height); */
+      background: var(--background);
+      /* position: relative; */
     }
-  }
 
-  .loading-content p {
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-  }
+    .chart-container {
+      width: 100%;
+      height: calc(100vh);
+      background: var(--background);
+      cursor: grab;
+      user-select: none;
+      position: relative;
+    }
 
-  /* Empty state */
-  .empty-state {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 50;
-  }
+    .chart-container:active {
+      cursor: grabbing;
+    }
 
-  .empty-content {
-    text-align: center;
-    max-width: 400px;
-    padding: var(--spacing-8);
-  }
+    .canvas {
+      position: absolute;
+      transform-origin: 0 0;
+      will-change: transform;
+      /* Improve rendering quality */
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      backface-visibility: hidden;
+      -webkit-font-smoothing: subpixel-antialiased;
+      font-smooth: always;
+    }
 
-  .empty-icon {
-    width: 64px;
-    height: 64px;
-    color: var(--text-secondary);
-    margin: 0 auto var(--spacing-6);
-  }
+    .lines-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      overflow: visible;
+    }
 
-  .empty-content h3 {
-    font-size: var(--font-size-xl);
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: var(--spacing-3);
-  }
+    /* Loading state */
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: color-mix(in srgb, var(--background) 90%, transparent);
+      backdrop-filter: blur(2px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
 
-  .empty-content p {
-    font-size: var(--font-size-base);
-    color: var(--text-secondary);
-    margin-bottom: var(--spacing-6);
-    line-height: 1.6;
-  }
+    .loading-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--spacing-4);
+      text-align: center;
+    }
 
-  .empty-action-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--spacing-2);
-    background: var(--primary);
-    color: white;
-    padding: var(--spacing-3) var(--spacing-6);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    transition: all 0.2s ease;
-  }
+    .loading-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-radius: 50%;
+      border-top-color: var(--primary);
+      animation: spin 1s ease-in-out infinite;
+    }
 
-  .empty-action-btn:hover {
-    background: var(--primary-dark);
-    box-shadow: var(--shadow-md);
-    transform: translateY(-1px);
-  }
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
 
-  /* Floating controls */
-  .floating-controls {
-    position: absolute;
-    bottom: var(--spacing-6);
-    right: var(--spacing-6);
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: var(--spacing-3);
-    z-index: 200;
-  }
+    .loading-content p {
+      color: var(--text-secondary);
+      font-size: var(--font-size-sm);
+    }
 
-  .zoom-controls {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-2);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-1);
-    box-shadow: var(--shadow-md);
-    width: fit-content;
-  }
+    /* Empty state */
+    .empty-state {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
 
-  .zoom-btn {
-    width: 28px;
-    height: 28px;
-    background: transparent;
-    color: var(--text-primary);
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    position: relative;
-  }
+    .empty-content {
+      text-align: center;
+      max-width: 400px;
+      padding: var(--spacing-8);
+    }
 
-  .zoom-btn:hover {
-    background: var(--primary);
-    color: white;
-    transform: scale(1.05);
-  }
+    .empty-icon {
+      width: 64px;
+      height: 64px;
+      color: var(--text-secondary);
+      margin: 0 auto var(--spacing-6);
+    }
 
-  .zoom-btn:active {
-    transform: scale(0.95);
-  }
+    .empty-content h3 {
+      font-size: var(--font-size-xl);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--spacing-3);
+    }
 
-  .zoom-btn svg {
-    width: 16px;
-    height: 16px;
-  }
+    .empty-content p {
+      font-size: var(--font-size-base);
+      color: var(--text-secondary);
+      margin-bottom: var(--spacing-6);
+      line-height: 1.6;
+    }
 
-  .action-controls {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-3);
-  }
+    .empty-action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-2);
+      background: var(--primary);
+      color: white;
+      padding: var(--spacing-3) var(--spacing-6);
+      font-size: var(--font-size-sm);
+      font-weight: 500;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s ease;
+    }
 
-  .action-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--spacing-2);
-    padding: var(--spacing-3) var(--spacing-4);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-md);
-    transition: all 0.2s ease;
-    white-space: nowrap;
-  }
+    .empty-action-btn:hover {
+      background: var(--primary-dark);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
 
-  .action-btn.primary {
-    background: var(--primary);
-    color: white;
-  }
-
-  .action-btn.primary:hover {
-    background: var(--primary-dark);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-lg);
-  }
-
-  .action-btn.secondary {
-    background: var(--surface);
-    color: var(--text-primary);
-    border: 1px solid var(--border);
-  }
-
-  .action-btn.secondary:hover {
-    background: var(--secondary);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-lg);
-  }
-
-  .button-icon {
-    width: 16px;
-    height: 16px;
-  }
-
-  /* Responsive design */
-  @media (max-width: 768px) {
+    /* Floating controls */
     .floating-controls {
-      bottom: var(--spacing-4);
-      right: var(--spacing-4);
+      position: absolute;
+      bottom: var(--spacing-6);
+      right: var(--spacing-6);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: var(--spacing-3);
+      z-index: 200;
+    }
+
+    .zoom-controls {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-2);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-1);
+      box-shadow: var(--shadow-md);
+      width: fit-content;
+    }
+
+    .zoom-btn {
+      width: 28px;
+      height: 28px;
+      background: transparent;
+      color: var(--text-primary);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .zoom-btn:hover {
+      background: var(--primary);
+      color: white;
+      transform: scale(1.05);
+    }
+
+    .zoom-btn:active {
+      transform: scale(0.95);
+    }
+
+    .zoom-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .action-controls {
+      display: flex;
+      flex-direction: column;
       gap: var(--spacing-3);
     }
 
     .action-btn {
-      padding: var(--spacing-2) var(--spacing-3);
-      font-size: var(--font-size-xs);
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-2);
+      padding: var(--spacing-3) var(--spacing-4);
+      font-size: var(--font-size-sm);
+      font-weight: 500;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      transition: all 0.2s ease;
+      white-space: nowrap;
     }
 
-    .zoom-btn {
-      width: 36px;
-      height: 36px;
+    .action-btn.primary {
+      background: var(--primary);
+      color: white;
     }
-  }
 
-  /* Selection rectangle */
-  .selection-rect {
-    position: absolute;
-    border: 2px dashed var(--primary);
-    background: color-mix(in srgb, var(--primary) 15%, transparent);
-    pointer-events: none;
-    z-index: 120;
-  }
+    .action-btn.primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-lg);
+    }
 
-  /* PDF Frame rectangle */
-  .pdf-frame-rect {
-    position: absolute;
-    border: 3px solid #ff6b35;
-    background: color-mix(in srgb, #ff6b35 10%, transparent);
-    pointer-events: none;
-    z-index: 121;
-    box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.3);
-  }
+    .action-btn.secondary {
+      background: var(--surface);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
 
-  /* PDF Framing Mode Overlay */
-  .pdf-framing-dark-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 2000;
-    pointer-events: none;
-  }
-  .pdf-framing-cutout-overlay {
-    position: absolute;
-    background: transparent;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
-    z-index: 2001;
-    pointer-events: none;
-  }
+    .action-btn.secondary:hover {
+      background: var(--secondary);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-lg);
+    }
 
-  .pdf-framing-border {
-    position: absolute;
-    background: transparent;
-    border: 3px solid var(--primary);
-    border-style: dashed;
-    z-index: 2002;
-    pointer-events: none;
-  }
-  .pdf-framing-instructions-overlay {
-    position: fixed;
-    top: calc(var(--header-height) + var(--spacing-10));
-    left: var(--spacing-6);
-    z-index: 2002;
-    pointer-events: none;
-  }
+    .button-icon {
+      width: 16px;
+      height: 16px;
+    }
 
-  .pdf-framing-instructions {
-    background: var(--background);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-4);
-    box-shadow: var(--shadow-lg);
-    max-width: 280px;
-    pointer-events: auto;
-  }
+    /* Responsive design */
+    @media (max-width: 768px) {
+      .floating-controls {
+        bottom: var(--spacing-4);
+        right: var(--spacing-4);
+        gap: var(--spacing-3);
+      }
 
-  .instruction-content {
-    text-align: left;
-    margin-bottom: var(--spacing-3);
-  }
+      .action-btn {
+        padding: var(--spacing-2) var(--spacing-3);
+        font-size: var(--font-size-xs);
+      }
 
-  .pdf-framing-instructions h3 {
-    font-size: var(--font-size-base);
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 var(--spacing-2) 0;
-  }
+      .zoom-btn {
+        width: 36px;
+        height: 36px;
+      }
+    }
 
-  .pdf-framing-instructions p {
-    color: var(--text-secondary);
-    margin: 0;
-    font-size: var(--font-size-sm);
-  }
+    /* Selection rectangle */
+    .selection-rect {
+      position: absolute;
+      border: 2px dashed var(--primary);
+      background: color-mix(in srgb, var(--primary) 15%, transparent);
+      pointer-events: none;
+      z-index: 120;
+    }
 
-  .frame-info {
-    display: flex;
-    gap: var(--spacing-3);
-    align-items: center;
-    font-size: var(--font-size-sm);
-    margin: 0;
-  }
+    /* PDF Frame rectangle */
+    .pdf-frame-rect {
+      position: absolute;
+      border: 3px solid #ff6b35;
+      background: color-mix(in srgb, #ff6b35 10%, transparent);
+      pointer-events: none;
+      z-index: 121;
+      box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.3);
+    }
 
-  .frame-dimensions {
-    font-weight: 500;
-    color: var(--text-primary);
-    font-family: monospace;
-  }
+    /* PDF Framing Mode Overlay */
+    .pdf-framing-dark-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 2000;
+      pointer-events: none;
+    }
+    .pdf-framing-cutout-overlay {
+      position: absolute;
+      background: transparent;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+      z-index: 2001;
+      pointer-events: none;
+    }
 
-  .frame-orientation {
-    color: var(--text-secondary);
-    font-weight: 500;
-  }
+    .pdf-framing-border {
+      position: absolute;
+      background: transparent;
+      border: 3px solid var(--primary);
+      border-style: dashed;
+      z-index: 2002;
+      pointer-events: none;
+    }
+    .pdf-framing-instructions-overlay {
+      position: fixed;
+      top: calc(var(--header-height) + var(--spacing-10));
+      left: var(--spacing-6);
+      z-index: 2002;
+      pointer-events: none;
+    }
 
-  .pdf-framing-controls {
-    display: flex;
-    gap: var(--spacing-2);
-  }
+    .pdf-framing-instructions {
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-4);
+      box-shadow: var(--shadow-lg);
+      max-width: 280px;
+      pointer-events: auto;
+    }
 
-  .export-btn {
-    background: var(--primary);
-    color: white;
-    padding: var(--spacing-3) var(--spacing-5);
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    flex: 1;
-    white-space: nowrap;
-  }
+    .instruction-content {
+      text-align: left;
+      margin-bottom: var(--spacing-3);
+    }
 
-  .export-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
+    .pdf-framing-instructions h3 {
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0 0 var(--spacing-2) 0;
+    }
 
-  .export-btn:not(:disabled):hover {
-    background: var(--primary-dark);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-  }
+    .pdf-framing-instructions p {
+      color: var(--text-secondary);
+      margin: 0;
+      font-size: var(--font-size-sm);
+    }
 
-  .pdf-framing-controls .cancel-btn {
-    background: transparent;
-    color: var(--text-secondary);
-    padding: var(--spacing-3) var(--spacing-5);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    flex: 1;
-    white-space: nowrap;
-  }
+    .frame-info {
+      display: flex;
+      gap: var(--spacing-3);
+      align-items: center;
+      font-size: var(--font-size-sm);
+      margin: 0;
+    }
 
-  .pdf-framing-controls .cancel-btn:hover {
-    background: var(--secondary);
-    color: var(--text-primary);
-  }
+    .frame-dimensions {
+      font-weight: 500;
+      color: var(--text-primary);
+      font-family: monospace;
+    }
 
-  /* Disable pointer events on canvas while selecting */
-  .chart-container.selection-mode .canvas {
-    pointer-events: none;
-  }
+    .frame-orientation {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
 
-  .zoom-btn.active {
-    background: var(--primary);
-    color: white;
-  }
-</style>
+    .pdf-framing-controls {
+      display: flex;
+      gap: var(--spacing-2);
+    }
+
+    .export-btn {
+      background: var(--primary);
+      color: white;
+      padding: var(--spacing-3) var(--spacing-5);
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-sm);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex: 1;
+      white-space: nowrap;
+    }
+
+    .export-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .export-btn:not(:disabled):hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .pdf-framing-controls .cancel-btn {
+      background: transparent;
+      color: var(--text-secondary);
+      padding: var(--spacing-3) var(--spacing-5);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-sm);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex: 1;
+      white-space: nowrap;
+    }
+
+    .pdf-framing-controls .cancel-btn:hover {
+      background: var(--secondary);
+      color: var(--text-primary);
+    }
+
+    /* Disable pointer events on canvas while selecting */
+    .chart-container.selection-mode .canvas {
+      pointer-events: none;
+    }
+
+    .zoom-btn.active {
+      background: var(--primary);
+      color: white;
+    }
+  </style>
+{/if}
