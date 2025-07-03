@@ -4,6 +4,7 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  timestamp: Date;
 }
 
 export const chatHistory = writable<ChatMessage[]>([]);
@@ -33,12 +34,12 @@ export function setOrganization(orgId: string | null) {
 function appendMessage(role: "user" | "assistant", content: string) {
   chatHistory.update((h) => [
     ...h,
-    { id: crypto.randomUUID(), role, content },
+    { id: crypto.randomUUID(), role, content, timestamp: new Date() },
   ]);
 }
 
 /**
- * Send a message to the assistant.
+ * Send a message to the assistant with conversation context.
  *
  * Depending on the presence of an organization context (or an explicit `useAgent` flag),
  * the function automatically chooses between the `aiAgent` (tool-calling) endpoint and
@@ -65,10 +66,21 @@ export async function sendMessage(
   const useAgent =
     options.useAgent !== undefined ? options.useAgent : Boolean(resolvedOrgId);
 
+  // Get recent conversation history for context (last 10 messages)
+  const currentHistory = get(chatHistory);
+  const recentMessages = currentHistory.slice(-10);
+  const conversationContext = recentMessages
+    .map(msg => `${msg.role}: ${msg.content}`)
+    .join('\n');
+
   // Prepare fetch payload & URL
   const url = useAgent ? AI_AGENT_URL : AI_CHAT_URL;
   const payload: Record<string, any> = useAgent
-    ? { text, orgId: resolvedOrgId }
+    ? { 
+        text, 
+        orgId: resolvedOrgId,
+        conversationContext: conversationContext // Add conversation history
+      }
     : { message: text };
 
   // Update UI state
@@ -83,30 +95,31 @@ export async function sendMessage(
     });
 
     if (!response.ok) {
-      throw new Error(`AI request failed: ${response.status} ${response.statusText}`);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
     const data = await response.json();
+    const assistantText = data.message || data.reply || "(no response)";
 
-    // The two endpoints return slightly different shapes
-    const assistantText = data.message || data.reply || "(No response)";
-
-    // Persist assistant message in history
+    // Push the assistant response
     appendMessage("assistant", assistantText);
 
-    // Optional: update memory / context if backend sends it
-    if (data.memory?.currentEntity) {
-      currentEntity.set(data.memory.currentEntity);
+    // Handle memory updates if present
+    if (data.memory) {
+      if (data.memory.currentEntity !== undefined) {
+        currentEntity.set(data.memory.currentEntity);
+      }
     }
 
     return assistantText;
-  } catch (error: any) {
-    console.error("Chat error:", error);
-    chatError.set(error.message ?? "Unknown error");
-    appendMessage(
-      "assistant",
-      "Sorry, I ran into a problem. Please try again in a moment.",
-    );
+  } catch (error) {
+    console.error("sendMessage error:", error);
+
+    const errorText =
+      error instanceof Error ? error.message : "Unknown error occurred";
+    appendMessage("assistant", `Error: ${errorText}`);
+    chatError.set(errorText);
+
     throw error;
   } finally {
     isThinking.set(false);
@@ -114,19 +127,14 @@ export async function sendMessage(
 }
 
 /**
- * Shortcut for simple small-talk requests that should *never* call the tool-enabled agent.
- * Equivalent to `sendMessage(msg, { useAgent: false })`.
- *
- * @param message - The user's chat text.
- * @returns The assistant's reply text.
+ * Send a simple message using the basic chat endpoint (no agent).
  */
 export async function sendSimpleMessage(message: string) {
-  return await sendMessage(message, { useAgent: false });
+  return sendMessage(message, { useAgent: false });
 }
 
 /**
- * Hard-reset the chat UI state: clears history, errors, and loading flags.
- * Call this when leaving an org page or after a logout.
+ * Clear the chat history and reset error state.
  */
 export function clearChat() {
   chatHistory.set([]);
