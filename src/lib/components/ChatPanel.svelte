@@ -43,35 +43,37 @@
   function renderMarkdown(text) {
     if (!text) return "";
 
-    return (
-      text
-        // Bold text: **text** or __text__
-        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-        .replace(/__(.*?)__/g, "<strong>$1</strong>")
+    let result = text
+      // Bold text: **text** or __text__
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/__(.*?)__/g, "<strong>$1</strong>")
 
-        // Italic text: *text* or _text_
-        .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-        .replace(/_([^_]+)_/g, "<em>$1</em>")
+      // Italic text: *text* or _text_
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+      .replace(/_([^_]+)_/g, "<em>$1</em>")
 
-        // Code: `code`
-        .replace(/`(.*?)`/g, "<code>$1</code>")
+      // Code: `code`
+      .replace(/`(.*?)`/g, "<code>$1</code>")
 
-        // Headers: ### Text
-        .replace(/^### (.*$)/gm, "<h3>$1</h3>")
-        .replace(/^## (.*$)/gm, "<h2>$1</h2>")
-        .replace(/^# (.*$)/gm, "<h1>$1</h1>")
+      // Headers: ### Text
+      .replace(/^### (.*$)/gm, "<h3>$1</h3>")
+      .replace(/^## (.*$)/gm, "<h2>$1</h2>")
+      .replace(/^# (.*$)/gm, "<h1>$1</h1>")
 
-        // Lists: - item or * item
-        .replace(/^[\-\*] (.*$)/gm, "<li>$1</li>")
+      // Lists: - item or * item
+      .replace(/^[\-\*] (.*$)/gm, "<li>$1</li>");
 
-        // Wrap consecutive <li> elements in <ul>
-        .replace(/(<li>.*<\/li>)/gs, (match) => {
-          return "<ul>" + match + "</ul>";
-        })
+    // Process lists properly - wrap consecutive <li> elements in <ul> and remove extra line breaks
+    result = result.replace(/(<li>.*?<\/li>(\n|$))+/gs, (match) => {
+      // Remove line breaks between list items
+      const cleanedMatch = match.replace(/\n/g, "");
+      return "<ul>" + cleanedMatch + "</ul>";
+    });
 
-        // Line breaks
-        .replace(/\n/g, "<br>")
-    );
+    // Convert remaining line breaks to <br> (but not inside lists)
+    result = result.replace(/\n/g, "<br>");
+
+    return result;
   }
 
   // Auto-scroll to bottom when messages update
@@ -277,13 +279,15 @@
   }
 
   .msg :global(ul) {
-    margin: var(--spacing-2) 0;
+    margin: 4px 0;
     padding-left: var(--spacing-4);
+    line-height: 1.4;
   }
 
   .msg :global(li) {
-    margin: var(--spacing-1) 0;
+    margin: 2px 0;
     color: var(--text-primary);
+    line-height: 1.4;
   }
 
   .msg :global(br) {
