@@ -520,6 +520,17 @@ interface RemoveUserArgs {
   userId: string;
 }
 
+// Update User function
+interface UpdateUserArgs {
+  organizationId: string;
+  userId: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  managerId?: string | null;
+  startDate?: string | Date | null;
+}
+
 async function removeUser({
   organizationId,
   userId,
@@ -607,6 +618,58 @@ async function removeUser({
     console.error("Failed to remove member", error);
     throw new Error(`Failed to remove member: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+// Update User function
+async function updateUser({
+  organizationId,
+  userId,
+  name,
+  email,
+  role,
+  managerId,
+  startDate,
+}: UpdateUserArgs) {
+  const membersCol = db.collection(COLLECTIONS.MEMBERS);
+  
+  // First, verify the user exists and belongs to the organization
+  const memberRef = membersCol.doc(userId);
+  const memberDoc = await memberRef.get();
+  
+  if (!memberDoc.exists) {
+    throw new Error("User not found");
+  }
+  
+  const memberData = memberDoc.data();
+  if (memberData?.organizationId !== organizationId) {
+    throw new Error("User does not belong to the specified organization");
+  }
+  
+  // Prepare updates object
+  const updates: any = {
+    updatedAt: admin.firestore.Timestamp.now(),
+  };
+  
+  if (name !== undefined) updates.name = name.trim();
+  if (email !== undefined) updates.email = email.toLowerCase().trim();
+  if (role !== undefined) updates.role = role.trim();
+  if (managerId !== undefined) updates.managerId = managerId;
+  if (startDate !== undefined) updates.startDate = startDate ? new Date(startDate) : null;
+  
+  // Update the member
+  await memberRef.update(updates);
+  
+  return {
+    success: true,
+    updatedUser: {
+      id: userId,
+      name: updates.name || memberData.name,
+      email: updates.email || memberData.email,
+      role: updates.role || memberData.role,
+      managerId: updates.managerId !== undefined ? updates.managerId : memberData.managerId,
+    },
+    message: `Successfully updated user ${memberData.name}`,
+  };
 }
 
 // AI Chat Function
@@ -782,6 +845,26 @@ export const aiAgent = onRequest(
           required: ["organizationId", "userId"]
         }
       }
+    },
+    {
+      type: "function" as const,
+      function: {
+        name: "updateUser",
+        description: "Update an existing user's information in the organization. Use this to change a user's name, email, role, manager, or start date. IMPORTANT: Before using this function, you should ALWAYS first use getUserInformation to search for the user and get their exact ID to ensure you're updating the correct person.",
+        parameters: {
+          type: "object",
+          properties: {
+            organizationId: { type: "string" },
+            userId: { type: "string", description: "The exact ID of the user to update (obtained from getUserInformation search)" },
+            name: { type: "string", description: "New name for the user" },
+            email: { type: "string", description: "New email for the user" },
+            role: { type: "string", description: "New role for the user" },
+            managerId: { type: "string", nullable: true, description: "New manager ID for the user (null for top-level)" },
+            startDate: { type: "string", description: "New start date for the user (ISO string)" }
+          },
+          required: ["organizationId", "userId"]
+        }
+      }
     }
   ];
 
@@ -805,6 +888,10 @@ IMPORTANT WORKFLOW GUIDELINES:
 3. Only proceed with deletion if you have confirmed the user exists and obtained their exact ID
 4. When adding users between others, search for both the manager and subordinate first
 5. Use proper job roles (Developer, Manager, etc.) - never use generic terms like "Subordinate"
+6. When updating users, ALWAYS search for them first using getUserInformation to:
+   - Verify they exist
+   - Get their exact user ID
+   - Handle name variations/misspellings
 
 ${conversationContext ? `\nRecent conversation:\n${conversationContext}` : ''}` 
       },
@@ -859,6 +946,9 @@ ${conversationContext ? `\nRecent conversation:\n${conversationContext}` : ''}`
               break;
             case "removeUser":
               result = await removeUser(args);
+              break;
+            case "updateUser":
+              result = await updateUser(args);
               break;
             default:
               throw new Error(`Unknown function: ${call.function.name}`);
