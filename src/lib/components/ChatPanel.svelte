@@ -2,9 +2,10 @@
   import {
     chatHistory,
     isThinking,
-    sendMessage,
+    sendStreamingMessage,
     setOrganization,
   } from "$lib/stores/chat";
+  import ToolCallDisplay from './chat/ToolCallDisplay.svelte';
   import { afterUpdate } from "svelte";
 
   let collapsed = true;
@@ -24,7 +25,7 @@
   async function handleSend(event) {
     event?.preventDefault();
     const text = input.trim();
-    if (!text) return;
+    if (!text || $isThinking) return;
 
     // Clear input immediately when send button is clicked
     input = "";
@@ -35,8 +36,8 @@
       textarea.style.height = "auto";
     }
 
-    // Send the message
-    await sendMessage(text);
+    // Send the streaming message
+    await sendStreamingMessage(text);
   }
 
   // Simple markdown renderer for basic formatting
@@ -97,12 +98,31 @@
     <div class="messages" bind:this={messagesEl}>
       {#each $chatHistory as m (m.id)}
         <div class="msg {m.role}">
-          {@html renderMarkdown(m.content)}
+          {#if m.role === 'assistant'}
+            <!-- Render markdown content -->
+            <div class="message-content">
+              {@html renderMarkdown(m.content)}
+              {#if m.isStreaming}
+                <span class="cursor-blink">▊</span>
+              {/if}
+            </div>
+
+            <!-- Render tool calls -->
+            {#if m.toolCalls && m.toolCalls.length > 0}
+              <div class="tool-calls">
+                {#each m.toolCalls as toolCall}
+                  <ToolCallDisplay {toolCall} />
+                {/each}
+              </div>
+            {/if}
+          {:else}
+            <div class="message-content">{m.content}</div>
+          {/if}
         </div>
       {/each}
 
       <!-- {#if $isThinking} -->
-      {#if $isThinking}
+      {#if $isThinking && $chatHistory[$chatHistory.length - 1]?.role !== 'assistant'}
         <div class="msg assistant thinking">
           <div class="typing-indicator">
             <span class="dot"></span>
@@ -119,6 +139,7 @@
         placeholder="Ask me anything…"
         autocomplete="off"
         rows="1"
+        disabled={$isThinking}
         on:keydown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -131,7 +152,7 @@
           e.target.style.height = e.target.scrollHeight + "px";
         }}
       ></textarea>
-      <button type="submit" title="Send">
+      <button type="submit" title="Send" disabled={$isThinking || !input.trim()}>
         <svg
           fill="none"
           stroke="currentColor"
@@ -210,19 +231,22 @@
     line-height: 1.5;
     word-break: break-word;
     max-width: 85%;
-    padding: var(--spacing-3) var(--spacing-4);
-    border-radius: var(--radius-lg);
     position: relative;
   }
 
-  .msg.user {
+  .message-content {
+    padding: var(--spacing-3) var(--spacing-4);
+    border-radius: var(--radius-lg);
+  }
+
+  .msg.user .message-content {
     align-self: flex-end;
     background: var(--primary);
     color: white;
     border-bottom-right-radius: var(--radius-sm);
   }
 
-  .msg.assistant {
+  .msg.assistant .message-content {
     align-self: flex-start;
     background: var(
       --surface-secondary,
@@ -231,6 +255,15 @@
     color: var(--text-primary);
     border: 1px solid var(--border);
     border-bottom-left-radius: var(--radius-sm);
+  }
+
+  .msg.user {
+    align-self: flex-end;
+  }
+
+  .msg.assistant {
+    align-self: flex-start;
+    max-width: 100%;
   }
 
   /* Markdown formatting styles */
@@ -294,6 +327,26 @@
     line-height: 1.5;
   }
 
+  /* Streaming cursor */
+  .cursor-blink {
+    animation: blink 1s infinite;
+    color: var(--primary);
+    font-weight: bold;
+  }
+
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+
+  /* Tool calls */
+  .tool-calls {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
   .msg.thinking {
     background: var(
       --surface-secondary,
@@ -305,6 +358,8 @@
     min-height: 48px;
     display: flex;
     align-items: center;
+    border-radius: var(--radius-lg);
+    border-bottom-left-radius: var(--radius-sm);
   }
 
   .typing-indicator {
@@ -371,6 +426,11 @@
     overflow-y: auto;
   }
 
+  .input-area textarea:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   .input-area button {
     background: linear-gradient(135deg, var(--primary), #8b5cf6);
     color: #ffffff;
@@ -388,7 +448,13 @@
     flex-shrink: 0;
   }
 
-  .input-area button::before {
+  .input-area button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+
+  .input-area button:not(:disabled)::before {
     content: "";
     position: absolute;
     top: 0;
@@ -404,17 +470,17 @@
     transition: left 0.6s ease;
   }
 
-  .input-area button:hover {
+  .input-area button:not(:disabled):hover {
     background: linear-gradient(135deg, #6366f1, #a855f7);
     transform: translateY(-2px) scale(1.05);
     box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
   }
 
-  .input-area button:hover::before {
+  .input-area button:not(:disabled):hover::before {
     left: 100%;
   }
 
-  .input-area button:active {
+  .input-area button:not(:disabled):active {
     transform: translateY(0) scale(0.98);
     transition: all 0.1s ease;
   }

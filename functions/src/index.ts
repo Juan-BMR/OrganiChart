@@ -900,3 +900,340 @@ ${conversationContext ? `\nRecent conversation:\n${conversationContext}` : ''}`
   }
   }
 );
+
+// AI Agent Streaming Function (with real-time SSE)
+export const aiAgentStream = onRequest(
+  {
+    secrets: [openaiApiKey],
+    // Important: Set timeout for streaming
+    timeoutSeconds: 540, // 9 minutes
+    cors: true,
+  },
+  async (req, res) => {
+    const openai = new OpenAI({
+      apiKey: openaiApiKey.value(),
+    });
+
+    // Set headers for Server-Sent Events
+    res.set({
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+    });
+
+    if (req.method === "OPTIONS") {
+      res.status(200).send();
+      return;
+    }
+
+    if (req.method !== "POST") {
+      res.status(405).send(`data: ${JSON.stringify({ type: "error", error: "Method not allowed" })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const { text, orgId, conversationContext } = req.body;
+
+    if (!text || typeof text !== "string") {
+      res.write(`data: ${JSON.stringify({ type: "error", error: "`text` (string) is required" })}\n\n`);
+      res.end();
+      return;
+    }
+
+    if (!orgId || typeof orgId !== "string") {
+      res.write(`data: ${JSON.stringify({ type: "error", error: "`orgId` (string) is required" })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const functionDefs = [
+      {
+        type: "function" as const,
+        function: {
+          name: "getUserInformation",
+          description: "Advanced search for existing members in the organization by name using fuzzy matching. Returns exact matches and suggestions with confidence scores. Use this when you need to find a user but the name might be misspelled, incomplete, or when you want to verify if someone exists before performing operations.",
+          parameters: {
+            type: "object",
+            properties: {
+              organizationId: { type: "string" },
+              userName: { type: "string", description: "Name or partial name to search for. Supports fuzzy matching for misspellings and variations." }
+            },
+            required: ["organizationId", "userName"]
+          }
+        }
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "addUser",
+          description: "Add a new member to the org chart with an optional manager and subordinates",
+          parameters: {
+            type: "object",
+            properties: {
+              organizationId: { type: "string" },
+              name: { type: "string" },
+              email: { type: "string" },
+              role: { type: "string" },
+              managerId: { type: "string", nullable: true },
+              subordinateIds: { type: "array", items: { type: "string" } }
+            },
+            required: ["organizationId", "name", "role"]
+          }
+        }
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "addUserBetween",
+          description: "Add a new member between two existing members in the hierarchy. The new member will report to the manager and the subordinate will report to the new member. Use this when user says 'add X between Y and Z' or 'insert X between Y and Z'.",
+          parameters: {
+            type: "object",
+            properties: {
+              organizationId: { type: "string" },
+              name: { type: "string" },
+              email: { type: "string" },
+              role: { type: "string" },
+              managerUserId: { type: "string", description: "ID of the user who will be the manager of the new member" },
+              subordinateUserId: { type: "string", description: "ID of the user who will become subordinate to the new member" }
+            },
+            required: ["organizationId", "name", "role", "managerUserId", "subordinateUserId"]
+          }
+        }
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "getOrganizationInformation",
+          description: "Get comprehensive information about the organization including member lists, statistics, and filtered results. Use this to answer questions like 'list all junior members', 'show me all managers', 'who works here', etc.",
+          parameters: {
+            type: "object",
+            properties: {
+              organizationId: { type: "string" },
+              query: { type: "string", description: "Search term to filter members (e.g., 'junior', 'manager', 'developer')" },
+              filterBy: { type: "string", enum: ["role", "level", "manager", "all"], description: "How to filter the results" },
+              sortBy: { type: "string", enum: ["name", "role", "level", "joinDate"], description: "How to sort the results" }
+            },
+            required: ["organizationId"]
+          }
+        }
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "removeUser",
+          description: "Remove a user from the organization. This will delete the member and automatically reassign their subordinates to their manager (or make them top-level if the removed member had no manager). IMPORTANT: Before using this function, you should ALWAYS first use getUserInformation to search for the user and get their exact ID. If the search doesn't find the user, use the intelligent fuzzy search to double-check they don't exist under a similar name. Only proceed with deletion if you have confirmed the user exists and obtained their exact user ID.",
+          parameters: {
+            type: "object",
+            properties: {
+              organizationId: { type: "string" },
+              userId: { type: "string", description: "The exact ID of the user to remove from the organization (obtained from getUserInformation search)" }
+            },
+            required: ["organizationId", "userId"]
+          }
+        }
+      }
+    ];
+
+    try {
+      // Build messages array with conversation context
+      const messages = [
+        { 
+          role: "system" as const, 
+          content: `You are OrganiChart Assistant. Help users manage their organization charts by calling the appropriate tools when needed. 
+
+Current organization ID: ${orgId}
+
+When calling functions that require an organizationId, always use: ${orgId}
+
+IMPORTANT WORKFLOW GUIDELINES:
+1. BEFORE deleting any user, ALWAYS search for them first using getUserInformation to:
+   - Verify they exist
+   - Get their exact user ID
+   - Handle name variations/misspellings
+2. If a user is not found, use fuzzy search to check for similar names
+3. Only proceed with deletion if you have confirmed the user exists and obtained their exact ID
+4. When adding users between others, search for both the manager and subordinate first
+5. Use proper job roles (Developer, Manager, etc.) - never use generic terms like "Subordinate"
+
+${conversationContext ? `\nRecent conversation:\n${conversationContext}` : ''}` 
+        },
+        { role: "user" as const, content: text },
+      ];
+
+      // Create streaming completion
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages,
+        tools: functionDefs,
+        stream: true, // Enable streaming
+      });
+
+      let fullContent = "";
+      let toolCallsInProgress: any[] = [];
+
+      // Process stream
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta;
+
+        if (delta) {
+          // Handle content
+          if (delta.content) {
+            fullContent += delta.content;
+            res.write(
+              `data: ${JSON.stringify({
+                type: "delta",
+                content: { content: delta.content },
+              })}\n\n`
+            );
+          }
+
+          // Handle tool calls
+          if (delta.tool_calls) {
+            for (const toolCallDelta of delta.tool_calls) {
+              const index = toolCallDelta.index;
+              
+              // Initialize tool call if needed
+              if (!toolCallsInProgress[index]) {
+                toolCallsInProgress[index] = {
+                  id: toolCallDelta.id,
+                  function: {
+                    name: toolCallDelta.function?.name || "",
+                    arguments: "",
+                  },
+                };
+              }
+
+              // Accumulate function arguments
+              if (toolCallDelta.function?.arguments) {
+                toolCallsInProgress[index].function.arguments += toolCallDelta.function.arguments;
+              }
+
+              // When we have the complete tool call info, send it
+              if (toolCallDelta.function?.name) {
+                res.write(
+                  `data: ${JSON.stringify({
+                    type: "tool_call",
+                    toolCall: {
+                      id: toolCallsInProgress[index].id,
+                      function: {
+                        name: toolCallDelta.function.name,
+                        arguments: toolCallsInProgress[index].function.arguments,
+                      },
+                    },
+                  })}\n\n`
+                );
+              }
+            }
+          }
+        }
+      }
+
+      // Execute any tool calls
+      if (toolCallsInProgress.length > 0) {
+        for (const toolCall of toolCallsInProgress) {
+          if (!toolCall || !toolCall.function.name) continue;
+
+          await executeToolAndStream(toolCall, res, orgId);
+        }
+
+        // Get final response after tool execution
+        const toolResults = toolCallsInProgress.map((tc) => ({
+          role: "tool" as const,
+          tool_call_id: tc.id,
+          content: "Tool executed successfully",
+        }));
+
+        const followUpMessages = [
+          ...messages,
+          { role: "assistant" as const, content: fullContent, tool_calls: toolCallsInProgress },
+          ...toolResults,
+        ];
+
+        const followUpStream = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: followUpMessages,
+          stream: true,
+        });
+
+        for await (const chunk of followUpStream) {
+          const delta = chunk.choices[0]?.delta;
+          if (delta?.content) {
+            res.write(
+              `data: ${JSON.stringify({
+                type: "delta",
+                content: { content: delta.content },
+              })}\n\n`
+            );
+          }
+        }
+      }
+
+      // Send completion event
+      res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+      res.end();
+    } catch (error: any) {
+      console.error("Streaming error:", error);
+      res.write(
+        `data: ${JSON.stringify({
+          type: "error",
+          error: error?.message || "Unknown streaming error",
+        })}\n\n`
+      );
+      res.end();
+    }
+  }
+);
+
+// Helper function to execute tools and stream results
+async function executeToolAndStream(toolCall: any, res: any, orgId: string) {
+  res.write(
+    `data: ${JSON.stringify({
+      type: "tool_execution_start",
+      toolId: toolCall.id,
+      toolName: toolCall.function.name,
+    })}\n\n`
+  );
+
+  try {
+    const args = JSON.parse(toolCall.function.arguments);
+    let result;
+
+    switch (toolCall.function.name) {
+      case "getUserInformation":
+        result = await getUserInformation(args);
+        break;
+      case "addUser":
+        result = await addUser(args);
+        break;
+      case "addUserBetween":
+        result = await addUserBetween(args);
+        break;
+      case "getOrganizationInformation":
+        result = await getOrganizationInformation(args);
+        break;
+      case "removeUser":
+        result = await removeUser(args);
+        break;
+      default:
+        throw new Error(`Unknown function: ${toolCall.function.name}`);
+    }
+
+    res.write(
+      `data: ${JSON.stringify({
+        type: "tool_execution_complete",
+        toolId: toolCall.id,
+        result: result,
+      })}\n\n`
+    );
+  } catch (error: any) {
+    console.error(`Tool execution error:`, error);
+    res.write(
+      `data: ${JSON.stringify({
+        type: "tool_execution_error",
+        toolId: toolCall.id,
+        error: error?.message || "Tool execution failed",
+      })}\n\n`
+    );
+  }
+}

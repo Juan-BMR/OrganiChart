@@ -137,3 +137,57 @@ a {
   white-space: nowrap;
   border: 0;
 }
+
+/* Svelte syntax */
+.svelte {
+  background: rgba(255, 69, 0, 0.1);
+  color: #ff4500;
+  border: 1px solid rgba(255, 69, 0, 0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.875em;
+}
+
+/* Tool Call Variables */
+:root {
+  --tool-pending-color: #9ca3af;
+  --tool-executing-color: #3b82f6;
+  --tool-success-color: #10b981;
+  --tool-error-color: #ef4444;
+
+  --tool-card-radius: 8px;
+  --tool-card-padding: 16px;
+  --tool-card-gap: 12px;
+}
+
+/* Tool Call Animations */
+@keyframes toolSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toolPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Tool Card Base Styles */
+.tool-card {
+  animation: toolSlideIn 0.3s ease-out;
+}
+
+.tool-card.executing {
+  animation: toolPulse 2s ease-in-out infinite;
+}
