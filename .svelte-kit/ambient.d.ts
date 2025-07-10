@@ -26,6 +26,7 @@
  * ```
  */
 declare module '$env/static/private' {
+	export const USER: string;
 	export const npm_config_user_agent: string;
 	export const HOSTNAME: string;
 	export const npm_node_execpath: string;
@@ -51,6 +52,8 @@ declare module '$env/static/private' {
 	export const npm_package_name: string;
 	export const LANG: string;
 	export const npm_lifecycle_script: string;
+	export const TEST_TEAM: string;
+	export const SHELL: string;
 	export const npm_package_version: string;
 	export const npm_lifecycle_event: string;
 	export const GIT_DISCOVERY_ACROSS_FILESYSTEM: string;
@@ -98,6 +101,7 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
+		USER: string;
 		npm_config_user_agent: string;
 		HOSTNAME: string;
 		npm_node_execpath: string;
@@ -123,6 +127,8 @@ declare module '$env/dynamic/private' {
 		npm_package_name: string;
 		LANG: string;
 		npm_lifecycle_script: string;
+		TEST_TEAM: string;
+		SHELL: string;
 		npm_package_version: string;
 		npm_lifecycle_event: string;
 		GIT_DISCOVERY_ACROSS_FILESYSTEM: string;
