@@ -49,6 +49,95 @@ const COLLECTIONS = {
   RULES: "rules",
 };
 
+// Function definitions for AI tools
+const functionDefs = [
+  {
+    type: "function" as const,
+    function: {
+      name: "getUserInformation",
+      description: "Advanced search for existing members in the organization by name using fuzzy matching. Returns exact matches and suggestions with confidence scores. Use this when you need to find a user but the name might be misspelled, incomplete, or when you want to verify if someone exists before performing operations.",
+      parameters: {
+        type: "object",
+        properties: {
+          organizationId: { type: "string" },
+          userName: { type: "string", description: "Name or partial name to search for. Supports fuzzy matching for misspellings and variations." }
+        },
+        required: ["organizationId", "userName"]
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "addUser",
+      description: "Add a new member to the org chart with an optional manager and subordinates",
+      parameters: {
+        type: "object",
+        properties: {
+          organizationId: { type: "string" },
+          name: { type: "string" },
+          email: { type: "string" },
+          role: { type: "string" },
+          managerId: { type: "string", nullable: true },
+          subordinateIds: { type: "array", items: { type: "string" } }
+        },
+        required: ["organizationId", "name", "role"]
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "addUserBetween",
+      description: "Add a new member between two existing members in the hierarchy. The new member will report to the manager and the subordinate will report to the new member. Use this when user says 'add X between Y and Z' or 'insert X between Y and Z'.",
+      parameters: {
+        type: "object",
+        properties: {
+          organizationId: { type: "string" },
+          name: { type: "string" },
+          email: { type: "string" },
+          role: { type: "string" },
+          managerUserId: { type: "string", description: "ID of the user who will be the manager of the new member" },
+          subordinateUserId: { type: "string", description: "ID of the user who will become subordinate to the new member" }
+        },
+        required: ["organizationId", "name", "role", "managerUserId", "subordinateUserId"]
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "getOrganizationInformation",
+      description: "Get comprehensive information about the organization including member lists, statistics, and filtered results. Use this to answer questions like 'list all junior members', 'show me all managers', 'who works here', etc.",
+      parameters: {
+        type: "object",
+        properties: {
+          organizationId: { type: "string" },
+          query: { type: "string", description: "Search term to filter members (e.g., 'junior', 'manager', 'developer')" },
+          filterBy: { type: "string", enum: ["role", "level", "manager", "all"], description: "How to filter the results" },
+          sortBy: { type: "string", enum: ["name", "role", "level", "joinDate"], description: "How to sort the results" }
+        },
+        required: ["organizationId"]
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "removeUser",
+      description: "Remove a user from the organization. This will delete the member and automatically reassign their subordinates to their manager (or make them top-level if the removed member had no manager). IMPORTANT: Before using this function, you should ALWAYS first use getUserInformation to search for the user and get their exact ID. If the search doesn't find the user, use the intelligent fuzzy search to double-check they don't exist under a similar name. Only proceed with deletion if you have confirmed the user exists and obtained their exact user ID.",
+      parameters: {
+        type: "object",
+        properties: {
+          organizationId: { type: "string" },
+          userId: { type: "string", description: "The exact ID of the user to remove from the organization (obtained from getUserInformation search)" }
+        },
+        required: ["organizationId", "userId"]
+      }
+    }
+  }
+];
+
 // Helper function to create member data
 const createMemberData = (
   organizationId: string,
@@ -697,93 +786,7 @@ export const aiAgent = onRequest(
       return;
     }
 
-  const functionDefs = [
-    {
-      type: "function" as const,
-      function: {
-        name: "getUserInformation",
-        description: "Advanced search for existing members in the organization by name using fuzzy matching. Returns exact matches and suggestions with confidence scores. Use this when you need to find a user but the name might be misspelled, incomplete, or when you want to verify if someone exists before performing operations.",
-        parameters: {
-          type: "object",
-          properties: {
-            organizationId: { type: "string" },
-            userName: { type: "string", description: "Name or partial name to search for. Supports fuzzy matching for misspellings and variations." }
-          },
-          required: ["organizationId", "userName"]
-        }
-      }
-    },
-    {
-      type: "function" as const,
-      function: {
-        name: "addUser",
-        description: "Add a new member to the org chart with an optional manager and subordinates",
-        parameters: {
-          type: "object",
-          properties: {
-            organizationId: { type: "string" },
-            name: { type: "string" },
-            email: { type: "string" },
-            role: { type: "string" },
-            managerId: { type: "string", nullable: true },
-            subordinateIds: { type: "array", items: { type: "string" } }
-          },
-          required: ["organizationId", "name", "role"]
-        }
-      }
-    },
-    {
-      type: "function" as const,
-      function: {
-        name: "addUserBetween",
-        description: "Add a new member between two existing members in the hierarchy. The new member will report to the manager and the subordinate will report to the new member. Use this when user says 'add X between Y and Z' or 'insert X between Y and Z'.",
-        parameters: {
-          type: "object",
-          properties: {
-            organizationId: { type: "string" },
-            name: { type: "string" },
-            email: { type: "string" },
-            role: { type: "string" },
-            managerUserId: { type: "string", description: "ID of the user who will be the manager of the new member" },
-            subordinateUserId: { type: "string", description: "ID of the user who will become subordinate to the new member" }
-          },
-          required: ["organizationId", "name", "role", "managerUserId", "subordinateUserId"]
-        }
-      }
-    },
-    {
-      type: "function" as const,
-      function: {
-        name: "getOrganizationInformation",
-        description: "Get comprehensive information about the organization including member lists, statistics, and filtered results. Use this to answer questions like 'list all junior members', 'show me all managers', 'who works here', etc.",
-        parameters: {
-          type: "object",
-          properties: {
-            organizationId: { type: "string" },
-            query: { type: "string", description: "Search term to filter members (e.g., 'junior', 'manager', 'developer')" },
-            filterBy: { type: "string", enum: ["role", "level", "manager", "all"], description: "How to filter the results" },
-            sortBy: { type: "string", enum: ["name", "role", "level", "joinDate"], description: "How to sort the results" }
-          },
-          required: ["organizationId"]
-        }
-      }
-    },
-    {
-      type: "function" as const,
-      function: {
-        name: "removeUser",
-        description: "Remove a user from the organization. This will delete the member and automatically reassign their subordinates to their manager (or make them top-level if the removed member had no manager). IMPORTANT: Before using this function, you should ALWAYS first use getUserInformation to search for the user and get their exact ID. If the search doesn't find the user, use the intelligent fuzzy search to double-check they don't exist under a similar name. Only proceed with deletion if you have confirmed the user exists and obtained their exact user ID.",
-        parameters: {
-          type: "object",
-          properties: {
-            organizationId: { type: "string" },
-            userId: { type: "string", description: "The exact ID of the user to remove from the organization (obtained from getUserInformation search)" }
-          },
-          required: ["organizationId", "userId"]
-        }
-      }
-    }
-  ];
+
 
   try {
     // Build messages array with conversation context
@@ -898,5 +901,277 @@ ${conversationContext ? `\nRecent conversation:\n${conversationContext}` : ''}`
     console.error("AI agent failed", err);
     res.status(500).json({ error: "AI agent failed" });
   }
+  }
+);
+
+// Streaming event types
+type StreamEvent =
+  | { type: "message_start" }
+  | { type: "content_delta"; content: string }
+  | { type: "tool_call_start"; toolName: string; toolId: string }
+  | { type: "tool_execution"; toolId: string; result: any }
+  | { type: "tool_error"; toolId: string; error: string }
+  | { type: "message_boundary" }
+  | { type: "conversation_complete" }
+  | { type: "error"; error: string };
+
+// Helper function to send streaming events
+function sendStreamEvent(response: any, event: StreamEvent) {
+  response.write(`data: ${JSON.stringify(event)}\n\n`);
+}
+
+// Helper function to stream content incrementally
+async function streamContent(response: any, content: string) {
+  const chunks = content.split(' ');
+  for (const chunk of chunks) {
+    sendStreamEvent(response, { type: "content_delta", content: chunk + ' ' });
+    await new Promise(resolve => setTimeout(resolve, 50)); // Small delay for natural streaming
+  }
+}
+
+// Execute tool with streaming feedback
+async function executeToolWithStreaming(toolCall: any, response: any) {
+  // 1. Announce tool execution
+  sendStreamEvent(response, {
+    type: "tool_call_start",
+    toolName: toolCall.function.name,
+    toolId: toolCall.id,
+  });
+
+  // 2. Execute tool
+  try {
+    const args = JSON.parse(toolCall.function.arguments);
+    let result;
+
+    switch (toolCall.function.name) {
+      case "getUserInformation":
+        result = await getUserInformation(args);
+        break;
+      case "addUser":
+        result = await addUser(args);
+        break;
+      case "addUserBetween":
+        result = await addUserBetween(args);
+        break;
+      case "getOrganizationInformation":
+        result = await getOrganizationInformation(args);
+        break;
+      case "removeUser":
+        result = await removeUser(args);
+        break;
+      default:
+        throw new Error(`Unknown function: ${toolCall.function.name}`);
+    }
+
+    // 3. Stream result
+    sendStreamEvent(response, {
+      type: "tool_execution",
+      toolId: toolCall.id,
+      result: result,
+    });
+
+    return result;
+  } catch (error: any) {
+    // 4. Handle errors gracefully
+    sendStreamEvent(response, {
+      type: "tool_error",
+      toolId: toolCall.id,
+      error: error.message,
+    });
+
+    return { error: error.message };
+  }
+}
+
+// Evaluate if conversation should continue
+function shouldContinueConversation(lastMessage: any, toolResults: any[]): boolean {
+  // Continue if:
+  // 1. Tool execution revealed new information requiring action
+  // 2. User request has multiple parts not yet completed
+  // 3. Error occurred that can be recovered from
+  // 4. Clarification or follow-up is needed
+  
+  // Check if any tool results indicate more work is needed
+  const hasErrors = toolResults.some(result => result.error);
+  const hasIncompleteData = toolResults.some(result => 
+    result && typeof result === 'object' && 
+    (result.length === 0 || result.message === 'not found')
+  );
+  
+  // Check if the last message suggests continuation
+  const content = lastMessage?.content || '';
+  const suggestsContinuation = content.includes('now I will') || 
+                              content.includes('next') ||
+                              content.includes('let me') ||
+                              content.includes('proceeding');
+  
+  return hasErrors || hasIncompleteData || suggestsContinuation;
+}
+
+// Multi-message streaming agent implementation
+export const aiAgentStreamMulti = onRequest(
+  { secrets: [openaiApiKey] },
+  async (req, res) => {
+    // Set up SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control',
+    });
+
+    try {
+      const { text, orgId, conversationContext } = req.body;
+
+      if (!text || !orgId) {
+        sendStreamEvent(res, { type: "error", error: "Missing required parameters" });
+        res.end();
+        return;
+      }
+
+      // Initialize OpenAI client
+      const openai = new OpenAI({
+        apiKey: openaiApiKey.value(),
+      });
+
+      // Enhanced system prompt for streaming communication
+      const systemPrompt = {
+        role: "system" as const,
+        content: `You are OrganiChart Assistant, a knowledgeable colleague helping manage organization charts. 
+
+COMMUNICATION STYLE:
+- Act as a helpful colleague working through tasks step-by-step
+- Break complex tasks into logical steps with progress updates
+- Explain your reasoning and actions naturally
+- Use conversational language and provide status updates
+- Communicate what you're doing before doing it
+
+WORKFLOW PATTERN:
+1. Acknowledge the user's request and explain your approach
+2. If you need information, search for it and report findings
+3. Take actions step by step, explaining each one
+4. Provide status updates between major steps
+5. Confirm completion with summary of what was accomplished
+
+MULTI-MESSAGE GUIDELINES:
+- Send separate messages for different logical steps
+- Use message boundaries to separate distinct phases
+- Don't try to complete everything in one response
+- Communicate what you're doing before doing it
+- Report results and plan next steps
+
+TOOL USAGE GUIDELINES:
+- ALWAYS search before removing users to get exact IDs
+- Explain what you're doing when using tools
+- If a tool gives unexpected results, adapt your approach
+- Use proper role names (Manager, Developer) not generic terms
+- Handle fuzzy search results intelligently
+
+Current organization ID: ${orgId}
+
+When calling functions that require an organizationId, always use: ${orgId}
+
+${conversationContext ? `\nRecent conversation:\n${conversationContext}` : ''}`
+      };
+
+      let conversationMessages: any[] = [systemPrompt, { role: "user" as const, content: text }];
+      let iterationCount = 0;
+      const maxIterations = 10;
+
+      while (iterationCount < maxIterations) {
+        // Send message start event
+        sendStreamEvent(res, { type: "message_start" });
+
+        // Get AI response with streaming
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          tools: functionDefs,
+          tool_choice: "auto",
+          messages: conversationMessages,
+          stream: true,
+        });
+
+        let currentContent = "";
+        let hasToolCalls = false;
+
+        // Stream the AI response
+        for await (const chunk of response) {
+          const choice = chunk.choices[0];
+          if (choice?.delta?.content) {
+            currentContent += choice.delta.content;
+            sendStreamEvent(res, { 
+              type: "content_delta", 
+              content: choice.delta.content 
+            });
+          }
+          
+          // Check for tool calls
+          if (choice?.delta?.tool_calls) {
+            hasToolCalls = true;
+          }
+        }
+
+        // Add the assistant message to conversation
+        const assistantMessage: any = {
+          role: "assistant" as const,
+          content: currentContent,
+          tool_calls: hasToolCalls ? [] : undefined, // Will be populated if needed
+        };
+        conversationMessages.push(assistantMessage);
+
+        // If no tool calls, check if we should continue
+        if (!hasToolCalls) {
+          const shouldContinue = shouldContinueConversation(assistantMessage, []);
+          if (!shouldContinue) {
+            sendStreamEvent(res, { type: "conversation_complete" });
+            break;
+          }
+        }
+
+        // Handle tool calls if present
+        if (hasToolCalls) {
+          // Get the full response to access tool calls
+          const fullResponse = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            tools: functionDefs,
+            tool_choice: "auto",
+            messages: conversationMessages.slice(0, -1), // Remove the assistant message we just added
+          });
+
+          const choice = fullResponse.choices[0];
+          if (choice.message.tool_calls) {
+            // Update the assistant message with tool calls
+            assistantMessage.tool_calls = choice.message.tool_calls;
+            
+            const toolResults = [];
+            
+            // Execute all tool calls with streaming
+            for (const toolCall of choice.message.tool_calls) {
+              const result = await executeToolWithStreaming(toolCall, res);
+              toolResults.push(result);
+              
+              // Add tool result to conversation
+              conversationMessages.push({
+                role: "tool" as const,
+                tool_call_id: toolCall.id,
+                content: JSON.stringify(result),
+              } as any);
+            }
+
+            // Send message boundary for next iteration
+            sendStreamEvent(res, { type: "message_boundary" });
+          }
+        }
+
+        iterationCount++;
+      }
+
+      res.end();
+    } catch (error: any) {
+      console.error("Streaming AI agent failed", error);
+      sendStreamEvent(res, { type: "error", error: error.message });
+      res.end();
+    }
   }
 );
