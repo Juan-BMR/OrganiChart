@@ -4,6 +4,7 @@
     isThinking,
     sendMessage,
     setOrganization,
+    toggleToolMessage,
   } from "$lib/stores/chat";
   import { afterUpdate } from "svelte";
 
@@ -76,6 +77,11 @@
     return result;
   }
 
+  // Enhanced render function to handle tool calls
+  function renderMessage(content) {
+    return renderMarkdown(content);
+  }
+
   // Auto-scroll to bottom when messages update
   afterUpdate(() => {
     if (messagesEl) {
@@ -97,7 +103,77 @@
     <div class="messages" bind:this={messagesEl}>
       {#each $chatHistory as m (m.id)}
         <div class="msg {m.role}">
-          {@html renderMarkdown(m.content)}
+          {#if m.toolState}
+            <div
+              class="tool-call {m.toolState.status === 'loading'
+                ? 'tool-loading'
+                : m.toolState.status === 'success'
+                  ? 'tool-success'
+                  : 'tool-error'}"
+              on:click={() => toggleToolMessage(m.id)}
+              role="button"
+              tabindex="0"
+            >
+              <div class="tool-header">
+                <span class="tool-name">{m.toolState.name}</span>
+                {#if m.toolState.status === "loading"}
+                  <span class="tool-status">
+                    <svg
+                      class="spinner"
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                    >
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                        fill="none"
+                      />
+                    </svg>
+                  </span>
+                {:else if m.toolState.status === "success"}
+                  <span class="tool-status">
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M5 12l5 5L20 7" />
+                    </svg>
+                  </span>
+                {:else}
+                  <span class="tool-status">
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 8v4m0 4h.01" />
+                    </svg>
+                  </span>
+                {/if}
+              </div>
+              {#if m.toolState.expanded && (m.toolState.status === "success" || m.toolState.status === "error")}
+                <pre class="tool-result">{JSON.stringify(
+                    m.toolState.result || m.toolState.error,
+                    null,
+                    2
+                  )}</pre>
+              {/if}
+            </div>
+          {:else}
+            {@html renderMessage(m.content)}
+          {/if}
         </div>
       {/each}
 
@@ -417,5 +493,68 @@
   .input-area button:active {
     transform: translateY(0) scale(0.98);
     transition: all 0.1s ease;
+  }
+
+  .tool-call {
+    cursor: pointer;
+    padding: var(--spacing-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    margin: var(--spacing-2) 0;
+  }
+
+  .tool-header {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-2);
+    align-items: center;
+    margin-bottom: var(--spacing-2);
+  }
+
+  .tool-name {
+    font-weight: 600;
+  }
+
+  .tool-status {
+    font-size: var(--font-size-xs);
+  }
+
+  .tool-status svg {
+    vertical-align: middle;
+  }
+
+  .spinner {
+    animation: rotate 1s linear infinite;
+  }
+
+  @keyframes rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .tool-loading .tool-status svg {
+    color: var(--primary);
+  }
+
+  .tool-success .tool-status svg {
+    color: var(--success);
+  }
+
+  .tool-error .tool-status svg {
+    color: var(--danger);
+  }
+
+  .tool-result {
+    background: var(--background);
+    padding: var(--spacing-2);
+    border-radius: var(--radius-sm);
+    overflow-x: auto;
+    font-size: var(--font-size-xs);
+    white-space: pre-wrap;
   }
 </style>
