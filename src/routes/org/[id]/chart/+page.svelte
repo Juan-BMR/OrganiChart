@@ -1788,9 +1788,8 @@
               Get started by adding your first team member to the organization
               chart.
             </p>
-            <button class="empty-action-btn" on:click={openAddMember}>
+            <button class="empty-action-btn" on:click={openAddMember} aria-label="Add first member">
               <svg
-                class="button-icon"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -1802,8 +1801,8 @@
                   d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                 />
               </svg>
-              Add first member
             </button>
+            <span class="empty-button-text">Add first member</span>
           </div>
         </div>
       {/if}
@@ -1876,7 +1875,7 @@
 
         <!-- Action buttons -->
         <div class="action-controls">
-          <button class="action-btn secondary" on:click={openRules}>
+          <button class="action-btn secondary" on:click={openRules} aria-label="Chart Design Rules" title="Chart Design Rules">
             <svg
               class="button-icon"
               fill="none"
@@ -1896,10 +1895,9 @@
                 d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
               />
             </svg>
-            Chart Design Rules
           </button>
 
-          <button class="action-btn secondary" on:click={startPDFFraming}>
+          <button class="action-btn secondary" on:click={startPDFFraming} aria-label="Export PDF" title="Export PDF">
             <svg
               class="button-icon"
               fill="none"
@@ -1913,10 +1911,9 @@
                 d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
               />
             </svg>
-            Export PDF
           </button>
 
-          <button class="action-btn primary" on:click={openAddMember}>
+          <button class="action-btn primary" on:click={openAddMember} aria-label="Add member" title="Add member">
             <svg
               class="button-icon"
               fill="none"
@@ -1930,7 +1927,6 @@
                 d="M12 6v6m0 0v6m0-6h6m-6 0H6"
               />
             </svg>
-            Add member
           </button>
         </div>
       </div>
@@ -2174,23 +2170,50 @@
     }
 
     .empty-action-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--spacing-2);
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
       background: var(--primary);
       color: white;
-      padding: var(--spacing-3) var(--spacing-6);
-      font-size: var(--font-size-sm);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0;
       font-weight: 500;
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-sm);
-      transition: all 0.2s ease;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.2),
+        0 2px 4px var(--primary-alpha-20),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      margin-bottom: var(--spacing-4);
     }
 
     .empty-action-btn:hover {
-      background: var(--primary-dark);
-      box-shadow: var(--shadow-md);
-      transform: translateY(-1px);
+      transform: translateY(-2px) scale(1.05);
+      box-shadow: 
+        0 4px 8px rgba(0, 0, 0, 0.25),
+        0 4px 8px var(--primary-alpha-30),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    .empty-action-btn:active {
+      transform: translateY(0) scale(1);
+    }
+
+    .empty-action-btn svg {
+      width: 28px;
+      height: 28px;
+      margin-right: 0;
+    }
+
+    /* Text label below empty button */
+    .empty-button-text {
+      display: block;
+      margin-top: var(--spacing-3);
+      font-size: var(--font-size-sm);
+      color: var(--text-primary);
+      font-weight: 500;
     }
 
     /* Floating controls */
@@ -2208,107 +2231,146 @@
     .zoom-controls {
       display: flex;
       flex-direction: column;
-      gap: var(--spacing-2);
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: var(--spacing-1);
-      box-shadow: var(--shadow-md);
+      gap: var(--spacing-3);
+      padding: var(--spacing-2);
       width: fit-content;
     }
 
     .zoom-btn {
-      width: 28px;
-      height: 28px;
-      background: transparent;
+      width: 48px;
+      height: 48px;
+      background: var(--surface);
       color: var(--text-primary);
-      border-radius: var(--radius-md);
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.2s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.12),
+        0 1px 2px rgba(0, 0, 0, 0.24),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
     }
 
     .zoom-btn:hover {
-      background: var(--primary);
-      color: white;
-      transform: scale(1.05);
+      transform: translateY(-2px);
+      box-shadow: 
+        0 3px 6px rgba(0, 0, 0, 0.16),
+        0 3px 6px rgba(0, 0, 0, 0.23),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
     }
 
     .zoom-btn:active {
-      transform: scale(0.95);
+      transform: translateY(0);
+      box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.12),
+        0 1px 2px rgba(0, 0, 0, 0.24),
+        inset 0 1px 2px rgba(0, 0, 0, 0.1);
     }
 
     .zoom-btn svg {
-      width: 16px;
-      height: 16px;
+      width: 20px;
+      height: 20px;
+    }
+
+    .zoom-btn.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+      box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.2),
+        0 2px 4px var(--primary-alpha-20),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
     }
 
     .action-controls {
       display: flex;
-      flex-direction: column;
       gap: var(--spacing-3);
+      align-items: center;
     }
 
     .action-btn {
-      display: inline-flex;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: flex;
       align-items: center;
-      gap: var(--spacing-2);
-      padding: var(--spacing-3) var(--spacing-4);
-      font-size: var(--font-size-sm);
+      justify-content: center;
+      font-size: 0;
       font-weight: 500;
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-md);
-      transition: all 0.2s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Text labels for action buttons - hidden by default */
+    .action-btn::after {
+      content: attr(aria-label);
+      position: absolute;
+      bottom: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: var(--font-size-xs);
       white-space: nowrap;
+      opacity: 0;
+      transition: all 0.3s ease;
+      pointer-events: none;
+      background: var(--surface);
+      padding: var(--spacing-1) var(--spacing-2);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .action-btn:hover::after {
+      opacity: 1;
+      bottom: -40px;
     }
 
     .action-btn.primary {
       background: var(--primary);
       color: white;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.2),
+        0 2px 4px var(--primary-alpha-20),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
     }
 
     .action-btn.primary:hover {
-      background: var(--primary-dark);
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-lg);
+      transform: translateY(-2px);
+      box-shadow: 
+        0 4px 8px rgba(0, 0, 0, 0.25),
+        0 4px 8px var(--primary-alpha-30),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
     }
 
     .action-btn.secondary {
       background: var(--surface);
       color: var(--text-primary);
-      border: 1px solid var(--border);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.12),
+        0 1px 2px rgba(0, 0, 0, 0.24),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
     }
 
     .action-btn.secondary:hover {
-      background: var(--secondary);
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-lg);
+      transform: translateY(-2px);
+      box-shadow: 
+        0 3px 6px rgba(0, 0, 0, 0.16),
+        0 3px 6px rgba(0, 0, 0, 0.23),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    .action-btn:active {
+      transform: translateY(0);
     }
 
     .button-icon {
-      width: 16px;
-      height: 16px;
-    }
-
-    /* Responsive design */
-    @media (max-width: 768px) {
-      .floating-controls {
-        bottom: var(--spacing-4);
-        right: var(--spacing-4);
-        gap: var(--spacing-3);
-      }
-
-      .action-btn {
-        padding: var(--spacing-2) var(--spacing-3);
-        font-size: var(--font-size-xs);
-      }
-
-      .zoom-btn {
-        width: 36px;
-        height: 36px;
-      }
+      width: 24px;
+      height: 24px;
     }
 
     /* Selection rectangle */
@@ -2421,14 +2483,18 @@
       background: var(--primary);
       color: white;
       padding: var(--spacing-3) var(--spacing-5);
-      border: none;
-      border-radius: var(--radius-md);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50px;
       font-size: var(--font-size-sm);
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       flex: 1;
       white-space: nowrap;
+      box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.2),
+        0 2px 4px var(--primary-alpha-20),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
     }
 
     .export-btn:disabled {
@@ -2437,28 +2503,37 @@
     }
 
     .export-btn:not(:disabled):hover {
-      background: var(--primary-dark);
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+      box-shadow: 
+        0 4px 8px rgba(0, 0, 0, 0.25),
+        0 4px 8px var(--primary-alpha-30),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
     }
 
     .pdf-framing-controls .cancel-btn {
-      background: transparent;
-      color: var(--text-secondary);
+      background: var(--surface);
+      color: var(--text-primary);
       padding: var(--spacing-3) var(--spacing-5);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 50px;
       font-size: var(--font-size-sm);
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       flex: 1;
       white-space: nowrap;
+      box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.12),
+        0 1px 2px rgba(0, 0, 0, 0.24),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
     }
 
     .pdf-framing-controls .cancel-btn:hover {
-      background: var(--secondary);
-      color: var(--text-primary);
+      transform: translateY(-2px);
+      box-shadow: 
+        0 3px 6px rgba(0, 0, 0, 0.16),
+        0 3px 6px rgba(0, 0, 0, 0.23),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
     }
 
     /* Disable pointer events on canvas while selecting */
@@ -2469,6 +2544,45 @@
     .zoom-btn.active {
       background: var(--primary);
       color: white;
+    }
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+      .floating-controls {
+        bottom: var(--spacing-4);
+        right: var(--spacing-4);
+        gap: var(--spacing-3);
+      }
+
+      .zoom-btn {
+        width: 40px;
+        height: 40px;
+      }
+
+      .zoom-btn svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      .action-btn {
+        width: 48px;
+        height: 48px;
+      }
+
+      .button-icon {
+        width: 20px;
+        height: 20px;
+      }
+
+      .empty-action-btn {
+        width: 56px;
+        height: 56px;
+      }
+
+      .empty-action-btn svg {
+        width: 24px;
+        height: 24px;
+      }
     }
   </style>
 {/if}

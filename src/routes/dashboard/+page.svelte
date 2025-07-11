@@ -353,53 +353,54 @@
     transform: translateY(-2px);
   }
 
-  .org-card.existing:hover .edit-btn {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-  }
-
-  .org-card.existing:hover .delete-btn {
-    background: var(--error);
-    color: white;
-    border-color: var(--error);
-  }
-
+  /* Card actions */
   .card-actions {
     position: absolute;
-    top: var(--spacing-2);
-    right: var(--spacing-2);
+    top: var(--spacing-3);
+    right: var(--spacing-3);
     display: flex;
-    flex-direction: column;
-    gap: var(--spacing-1);
+    gap: var(--spacing-2);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .org-card.existing:hover .card-actions {
     opacity: 1;
-    transition: all 0.2s ease;
-    z-index: 10;
   }
 
   .action-btn {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
+    background: var(--surface);
+    color: var(--text-primary);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
-    transition: all 0.2s ease;
-    background: transparent;
-    color: var(--border);
+    box-shadow: 
+      0 1px 3px rgba(0, 0, 0, 0.12),
+      0 1px 2px rgba(0, 0, 0, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
   }
 
   .action-btn:hover {
-    transform: scale(1.1);
+    transform: translateY(-2px);
+    box-shadow: 
+      0 3px 6px rgba(0, 0, 0, 0.16),
+      0 3px 6px rgba(0, 0, 0, 0.23),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .action-btn:active {
+    transform: translateY(0);
   }
 
   .action-btn svg {
     width: 16px;
     height: 16px;
-    stroke: currentColor;
-    fill: none;
   }
 
   .edit-btn:hover {
@@ -409,9 +410,9 @@
   }
 
   .delete-btn:hover {
-    background: var(--error);
+    background: var(--destructive);
     color: white;
-    border-color: var(--error);
+    border-color: var(--destructive);
   }
 
   .org-content {
@@ -567,46 +568,56 @@
   }
 
   .cancel-btn {
-    background: transparent;
-    color: var(--text-secondary);
-    padding: var(--spacing-3) var(--spacing-4);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    padding: var(--spacing-2) var(--spacing-4);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 50px;
+    background: var(--surface);
+    color: var(--text-primary);
+    cursor: pointer;
     font-size: var(--font-size-sm);
     font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    flex: 1;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 
+      0 1px 3px rgba(0, 0, 0, 0.12),
+      0 1px 2px rgba(0, 0, 0, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
   }
 
   .cancel-btn:hover {
-    background: var(--secondary);
-    color: var(--text-primary);
+    transform: translateY(-2px);
+    box-shadow: 
+      0 3px 6px rgba(0, 0, 0, 0.16),
+      0 3px 6px rgba(0, 0, 0, 0.23),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
   }
 
   .confirm-delete-btn {
-    background: var(--error);
+    padding: var(--spacing-2) var(--spacing-4);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50px;
+    background: var(--destructive);
     color: white;
-    padding: var(--spacing-3) var(--spacing-4);
-    border: none;
-    border-radius: var(--radius-md);
+    cursor: pointer;
     font-size: var(--font-size-sm);
     font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    flex: 1;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 
+      0 2px 4px rgba(0, 0, 0, 0.2),
+      0 2px 4px rgba(212, 33, 61, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
 
   .confirm-delete-btn:hover:not(:disabled) {
-    background: #dc2626;
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+    box-shadow: 
+      0 4px 8px rgba(0, 0, 0, 0.25),
+      0 4px 8px rgba(212, 33, 61, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
 
   .confirm-delete-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-    transform: none;
   }
 
   .cancel-btn:disabled {

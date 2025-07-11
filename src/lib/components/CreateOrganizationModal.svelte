@@ -157,8 +157,34 @@
   }
 
   .close-btn {
-    font-size: var(--font-size-xl);
-    color: var(--text-secondary);
+    position: absolute;
+    top: var(--spacing-4);
+    right: var(--spacing-4);
+    width: 36px;
+    height: 36px;
+    background: var(--surface);
+    color: var(--text-primary);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 50%;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 
+      0 1px 3px rgba(0, 0, 0, 0.12),
+      0 1px 2px rgba(0, 0, 0, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .close-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 
+      0 3px 6px rgba(0, 0, 0, 0.16),
+      0 3px 6px rgba(0, 0, 0, 0.23),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
   }
 
   .modal-body {
@@ -216,13 +242,20 @@
   }
 
   .create-btn {
-    background: var(--primary);
-    color: var(--primary-text);
-    padding: var(--spacing-3) var(--spacing-6);
-    border-radius: var(--radius-md);
-    font-weight: 600;
-    transition: background 0.2s ease;
     width: 100%;
+    padding: var(--spacing-3) var(--spacing-6);
+    background: var(--primary);
+    color: white;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50px;
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 
+      0 2px 4px rgba(0, 0, 0, 0.2),
+      0 2px 4px var(--primary-alpha-20),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
 
   .create-btn:disabled {
@@ -231,7 +264,11 @@
   }
 
   .create-btn:not(:disabled):hover {
-    background: var(--primary-dark);
+    transform: translateY(-2px);
+    box-shadow: 
+      0 4px 8px rgba(0, 0, 0, 0.25),
+      0 4px 8px var(--primary-alpha-30),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
 
   .spinner {
