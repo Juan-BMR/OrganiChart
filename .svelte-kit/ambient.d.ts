@@ -30,12 +30,14 @@ declare module '$env/static/private' {
 	export const npm_config_user_agent: string;
 	export const HOSTNAME: string;
 	export const npm_node_execpath: string;
+	export const VITE_FIREBASE_MESSAGING_SENDER_ID: string;
 	export const SHLVL: string;
 	export const npm_config_noproxy: string;
 	export const HOME: string;
 	export const NVM_BIN: string;
 	export const npm_package_json: string;
 	export const NVM_INC: string;
+	export const OPENAI_API_KEY: string;
 	export const npm_config_userconfig: string;
 	export const npm_config_local_prefix: string;
 	export const COLOR: string;
@@ -45,19 +47,23 @@ declare module '$env/static/private' {
 	export const npm_config_npm_version: string;
 	export const TERM: string;
 	export const npm_config_cache: string;
+	export const VITE_FIREBASE_STORAGE_BUCKET: string;
 	export const RUSTUP_HOME: string;
+	export const VITE_FIREBASE_AUTH_DOMAIN: string;
 	export const npm_config_node_gyp: string;
 	export const PATH: string;
 	export const NODE: string;
 	export const npm_package_name: string;
 	export const LANG: string;
 	export const npm_lifecycle_script: string;
-	export const TEST_TEAM: string;
 	export const SHELL: string;
 	export const npm_package_version: string;
 	export const npm_lifecycle_event: string;
+	export const VITE_FIREBASE_PROJECT_ID: string;
 	export const GIT_DISCOVERY_ACROSS_FILESYSTEM: string;
 	export const RUST_VERSION: string;
+	export const VITE_FIREBASE_APP_ID: string;
+	export const FIREBASE_SERVICE_ACCOUNT_KEY: string;
 	export const npm_config_globalconfig: string;
 	export const npm_config_init_module: string;
 	export const PWD: string;
@@ -67,9 +73,10 @@ declare module '$env/static/private' {
 	export const NVM_CD_FLAGS: string;
 	export const npm_config_global_prefix: string;
 	export const npm_command: string;
+	export const VITE_FIREBASE_API_KEY: string;
+	export const NODE_ENV: string;
 	export const INIT_CWD: string;
 	export const EDITOR: string;
-	export const NODE_ENV: string;
 }
 
 /**
@@ -105,12 +112,14 @@ declare module '$env/dynamic/private' {
 		npm_config_user_agent: string;
 		HOSTNAME: string;
 		npm_node_execpath: string;
+		VITE_FIREBASE_MESSAGING_SENDER_ID: string;
 		SHLVL: string;
 		npm_config_noproxy: string;
 		HOME: string;
 		NVM_BIN: string;
 		npm_package_json: string;
 		NVM_INC: string;
+		OPENAI_API_KEY: string;
 		npm_config_userconfig: string;
 		npm_config_local_prefix: string;
 		COLOR: string;
@@ -120,19 +129,23 @@ declare module '$env/dynamic/private' {
 		npm_config_npm_version: string;
 		TERM: string;
 		npm_config_cache: string;
+		VITE_FIREBASE_STORAGE_BUCKET: string;
 		RUSTUP_HOME: string;
+		VITE_FIREBASE_AUTH_DOMAIN: string;
 		npm_config_node_gyp: string;
 		PATH: string;
 		NODE: string;
 		npm_package_name: string;
 		LANG: string;
 		npm_lifecycle_script: string;
-		TEST_TEAM: string;
 		SHELL: string;
 		npm_package_version: string;
 		npm_lifecycle_event: string;
+		VITE_FIREBASE_PROJECT_ID: string;
 		GIT_DISCOVERY_ACROSS_FILESYSTEM: string;
 		RUST_VERSION: string;
+		VITE_FIREBASE_APP_ID: string;
+		FIREBASE_SERVICE_ACCOUNT_KEY: string;
 		npm_config_globalconfig: string;
 		npm_config_init_module: string;
 		PWD: string;
@@ -142,9 +155,10 @@ declare module '$env/dynamic/private' {
 		NVM_CD_FLAGS: string;
 		npm_config_global_prefix: string;
 		npm_command: string;
+		VITE_FIREBASE_API_KEY: string;
+		NODE_ENV: string;
 		INIT_CWD: string;
 		EDITOR: string;
-		NODE_ENV: string;
 		[key: `PUBLIC_${string}`]: undefined;
 		[key: `${string}`]: string | undefined;
 	}
