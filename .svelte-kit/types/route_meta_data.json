@@ -3,8 +3,17 @@
 		"src/routes/+layout.js",
 		"src/routes/+layout.js"
 	],
+	"/ai-tools-demo": [
+		"src/routes/+layout.js"
+	],
 	"/api/ai-chat": [
 		"src/routes/api/ai-chat/+server.ts"
+	],
+	"/api/ai-tools": [
+		"src/routes/api/ai-tools/+server.ts"
+	],
+	"/api/ai-tools/stats": [
+		"src/routes/api/ai-tools/stats/+server.ts"
 	],
 	"/api/proxy-image": [
 		"src/routes/api/proxy-image/+server.js"
