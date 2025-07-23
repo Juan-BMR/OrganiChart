@@ -3,6 +3,9 @@ import { browser } from "$app/environment";
 import { auth } from "$lib/firebase.js";
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import { googleProvider } from "$lib/firebase.js";
+import { db } from "$lib/firebase.js";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { COLLECTIONS, createUserData } from "$lib/db/collections.js";
 
 // Create auth store
 function createAuthStore() {
@@ -25,6 +28,8 @@ function createAuthStore() {
           loading: false,
           error: null,
         });
+        // Ensure a user profile document exists / is updated
+        ensureUserDocument(user);
       });
     },
 
@@ -72,3 +77,30 @@ function createAuthStore() {
 }
 
 export const authStore = createAuthStore();
+
+// Helper to create or update user profile in Firestore
+async function ensureUserDocument(user) {
+  if (!user) return;
+  try {
+    const userRef = doc(db, COLLECTIONS.USERS, user.uid);
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) {
+      await setDoc(userRef, createUserData(user));
+    } else {
+      const data = snap.data();
+      const updates = {};
+      if (user.displayName && user.displayName !== data.displayName)
+        updates.displayName = user.displayName;
+      if (user.photoURL && user.photoURL !== data.photoURL)
+        updates.photoURL = user.photoURL;
+      if (user.email && user.email !== data.email) updates.email = user.email;
+      updates.lastLoginAt = new Date();
+      updates.updatedAt = new Date();
+      if (Object.keys(updates).length > 0) {
+        await updateDoc(userRef, updates);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to ensure user document", err);
+  }
+}
