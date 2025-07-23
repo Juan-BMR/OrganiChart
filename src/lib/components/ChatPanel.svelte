@@ -6,17 +6,30 @@
     setOrganization,
     toggleToolMessage,
   } from "$lib/stores/chat";
-  import { afterUpdate } from "svelte";
+  import {
+    voiceState,
+    initializeVoice,
+    startListening,
+    stopListening,
+    speakText,
+    stopSpeaking,
+  } from "$lib/stores/voice";
+  import { afterUpdate, onMount } from "svelte";
 
   let collapsed = true;
   let input = "";
   let messagesEl = null;
   export let organizationId = "";
+  let autoSpeak = false; // Option to auto-speak AI responses
 
   // Update chat context when organizationId changes
   $: if (organizationId) {
     setOrganization(organizationId);
   }
+
+  onMount(() => {
+    initializeVoice();
+  });
 
   function togglePanel() {
     collapsed = !collapsed;
@@ -37,7 +50,41 @@
     }
 
     // Send the message
-    await sendMessage(text);
+    const response = await sendMessage(text);
+    
+    // Auto-speak the response if enabled
+    if (autoSpeak && response && $voiceState.isSupported) {
+      try {
+        await speakText(response);
+      } catch (error) {
+        console.error('Failed to speak response:', error);
+      }
+    }
+  }
+
+  async function handleVoiceInput() {
+    if ($voiceState.isListening) {
+      stopListening();
+    } else {
+      try {
+        const transcript = await startListening();
+        if (transcript) {
+          input = transcript;
+          // Auto-send after voice input
+          await handleSend();
+        }
+      } catch (error) {
+        console.error('Voice input failed:', error);
+      }
+    }
+  }
+
+  function handleSpeakToggle() {
+    if ($voiceState.isSpeaking) {
+      stopSpeaking();
+    } else {
+      autoSpeak = !autoSpeak;
+    }
   }
 
   // Simple markdown renderer for basic formatting
@@ -190,39 +237,146 @@
     </div>
 
     <form class="input-area" on:submit|preventDefault={handleSend}>
-      <textarea
-        bind:value={input}
-        placeholder="Ask me anything…"
-        autocomplete="off"
-        rows="1"
-        on:keydown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-          }
-        }}
-        on:input={(e) => {
-          // Auto-resize textarea based on content
-          e.target.style.height = "auto";
-          e.target.style.height = e.target.scrollHeight + "px";
-        }}
-      ></textarea>
-      <button type="submit" title="Send">
-        <svg
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          width="16"
-          height="16"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="m3 3 18 9-18 9v-7l9-2-9-2V3z"
-          />
-        </svg>
-      </button>
+      <div class="input-wrapper">
+        <textarea
+          bind:value={input}
+          placeholder={$voiceState.isListening ? "Listening..." : "Ask me anything…"}
+          autocomplete="off"
+          rows="1"
+          disabled={$voiceState.isListening}
+          on:keydown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          on:input={(e) => {
+            // Auto-resize textarea based on content
+            e.target.style.height = "auto";
+            e.target.style.height = e.target.scrollHeight + "px";
+          }}
+        ></textarea>
+        
+        {#if $voiceState.isListening}
+          <div class="voice-indicator">
+            <div class="pulse"></div>
+          </div>
+        {/if}
+      </div>
+      
+      <div class="input-controls">
+        {#if $voiceState.isSupported}
+          <button 
+            type="button" 
+            class="voice-btn {$voiceState.isListening ? 'listening' : ''}"
+            on:click={handleVoiceInput}
+            title={$voiceState.isListening ? "Stop listening" : "Voice input"}
+          >
+            <svg
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+            >
+              {#if $voiceState.isListening}
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              {:else}
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 1a3 3 0 013 3v8a3 3 0 01-6 0V4a3 3 0 013-3z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 10v2a7 7 0 01-14 0v-2"
+                />
+              {/if}
+            </svg>
+          </button>
+          
+          <button 
+            type="button" 
+            class="speaker-btn {autoSpeak ? 'active' : ''} {$voiceState.isSpeaking ? 'speaking' : ''}"
+            on:click={handleSpeakToggle}
+            title={autoSpeak ? "Disable auto-speak" : "Enable auto-speak"}
+          >
+            <svg
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+            >
+              {#if $voiceState.isSpeaking}
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+                />
+              {:else if autoSpeak}
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                />
+              {:else}
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+                />
+              {/if}
+            </svg>
+          </button>
+        {/if}
+        
+        <button type="submit" title="Send" disabled={$voiceState.isListening}>
+          <svg
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="m3 3 18 9-18 9v-7l9-2-9-2V3z"
+            />
+          </svg>
+        </button>
+      </div>
     </form>
   </div>
 </div>
@@ -493,6 +647,115 @@
   .input-area button:active {
     transform: translateY(0) scale(0.98);
     transition: all 0.1s ease;
+  }
+
+  /* Voice Control Styles */
+  .input-wrapper {
+    flex: 1;
+    position: relative;
+  }
+
+  .input-wrapper textarea {
+    width: 100%;
+  }
+
+  .input-wrapper textarea:disabled {
+    background: var(--surface-variant, #f3f4f6);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+  }
+
+  .voice-indicator {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .pulse {
+    width: 12px;
+    height: 12px;
+    background: var(--primary);
+    border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0% {
+      transform: scale(0.95);
+      box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7);
+    }
+    70% {
+      transform: scale(1);
+      box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+    }
+    100% {
+      transform: scale(0.95);
+      box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+    }
+  }
+
+  .input-controls {
+    display: flex;
+    gap: var(--spacing-1);
+    align-items: center;
+  }
+
+  .voice-btn, .speaker-btn {
+    background: var(--surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    box-shadow: none;
+    transform: none;
+  }
+
+  .voice-btn:hover, .speaker-btn:hover {
+    background: var(--surface-variant, #f3f4f6);
+    border-color: var(--primary);
+    transform: none;
+    box-shadow: none;
+  }
+
+  .voice-btn.listening {
+    background: var(--error, #ef4444);
+    color: white;
+    border-color: var(--error, #ef4444);
+    animation: pulse-red 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-red {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    }
+  }
+
+  .speaker-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+
+  .speaker-btn.speaking {
+    background: var(--success, #10b981);
+    color: white;
+    border-color: var(--success, #10b981);
+    animation: pulse-green 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-green {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+    }
   }
 
   .tool-call {
