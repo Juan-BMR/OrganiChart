@@ -6,6 +6,12 @@
 	"/api/ai-chat": [
 		"src/routes/api/ai-chat/+server.ts"
 	],
+	"/api/insights/analyze": [
+		"src/routes/api/insights/analyze/+server.ts"
+	],
+	"/api/insights/query": [
+		"src/routes/api/insights/query/+server.ts"
+	],
 	"/api/proxy-image": [
 		"src/routes/api/proxy-image/+server.js"
 	],

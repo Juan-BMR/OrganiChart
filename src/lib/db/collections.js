@@ -5,6 +5,12 @@ export const COLLECTIONS = {
   MEMBERS: "members",
   ORGANIZATION_PERMISSIONS: "organization_permissions",
   RULES: "rules",
+  // AI Insights collections
+  INSIGHTS_CONFIG: "insights_config",
+  INSIGHTS_HISTORY: "insights_history",
+  INSIGHTS_ALERTS: "insights_alerts",
+  ML_MODELS: "ml_models",
+  INSIGHT_SUBSCRIPTIONS: "insight_subscriptions",
 };
 
 // Organization permission roles
@@ -115,3 +121,101 @@ export const validateMemberName = (name) => {
   const trimmed = name.trim();
   return trimmed.length >= 1 && trimmed.length <= 100;
 };
+
+// Insights data creation functions
+export const createInsightsConfigData = (organizationId, userId, config = {}) => ({
+  organizationId,
+  userId,
+  alertThresholds: {
+    managerOverload: config.managerOverload || 8, // Max direct reports
+    successionRisk: config.successionRisk || 0.7, // Risk score threshold
+    turnoverRisk: config.turnoverRisk || 0.6, // Turnover probability threshold
+    diversityTarget: config.diversityTarget || 0.4, // Min diversity ratio
+  },
+  enabledMetrics: config.enabledMetrics || [
+    "teamHealth",
+    "successionRisk",
+    "diversityMetrics",
+    "managerLoad",
+    "turnoverRisk",
+  ],
+  notificationPreferences: config.notificationPreferences || {
+    email: true,
+    inApp: true,
+    frequency: "daily", // daily, weekly, immediate
+  },
+  createdAt: new Date(),
+  updatedAt: new Date(),
+});
+
+export const createInsightHistoryData = (
+  organizationId,
+  insightType,
+  data,
+  prediction = null,
+) => ({
+  organizationId,
+  insightType, // teamHealth, succession, turnover, etc.
+  timestamp: new Date(),
+  data: data, // Actual metrics/values
+  prediction: prediction, // AI predictions if any
+  accuracy: null, // To be updated later with actual vs predicted
+  metadata: {
+    memberCount: data.memberCount || 0,
+    departmentCount: data.departmentCount || 0,
+  },
+});
+
+export const createInsightAlertData = (
+  organizationId,
+  alertType,
+  severity,
+  message,
+  affectedMembers = [],
+  recommendations = [],
+) => ({
+  organizationId,
+  alertType, // managerOverload, successionGap, turnoverRisk, etc.
+  severity, // low, medium, high, critical
+  message,
+  affectedMembers, // Array of member IDs
+  recommendations, // AI-generated recommendations
+  status: "active", // active, acknowledged, resolved
+  createdAt: new Date(),
+  acknowledgedAt: null,
+  resolvedAt: null,
+});
+
+export const createMLModelData = (modelType, version, metrics) => ({
+  modelType, // turnoverPrediction, successionPlanning, etc.
+  version,
+  trainedAt: new Date(),
+  metrics: {
+    accuracy: metrics.accuracy || 0,
+    precision: metrics.precision || 0,
+    recall: metrics.recall || 0,
+    f1Score: metrics.f1Score || 0,
+  },
+  parameters: metrics.parameters || {},
+  isActive: true,
+  createdAt: new Date(),
+});
+
+export const createInsightSubscriptionData = (
+  organizationId,
+  userId,
+  subscriptionType,
+  filters = {},
+) => ({
+  organizationId,
+  userId,
+  subscriptionType, // alerts, reports, predictions
+  filters: {
+    departments: filters.departments || [],
+    metrics: filters.metrics || [],
+    severity: filters.severity || ["high", "critical"],
+  },
+  isActive: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+});

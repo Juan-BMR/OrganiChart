@@ -28,6 +28,7 @@
 declare module '$env/static/private' {
 	export const USER: string;
 	export const npm_config_user_agent: string;
+	export const VITE_CURRENCY_SYMBOL: string;
 	export const HOSTNAME: string;
 	export const npm_node_execpath: string;
 	export const SHLVL: string;
@@ -43,6 +44,7 @@ declare module '$env/static/private' {
 	export const _: string;
 	export const npm_config_prefix: string;
 	export const npm_config_npm_version: string;
+	export const VITE_CURRENCY_NAME: string;
 	export const TERM: string;
 	export const npm_config_cache: string;
 	export const RUSTUP_HOME: string;
@@ -52,7 +54,6 @@ declare module '$env/static/private' {
 	export const npm_package_name: string;
 	export const LANG: string;
 	export const npm_lifecycle_script: string;
-	export const TEST_TEAM: string;
 	export const SHELL: string;
 	export const npm_package_version: string;
 	export const npm_lifecycle_event: string;
@@ -60,6 +61,7 @@ declare module '$env/static/private' {
 	export const RUST_VERSION: string;
 	export const npm_config_globalconfig: string;
 	export const npm_config_init_module: string;
+	export const VITE_CURRENCY_DECIMALS: string;
 	export const PWD: string;
 	export const LC_ALL: string;
 	export const npm_execpath: string;
@@ -103,6 +105,7 @@ declare module '$env/dynamic/private' {
 	export const env: {
 		USER: string;
 		npm_config_user_agent: string;
+		VITE_CURRENCY_SYMBOL: string;
 		HOSTNAME: string;
 		npm_node_execpath: string;
 		SHLVL: string;
@@ -118,6 +121,7 @@ declare module '$env/dynamic/private' {
 		_: string;
 		npm_config_prefix: string;
 		npm_config_npm_version: string;
+		VITE_CURRENCY_NAME: string;
 		TERM: string;
 		npm_config_cache: string;
 		RUSTUP_HOME: string;
@@ -127,7 +131,6 @@ declare module '$env/dynamic/private' {
 		npm_package_name: string;
 		LANG: string;
 		npm_lifecycle_script: string;
-		TEST_TEAM: string;
 		SHELL: string;
 		npm_package_version: string;
 		npm_lifecycle_event: string;
@@ -135,6 +138,7 @@ declare module '$env/dynamic/private' {
 		RUST_VERSION: string;
 		npm_config_globalconfig: string;
 		npm_config_init_module: string;
+		VITE_CURRENCY_DECIMALS: string;
 		PWD: string;
 		LC_ALL: string;
 		npm_execpath: string;
