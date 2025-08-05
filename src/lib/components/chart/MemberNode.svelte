@@ -4,6 +4,8 @@
   export let x = 0;
   export let y = 0;
   export let size = 90; // diameter of avatar circle - can be overridden by rules
+  export let highlighted = false;
+  export let dimmed = false;
   import NodeContextMenu from "./NodeContextMenu.svelte";
   import { createEventDispatcher } from "svelte";
   import { rulesStore } from "$lib/stores/rules.js";
@@ -86,8 +88,8 @@
 </script>
 
 <div
-  class="member-node"
-  style="left: {x}px; top: {y}px;"
+  class="member-node {highlighted ? 'highlighted' : ''} {dimmed ? 'dimmed' : ''}"
+  style="left: {x}px; top: {y}px; width: {size}px; height: {size}px;"
   on:contextmenu={handleContextMenu}
   on:click|stopPropagation={handleClick}
   in:scale={{ duration: 200 }}
@@ -135,6 +137,26 @@
     /* box-shadow: var(--shadow-md); */
   }
 
+  /* Skill filter highlighting */
+  .member-node.highlighted .avatar {
+    border-color: var(--success, #10b981);
+    border-width: 5px;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+  }
+
+  .member-node.highlighted .member-info {
+    border-color: var(--success, #10b981);
+    background: rgba(16, 185, 129, 0.05);
+  }
+
+  .member-node.dimmed {
+    opacity: 0.3;
+  }
+
+  .member-node.dimmed:hover {
+    opacity: 0.6;
+  }
+
   .avatar {
     background: var(--background);
     border: 4px solid var(--chart-primary, var(--primary));
@@ -149,6 +171,10 @@
   .member-node:hover .avatar {
     border-color: var(--chart-primary-light, var(--primary-light));
     transform: scale(1.05);
+  }
+
+  .member-node.highlighted:hover .avatar {
+    transform: scale(1.1);
   }
 
   .avatar img {

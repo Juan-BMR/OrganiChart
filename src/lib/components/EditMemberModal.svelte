@@ -3,6 +3,8 @@
   import { membersStore } from "$lib/stores/members.js";
   import { fade } from "svelte/transition";
   import CVPreview from "./CVPreview.svelte";
+  import CVExtractedInfo from "./CVExtractedInfo.svelte";
+  import { parseCV } from "$lib/utils/cvParser.js";
 
   export let open = false;
   export let member; // existing member object
@@ -29,6 +31,11 @@
   let showCVPreview = false;
   let cvTargetElement = null;
 
+  // CV parser state
+  let cvParseLoading = false;
+  let cvExtractedData = null;
+  let showParsedInfo = false;
+
   // Initialize form values when modal opens or when member changes
   $: if (open && member && member.id !== currentMemberId) {
     name = member.name;
@@ -48,6 +55,10 @@
     filePreviewUrl = null;
     cvFile = null; // Reset CV state
     currentMemberId = member.id;
+    
+    // Load existing extracted data if available
+    cvExtractedData = member.cvExtractedData || null;
+    showParsedInfo = !!cvExtractedData?.summary;
   }
 
   // Focus the modal when it opens
@@ -143,7 +154,7 @@
     }
   }
 
-  function handleCVChange(e) {
+  async function handleCVChange(e) {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
 
@@ -174,6 +185,24 @@
     // File is valid
     cvFile = selectedFile;
     error = null;
+
+    // Parse CV content using AI
+    cvParseLoading = true;
+    try {
+      const extractedData = await parseCV(selectedFile);
+      cvExtractedData = extractedData;
+      showParsedInfo = true;
+    } catch (err) {
+      console.error('CV parsing failed:', err);
+      // Don't show error to user - parsing is optional enhancement
+    } finally {
+      cvParseLoading = false;
+    }
+  }
+
+  async function handleSaveParsedData(event) {
+    const updatedData = event.detail;
+    cvExtractedData = updatedData;
   }
 
   function handleRemoveCV() {
@@ -243,10 +272,25 @@
       // Convert startDate string to Date object
       const startDateObj = startDate ? new Date(startDate) : new Date();
 
+      // Prepare update data including extracted CV info
+      const updateData = { 
+        name, 
+        role, 
+        email, 
+        startDate: startDateObj, 
+        organizationId
+      };
+
+      // Include extracted CV data if available
+      if (cvExtractedData) {
+        updateData.cvExtractedData = cvExtractedData;
+        updateData.cvLastParsedAt = new Date();
+      }
+
       // Update member with basic information only
       await membersStore.updateMember(
         member.id,
-        { name, role, email, startDate: startDateObj, organizationId },
+        updateData,
         fileToUpdate,
         cvToUpdate
       );
@@ -692,6 +736,25 @@
               </svg>
               {cvFile || member?.cvURL ? "Change CV" : "Upload CV"}
             </button>
+
+            {#if cvExtractedData?.summary || cvParseLoading}
+              <button
+                type="button"
+                class="cv-action-btn parse"
+                on:click={() => showParsedInfo = true}
+                title="View parsed CV data"
+              >
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                  />
+                </svg>
+                {cvParseLoading ? "Parsing..." : "View Extracted Data"}
+              </button>
+            {/if}
           </div>
         </div>
         <input
@@ -726,6 +789,23 @@
     show={showCVPreview}
     targetElement={cvTargetElement}
   />
+
+  <!-- CV Extracted Info Modal -->
+  {#if showParsedInfo}
+    <div class="modal-overlay" on:click={() => showParsedInfo = false}>
+      <div class="extracted-info-modal" on:click|stopPropagation>
+        <CVExtractedInfo 
+          extractedData={cvExtractedData}
+          loading={cvParseLoading}
+          editable={true}
+          on:save={handleSaveParsedData}
+        />
+        <button class="close-extracted-btn" on:click={() => showParsedInfo = false}>
+          ×
+        </button>
+      </div>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -1153,6 +1233,14 @@
     transform: translateY(-1px);
   }
 
+  .cv-action-btn.parse {
+    background: linear-gradient(135deg, #10b981, #059669);
+  }
+
+  .cv-action-btn.parse:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+  }
+
   .cv-action-btn svg {
     width: 14px;
     height: 14px;
@@ -1252,5 +1340,39 @@
       width: 100%;
       justify-content: center;
     }
+  }
+
+  .extracted-info-modal {
+    position: relative;
+    background: var(--background);
+    border-radius: var(--radius-lg);
+    width: 90vw;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-xl);
+  }
+
+  .close-extracted-btn {
+    position: absolute;
+    top: var(--spacing-4);
+    right: var(--spacing-4);
+    width: 32px;
+    height: 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 20px;
+    color: var(--text-secondary);
+    z-index: 10;
+  }
+
+  .close-extracted-btn:hover {
+    background: var(--secondary);
+    color: var(--text-primary);
   }
 </style>

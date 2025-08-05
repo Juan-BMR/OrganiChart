@@ -6,6 +6,9 @@
 	"/api/ai-chat": [
 		"src/routes/api/ai-chat/+server.ts"
 	],
+	"/api/cv-parser": [
+		"src/routes/api/cv-parser/+server.ts"
+	],
 	"/api/proxy-image": [
 		"src/routes/api/proxy-image/+server.js"
 	],

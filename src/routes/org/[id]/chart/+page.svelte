@@ -16,6 +16,7 @@
   import ChartColorPicker from "$lib/components/ChartColorPicker.svelte";
   import RuleManagerModal from "$lib/components/RuleManagerModal.svelte";
   import ZoomSensitivityControl from "$lib/components/ZoomSensitivityControl.svelte";
+  import SkillsSearch from "$lib/components/SkillsSearch.svelte";
   import { rulesStore } from "$lib/stores/rules.js";
   import { zoomStore } from "$lib/stores/zoom.js";
   import {
@@ -38,6 +39,7 @@
   // Members data
   let members = [];
   let membersLoading = true;
+  let filteredMemberIds = new Set(); // Track filtered members by skills
 
   // Canvas transform reactive store
   let transform = { scale: 1, x: 0, y: 0 };
@@ -1633,6 +1635,21 @@
       sidebarLoading = false;
     }
   }
+
+  function handleSkillsFilterChange(event) {
+    const { skills, members: filteredMembers } = event.detail;
+    
+    if (skills.length === 0) {
+      filteredMemberIds = new Set();
+    } else {
+      filteredMemberIds = new Set(filteredMembers.map(m => m.id));
+    }
+    
+    // Re-render the chart with highlighted members
+    if (chartContainer) {
+      updateChart();
+    }
+  }
 </script>
 
 <svelte:head>
@@ -1739,6 +1756,8 @@
             x={n.x}
             y={n.y}
             size={100}
+            highlighted={filteredMemberIds.size > 0 && filteredMemberIds.has(n.member.id)}
+            dimmed={filteredMemberIds.size > 0 && !filteredMemberIds.has(n.member.id)}
             on:edit={handleEditMember}
             on:delete={handleDeleteMember}
             on:select={handleSelectMember}
@@ -1812,6 +1831,12 @@
     {#if !pdfFramingMode}
       <!-- Floating action buttons -->
       <div class="floating-controls">
+        <!-- Skills Search -->
+        <SkillsSearch 
+          {organizationId} 
+          on:filterChange={handleSkillsFilterChange}
+        />
+
         <!-- Zoom controls -->
         <div class="zoom-controls">
           <button
