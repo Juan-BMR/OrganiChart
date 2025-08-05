@@ -56,6 +56,20 @@ export const createMemberData = (
   cvURL: null, // CV/Resume file URL
   cvFileName: null, // Original CV file name
   cvUploadedAt: null, // When CV was uploaded
+  // New CV extracted data fields
+  cvExtractedData: {
+    summary: null,
+    skills: {
+      technical: [],
+      soft: [],
+      languages: []
+    },
+    experience: [],
+    education: [],
+    certifications: [],
+    achievements: []
+  },
+  cvLastParsedAt: null, // When CV was last parsed by AI
   createdAt: new Date(),
   updatedAt: new Date(),
   isActive: true,

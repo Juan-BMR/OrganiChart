@@ -37,6 +37,7 @@
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.2",
     "lucide-svelte": "^0.513.0",
-    "openai": "^5.8.2"
+    "openai": "^5.8.2",
+    "pdfjs-dist": "^3.11.174"
   }
 }
