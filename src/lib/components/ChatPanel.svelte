@@ -8,7 +8,8 @@
   } from "$lib/stores/chat";
   import { afterUpdate } from "svelte";
 
-  let collapsed = true;
+  export let collapsedByDefault = true; // New prop (default: true)
+  let collapsed = collapsedByDefault;
   let input = "";
   let messagesEl = null;
   export let organizationId = "";
