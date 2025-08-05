@@ -9,6 +9,9 @@
 	"/api/proxy-image": [
 		"src/routes/api/proxy-image/+server.js"
 	],
+	"/chat": [
+		"src/routes/+layout.js"
+	],
 	"/dashboard": [
 		"src/routes/+layout.js"
 	],

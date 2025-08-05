@@ -78,6 +78,10 @@
   function goToDashboard() {
     goto("/dashboard");
   }
+
+  function goToChat() {
+    goto("/chat");
+  }
 </script>
 
 {#if user}
@@ -132,6 +136,10 @@
     </button>
 
     <div class="header-actions">
+      <button class="chat-btn" on:click={goToChat} title="Chat bot">
+        💬
+      </button>
+
       <button
         class="theme-toggle"
         on:click={toggleTheme}
@@ -243,6 +251,20 @@
     display: flex;
     align-items: center;
     gap: var(--spacing-3);
+  }
+
+  .chat-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: var(--spacing-2) var(--spacing-3);
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .chat-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
   }
 
   .theme-toggle {
