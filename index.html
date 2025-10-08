@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Particle Universe</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌌 Interactive Particle Universe</h1>
+            <p>Click and drag to create particle effects!</p>
+        </header>
+        
+        <canvas id="particleCanvas"></canvas>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="particleCount">Particles per Click:</label>
+                <input type="range" id="particleCount" min="5" max="50" value="20">
+                <span id="particleCountValue">20</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="gravity">Gravity:</label>
+                <input type="range" id="gravity" min="0" max="2" step="0.1" value="0.5">
+                <span id="gravityValue">0.5</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="friction">Friction:</label>
+                <input type="range" id="friction" min="0.9" max="1" step="0.01" value="0.99">
+                <span id="frictionValue">0.99</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="particleSize">Particle Size:</label>
+                <input type="range" id="particleSize" min="1" max="10" value="3">
+                <span id="particleSizeValue">3</span>
+            </div>
+            
+            <div class="control-group">
+                <label for="colorMode">Color Mode:</label>
+                <select id="colorMode">
+                    <option value="rainbow">Rainbow</option>
+                    <option value="fire">Fire</option>
+                    <option value="ocean">Ocean</option>
+                    <option value="galaxy">Galaxy</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <button id="clearCanvas">Clear Canvas</button>
+                <button id="toggleTrails">Toggle Trails</button>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div>Active Particles: <span id="particleStats">0</span></div>
+            <div>FPS: <span id="fpsCounter">60</span></div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
