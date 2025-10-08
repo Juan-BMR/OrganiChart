@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Defender - A Cosmic Adventure</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <div class="score-panel">
+                <div class="stat">
+                    <span class="label">Score</span>
+                    <span class="value" id="score">0</span>
+                </div>
+                <div class="stat">
+                    <span class="label">Level</span>
+                    <span class="value" id="level">1</span>
+                </div>
+                <div class="stat">
+                    <span class="label">Lives</span>
+                    <span class="value" id="lives">❤️❤️❤️</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="game-screen">
+            <canvas id="gameCanvas"></canvas>
+            
+            <div id="startScreen" class="overlay-screen">
+                <div class="screen-content">
+                    <h1 class="game-title">
+                        <span class="title-word">SPACE</span>
+                        <span class="title-word">DEFENDER</span>
+                    </h1>
+                    <p class="subtitle">Protect the galaxy from alien invaders!</p>
+                    <div class="controls-info">
+                        <div class="control-item">
+                            <span class="key">←→</span>
+                            <span>Move</span>
+                        </div>
+                        <div class="control-item">
+                            <span class="key">SPACE</span>
+                            <span>Fire</span>
+                        </div>
+                    </div>
+                    <button class="btn-primary" id="startBtn">START GAME</button>
+                </div>
+            </div>
+
+            <div id="gameOverScreen" class="overlay-screen hidden">
+                <div class="screen-content">
+                    <h1 class="game-over-title">GAME OVER</h1>
+                    <p class="final-score">Final Score: <span id="finalScore">0</span></p>
+                    <p class="final-level">Level Reached: <span id="finalLevel">1</span></p>
+                    <button class="btn-primary" id="restartBtn">PLAY AGAIN</button>
+                </div>
+            </div>
+
+            <div id="levelUpScreen" class="overlay-screen hidden">
+                <div class="screen-content">
+                    <h1 class="level-up-title">LEVEL UP!</h1>
+                    <p class="level-message">Prepare for more enemies!</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Built with ❤️ using HTML5 Canvas & JavaScript</p>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
