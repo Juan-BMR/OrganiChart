@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kaleidoscope Canvas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Generative Kaleidoscope</h1>
+      <div class="controls">
+        <label>Symmetry
+          <input id="symmetry" type="range" min="3" max="24" value="12" />
+        </label>
+        <label>Speed
+          <input id="speed" type="range" min="0" max="1" value="0.5" step="0.01" />
+        </label>
+        <label>Palette
+          <select id="palette">
+            <option value="neon" selected>Neon</option>
+            <option value="sunset">Sunset</option>
+            <option value="ocean">Ocean</option>
+            <option value="mono">Mono</option>
+          </select>
+        </label>
+        <button id="toggle">Pause</button>
+        <button id="snapshot">Snapshot</button>
+      </div>
+    </header>
+    <main class="canvas-wrap">
+      <canvas id="kaleidoscope"></canvas>
+    </main>
+    <footer class="app-footer">
+      <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noreferrer">MIT</a>
+      <span>•</span>
+      <a href="https://github.com/" target="_blank" rel="noreferrer">Source soon</a>
+    </footer>
+    <script src="script.js" type="module"></script>
+  </body>
+  </html>
+
