@@ -169,7 +169,7 @@ export function toggleToolMessage(messageId: string) {
     if (msg?.toolState) {
       msg.toolState.expanded = !msg.toolState.expanded;
     }
-    return [...h];
+    return [...h];  // Bug: This creates a new array but doesn't mutate any objects in it
   });
 }
 
