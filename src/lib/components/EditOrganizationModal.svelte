@@ -45,7 +45,7 @@
     name = "";
     error = null;
     currentOrganizationId = null;
-
+    console.log("Closing modal");
     dispatch("close");
   }
 
