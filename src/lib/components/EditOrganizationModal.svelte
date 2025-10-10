@@ -60,6 +60,7 @@
       if (fileInput) {
         fileInput.value = "";
       }
+      console.log("Selected file is not an image");
       return;
     }
 
