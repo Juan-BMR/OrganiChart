@@ -61,6 +61,8 @@
         fileInput.value = "";
       }
       console.log("Selected file is not an image");
+      console.log(selectedFile);
+      console.log(selectedFile.type);
       return;
     }
 
