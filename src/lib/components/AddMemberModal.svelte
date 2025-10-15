@@ -39,6 +39,12 @@
 
   // If subordinates are selected and have a common manager, auto-set the manager
   $: if (willInsertBetween && selectedSubordinates.length > 0) {
+
+    let i = 0;
+    while (i < selectedSubordinates.length) {
+     console.log("selectedSubordinates[i]", selectedSubordinates[i]);
+    }
+    console.log("selectedSubordinates", selectedSubordinates);
     const commonManagerId = selectedSubordinates[0].managerId;
     // Verify all selected subordinates have the same manager
     const allHaveSameManager = selectedSubordinates.every(
