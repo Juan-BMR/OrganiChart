@@ -4,75 +4,111 @@
   import { db } from "$lib/firebase.js";
   import { doc, getDoc, updateDoc } from "firebase/firestore";
   import { COLLECTIONS } from "$lib/db/collections.js";
+  import {
+    normalizeHex,
+    isValidHex,
+    adjustColor,
+    setColorVariables,
+  } from "$lib/utils/colorUtils.js";
 
+  // Constants
+
+  const DEFAULT_COLOR = "#6366F1";
+  const DEBOUNCE_DELAY = 300;
+  const PREVENT_KEYS = [
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+    "+",
+    "=",
+    "-",
+    "Escape",
+  ];
+
+  // Props
   export let organizationId;
 
-  let color = "#6366F1"; // default fallback
+  // State
+  let color = DEFAULT_COLOR;
   let inputValue = "";
   let isValid = true;
   let loading = false;
   let isExpanded = false;
+  let debounceTimeout;
 
-  const HEX_REGEX = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-
+  // Lifecycle
   onMount(async () => {
-    // Initialize chart color variables with defaults
-    document.documentElement.style.setProperty("--chart-primary", "#6366F1");
-    document.documentElement.style.setProperty(
-      "--chart-primary-dark",
-      adjustColor("#6366F1", -15),
-    );
-    document.documentElement.style.setProperty(
-      "--chart-primary-light",
-      adjustColor("#6366F1", 15),
-    );
+    setColorVariables(DEFAULT_COLOR);
 
     if (organizationId) {
       await loadOrganizationColor();
     } else {
-      // Fallback to localStorage if no organizationId
-      const stored = localStorage.getItem("orgchartPrimaryColor");
-      if (stored && isValidHex(stored)) {
-        color = normalizeHex(stored);
-        inputValue = color;
-        applyColor(color);
-      } else {
-        inputValue = color;
-        applyColor(color);
-      }
+      await loadLocalStorageColor();
     }
   });
 
+  // Color Loading
   async function loadOrganizationColor() {
     try {
       const orgDoc = await getDoc(
         doc(db, COLLECTIONS.ORGANIZATIONS, organizationId),
       );
       if (orgDoc.exists()) {
-        const orgData = orgDoc.data();
-        const orgColor = orgData.chartColor || "#6366F1";
-        color = normalizeHex(orgColor);
-        inputValue = color;
-        applyColor(color);
+        const orgColor = orgDoc.data().chartColor || DEFAULT_COLOR;
+        initializeColor(orgColor);
+      } else {
+        initializeColor(DEFAULT_COLOR);
       }
     } catch (error) {
       console.error("Failed to load organization color:", error);
-      // Fallback to default
-      inputValue = color;
-      applyColor(color);
+      initializeColor(color);
     }
   }
 
-  function normalizeHex(val) {
-    if (!val) return "";
-    return val.startsWith("#") ? val.toUpperCase() : `#${val.toUpperCase()}`;
+  async function loadLocalStorageColor() {
+    const stored = localStorage.getItem("orgchartPrimaryColor");
+    if (stored && isValidHex(stored)) {
+      initializeColor(stored);
+    } else {
+      initializeColor(DEFAULT_COLOR);
+    }
   }
 
-  function isValidHex(val) {
-    return HEX_REGEX.test(val.startsWith("#") ? val.slice(1) : val);
+  function initializeColor(selectedColor) {
+    color = normalizeHex(selectedColor);
+    inputValue = color;
+    applyColor(color);
   }
 
-  let debounceTimeout;
+  // Color Application
+  function applyColor(hex) {
+    if (!isValidHex(hex)) return;
+    setColorVariables(hex);
+  }
+
+  // Color Persistence
+  async function saveColorToDatabase(hex) {
+    if (!organizationId) {
+      localStorage.setItem("orgchartPrimaryColor", hex);
+      return;
+    }
+
+    try {
+      loading = true;
+      await updateDoc(doc(db, COLLECTIONS.ORGANIZATIONS, organizationId), {
+        chartColor: hex,
+        updatedAt: new Date(),
+      });
+    } catch (error) {
+      console.error("Failed to save color to database:", error);
+      localStorage.setItem("orgchartPrimaryColor", hex);
+    } finally {
+      loading = false;
+    }
+  }
+
+  // Event Handlers
   function handleInput(event) {
     let val = event.target.value.trim();
     if (!val.startsWith("#")) {
@@ -88,94 +124,19 @@
         applyColor(color);
         await saveColorToDatabase(color);
       }
-    }, 300);
+    }, DEBOUNCE_DELAY);
   }
 
   function handleKeyDown(event) {
-    // Prevent arrow keys and other navigation keys from bubbling up to chart controls
-    const preventKeys = [
-      "ArrowUp",
-      "ArrowDown",
-      "ArrowLeft",
-      "ArrowRight",
-      "+",
-      "=",
-      "-",
-      "Escape",
-    ];
-    if (preventKeys.includes(event.key)) {
+    // Prevent keys from bubbling up to chart controls
+    if (PREVENT_KEYS.includes(event.key)) {
       event.stopPropagation();
     }
   }
 
-  async function saveColorToDatabase(hex) {
-    if (!organizationId) {
-      // Fallback to localStorage if no organizationId
-      localStorage.setItem("orgchartPrimaryColor", hex);
-      return;
-    }
-
-    try {
-      loading = true;
-      await updateDoc(doc(db, COLLECTIONS.ORGANIZATIONS, organizationId), {
-        chartColor: hex,
-        updatedAt: new Date(),
-      });
-    } catch (error) {
-      console.error("Failed to save color to database:", error);
-      // Fallback to localStorage
-      localStorage.setItem("orgchartPrimaryColor", hex);
-    } finally {
-      loading = false;
-    }
-  }
-
-  function applyColor(hex) {
-    if (!isValidHex(hex)) return;
-    // Use chart-specific CSS variables instead of global --primary
-    document.documentElement.style.setProperty("--chart-primary", hex);
-    document.documentElement.style.setProperty(
-      "--chart-primary-dark",
-      adjustColor(hex, -15),
-    );
-    document.documentElement.style.setProperty(
-      "--chart-primary-light",
-      adjustColor(hex, 15),
-    );
-  }
-
-  // Utility: adjust color brightness
-  function adjustColor(hex, percent) {
-    const h = normalizeHex(hex).slice(1);
-    const bigint = parseInt(
-      h.length === 3
-        ? h
-            .split("")
-            .map((c) => c + c)
-            .join("")
-        : h,
-      16,
-    );
-    let r = (bigint >> 16) & 255;
-    let g = (bigint >> 8) & 255;
-    let b = bigint & 255;
-    const adjust = (c) => {
-      const amt = Math.round((percent / 100) * 255);
-      const v = Math.min(255, Math.max(0, c + amt));
-      return v;
-    };
-    r = adjust(r);
-    g = adjust(g);
-    b = adjust(b);
-    const toHex = (v) => v.toString(16).padStart(2, "0");
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
-  }
-
   async function resetColor() {
-    color = "#6366F1";
-    inputValue = color;
-    applyColor(color);
-    await saveColorToDatabase(color);
+    initializeColor(DEFAULT_COLOR);
+    await saveColorToDatabase(DEFAULT_COLOR);
     isValid = true;
   }
 
