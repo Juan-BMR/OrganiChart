@@ -16,6 +16,7 @@
   import ChartColorPicker from "$lib/components/ChartColorPicker.svelte";
   import RuleManagerModal from "$lib/components/RuleManagerModal.svelte";
   import ZoomSensitivityControl from "$lib/components/ZoomSensitivityControl.svelte";
+  import OrgInsightsPanel from "$lib/components/OrgInsightsPanel.svelte";
   import { rulesStore } from "$lib/stores/rules.js";
   import { zoomStore } from "$lib/stores/zoom.js";
   import {
@@ -519,6 +520,7 @@
 
   let showAddMember = false;
   let showEditMember = false;
+  let showInsights = false;
 
   // PDF Export Modal State
   let showPDFModal = false;
@@ -1876,6 +1878,32 @@
 
         <!-- Action buttons -->
         <div class="action-controls">
+          <button
+            class="action-btn secondary"
+            on:click={() => (showInsights = true)}
+            title="View organization insights"
+          >
+            <svg
+              class="button-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M3 17l6-6 4 4 8-8"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 5h6v6"
+              />
+            </svg>
+            Org insights
+          </button>
           <button class="action-btn secondary" on:click={openRules}>
             <svg
               class="button-icon"
@@ -1987,6 +2015,13 @@
   {/if}
 
   <RuleManagerModal open={showRules} {organizationId} on:close={closeRules} />
+
+  <OrgInsightsPanel
+    open={showInsights}
+    {members}
+    {organization}
+    on:close={() => (showInsights = false)}
+  />
 
   <!-- PDF Framing Mode Overlay -->
   {#if pdfFramingMode}
