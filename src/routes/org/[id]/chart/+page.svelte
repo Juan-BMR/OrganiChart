@@ -16,6 +16,7 @@
   import ChartColorPicker from "$lib/components/ChartColorPicker.svelte";
   import RuleManagerModal from "$lib/components/RuleManagerModal.svelte";
   import ZoomSensitivityControl from "$lib/components/ZoomSensitivityControl.svelte";
+  import CommandPalette from "$lib/components/CommandPalette.svelte";
   import { rulesStore } from "$lib/stores/rules.js";
   import { zoomStore } from "$lib/stores/zoom.js";
   import {
@@ -540,6 +541,9 @@
 
   // Rules modal state
   let showRules = false;
+
+  // Command palette state
+  let showCommandPalette = false;
 
   function openAddMember() {
     showAddMember = true;
@@ -1538,6 +1542,13 @@
   }
 
   function keyHandler(e) {
+    // Command palette shortcut (Cmd/Ctrl+K)
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      e.preventDefault();
+      showCommandPalette = !showCommandPalette;
+      return;
+    }
+
     switch (e.key) {
       case "+":
       case "=":
@@ -1631,6 +1642,39 @@
       console.error(err);
       sidebarError = "Failed to load member details.";
       sidebarLoading = false;
+    }
+  }
+
+  // Handle command palette member selection
+  function handleCommandPaletteSelect(event) {
+    const { member } = event.detail;
+    
+    // Find the member's position in the chart
+    const memberPosition = nodesWithPosition.find(n => n.member.id === member.id);
+    
+    if (memberPosition && containerEl) {
+      // Get viewport dimensions
+      const rect = containerEl.getBoundingClientRect();
+      const viewportCenterX = rect.width / 2;
+      const viewportCenterY = rect.height / 2;
+
+      // Calculate the transform to center this member
+      const targetScale = 1.5; // Zoom in a bit
+      const newX = viewportCenterX - memberPosition.x * targetScale;
+      const newY = viewportCenterY - memberPosition.y * targetScale;
+
+      // Animate to the new position
+      canvasStore.setTransform({
+        scale: targetScale,
+        x: newX,
+        y: newY,
+      });
+
+      // Open the sidebar with this member after a short delay
+      setTimeout(() => {
+        selectedMember = member;
+        sidebarOpen = true;
+      }, 300);
     }
   }
 </script>
@@ -1876,6 +1920,23 @@
 
         <!-- Action buttons -->
         <div class="action-controls">
+          <button class="action-btn secondary" on:click={() => (showCommandPalette = true)} title="Quick search (Ctrl+K)">
+            <svg
+              class="button-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            Quick Search
+          </button>
+
           <button class="action-btn secondary" on:click={openRules}>
             <svg
               class="button-icon"
@@ -1987,6 +2048,14 @@
   {/if}
 
   <RuleManagerModal open={showRules} {organizationId} on:close={closeRules} />
+
+  <!-- Command Palette -->
+  <CommandPalette
+    bind:open={showCommandPalette}
+    {members}
+    on:select={handleCommandPaletteSelect}
+    on:close={() => (showCommandPalette = false)}
+  />
 
   <!-- PDF Framing Mode Overlay -->
   {#if pdfFramingMode}
