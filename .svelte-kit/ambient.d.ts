@@ -26,6 +26,7 @@
  * ```
  */
 declare module '$env/static/private' {
+	export const EXEC_DAEMON_LSP_ENABLED: string;
 	export const USER: string;
 	export const npm_config_user_agent: string;
 	export const VITE_CURRENCY_SYMBOL: string;
@@ -33,15 +34,19 @@ declare module '$env/static/private' {
 	export const npm_node_execpath: string;
 	export const SHLVL: string;
 	export const npm_config_noproxy: string;
+	export const PORT: string;
 	export const HOME: string;
+	export const OLDPWD: string;
 	export const NVM_BIN: string;
 	export const npm_package_json: string;
 	export const NVM_INC: string;
 	export const PS1: string;
 	export const npm_config_userconfig: string;
 	export const npm_config_local_prefix: string;
+	export const NO_COLOR: string;
 	export const COLOR: string;
 	export const NVM_DIR: string;
+	export const FORCE_COLOR: string;
 	export const _: string;
 	export const npm_config_prefix: string;
 	export const npm_config_npm_version: string;
@@ -53,6 +58,8 @@ declare module '$env/static/private' {
 	export const PATH: string;
 	export const NODE: string;
 	export const npm_package_name: string;
+	export const CURSOR_AGENT: string;
+	export const AGENT_RG_PATH: string;
 	export const LANG: string;
 	export const npm_lifecycle_script: string;
 	export const SHELL: string;
@@ -60,6 +67,7 @@ declare module '$env/static/private' {
 	export const npm_lifecycle_event: string;
 	export const GIT_DISCOVERY_ACROSS_FILESYSTEM: string;
 	export const RUST_VERSION: string;
+	export const AUTH_TOKEN: string;
 	export const npm_config_globalconfig: string;
 	export const npm_config_init_module: string;
 	export const VITE_CURRENCY_DECIMALS: string;
@@ -104,6 +112,7 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
+		EXEC_DAEMON_LSP_ENABLED: string;
 		USER: string;
 		npm_config_user_agent: string;
 		VITE_CURRENCY_SYMBOL: string;
@@ -111,15 +120,19 @@ declare module '$env/dynamic/private' {
 		npm_node_execpath: string;
 		SHLVL: string;
 		npm_config_noproxy: string;
+		PORT: string;
 		HOME: string;
+		OLDPWD: string;
 		NVM_BIN: string;
 		npm_package_json: string;
 		NVM_INC: string;
 		PS1: string;
 		npm_config_userconfig: string;
 		npm_config_local_prefix: string;
+		NO_COLOR: string;
 		COLOR: string;
 		NVM_DIR: string;
+		FORCE_COLOR: string;
 		_: string;
 		npm_config_prefix: string;
 		npm_config_npm_version: string;
@@ -131,6 +144,8 @@ declare module '$env/dynamic/private' {
 		PATH: string;
 		NODE: string;
 		npm_package_name: string;
+		CURSOR_AGENT: string;
+		AGENT_RG_PATH: string;
 		LANG: string;
 		npm_lifecycle_script: string;
 		SHELL: string;
@@ -138,6 +153,7 @@ declare module '$env/dynamic/private' {
 		npm_lifecycle_event: string;
 		GIT_DISCOVERY_ACROSS_FILESYSTEM: string;
 		RUST_VERSION: string;
+		AUTH_TOKEN: string;
 		npm_config_globalconfig: string;
 		npm_config_init_module: string;
 		VITE_CURRENCY_DECIMALS: string;
