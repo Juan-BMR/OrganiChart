@@ -4,22 +4,58 @@
   import { fade } from "svelte/transition";
   import CVPreview from "./CVPreview.svelte";
 
+  // Constants
+  const FILE_CONSTANTS = {
+    PHOTO: {
+      MAX_SIZE: 2 * 1024 * 1024, // 2MB
+      ACCEPTED_TYPES: ["image/"],
+      UNSUPPORTED_TYPES: ["image/heic", "image/heif"],
+      ERROR_MESSAGES: {
+        INVALID_TYPE: "Please upload an image file (JPG, PNG, GIF, WebP)",
+        UNSUPPORTED_FORMAT: "HEIC/HEIF files are not supported. Please convert to JPG or PNG first.",
+        SIZE_EXCEEDED: "File size must be below 2MB"
+      },
+      REMOVE_FLAG: "REMOVE_PHOTO"
+    },
+    CV: {
+      MAX_SIZE: 5 * 1024 * 1024, // 5MB
+      ACCEPTED_TYPES: [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ],
+      ERROR_MESSAGES: {
+        INVALID_TYPE: "Please upload a PDF, DOC, or DOCX file",
+        SIZE_EXCEEDED: "CV file size must be below 5MB"
+      },
+      REMOVE_FLAG: "REMOVE_CV"
+    }
+  };
+
+  const VALIDATION_MESSAGES = {
+    NAME_REQUIRED: "Name is required",
+    PERMISSION_DENIED: "Permission denied. You need admin access to update members. Please contact the organization owner.",
+    SUBMIT_ERROR: "Failed to update member"
+  };
+
+  // Props
   export let open = false;
   export let member; // existing member object
   export let organizationId;
   export let members = [];
 
   const dispatch = createEventDispatcher();
-  let modalElement;
 
+  // State
+  let modalElement;
   let name = "";
   let role = "";
   let email = "";
   let startDate = "";
-  let file = null;
-  let filePreviewUrl = null;
-  let fileInput;
+  let photoFile = null;
+  let photoPreviewUrl = null;
   let cvFile = null;
+  let fileInput;
   let cvInput;
   let error = null;
   let loading = false;
@@ -29,25 +65,15 @@
   let showCVPreview = false;
   let cvTargetElement = null;
 
+  // Computed values
+  $: hasPhotoRemovalFlag = photoFile === FILE_CONSTANTS.PHOTO.REMOVE_FLAG;
+  $: hasCVRemovalFlag = cvFile === FILE_CONSTANTS.CV.REMOVE_FLAG;
+  $: hasCurrentPhoto = member?.photoURL && !hasPhotoRemovalFlag;
+  $: hasCurrentCV = member?.cvURL && member?.cvFileName && !hasCVRemovalFlag;
+
   // Initialize form values when modal opens or when member changes
   $: if (open && member && member.id !== currentMemberId) {
-    name = member.name;
-    role = member.role;
-    email = member.email || "";
-    // Format startDate for date input (YYYY-MM-DD)
-    startDate = member.startDate
-      ? new Date(
-          member.startDate.seconds
-            ? member.startDate.seconds * 1000
-            : member.startDate
-        )
-          .toISOString()
-          .split("T")[0]
-      : new Date().toISOString().split("T")[0];
-    file = null; // Reset photo state
-    filePreviewUrl = null;
-    cvFile = null; // Reset CV state
-    currentMemberId = member.id;
+    initializeForm();
   }
 
   // Focus the modal when it opens
@@ -55,144 +81,129 @@
     modalElement.focus();
   }
 
-  function close() {
-    // Clean up file preview URL
-    if (filePreviewUrl) {
-      URL.revokeObjectURL(filePreviewUrl);
-      filePreviewUrl = null;
-    }
-    file = null;
-    if (fileInput) {
-      fileInput.value = "";
-    }
-    cvFile = null;
-    if (cvInput) {
-      cvInput.value = "";
-    }
-
-    // Reset form values
-    name = "";
-    role = "";
-    email = "";
-    startDate = "";
-    error = null;
-    currentMemberId = null;
-
-    dispatch("close");
+  // Utility functions
+  function formatDateForInput(dateValue) {
+    if (!dateValue) return new Date().toISOString().split("T")[0];
+    
+    // Handle Firestore Timestamp
+    const date = dateValue.seconds
+      ? new Date(dateValue.seconds * 1000)
+      : new Date(dateValue);
+    
+    return date.toISOString().split("T")[0];
   }
 
+  function initializeForm() {
+    name = member.name || "";
+    role = member.role || "";
+    email = member.email || "";
+    startDate = formatDateForInput(member.startDate);
+    photoFile = null;
+    photoPreviewUrl = null;
+    cvFile = null;
+    currentMemberId = member.id;
+    error = null;
+  }
+
+  function resetFileInput(inputElement) {
+    if (inputElement) {
+      inputElement.value = "";
+    }
+  }
+
+  function revokePhotoPreview() {
+    if (photoPreviewUrl) {
+      URL.revokeObjectURL(photoPreviewUrl);
+      photoPreviewUrl = null;
+    }
+  }
+
+  // File validation helpers
+  function validatePhotoFile(file) {
+    if (!file.type.startsWith("image/")) {
+      return FILE_CONSTANTS.PHOTO.ERROR_MESSAGES.INVALID_TYPE;
+    }
+
+    if (FILE_CONSTANTS.PHOTO.UNSUPPORTED_TYPES.includes(file.type.toLowerCase())) {
+      return FILE_CONSTANTS.PHOTO.ERROR_MESSAGES.UNSUPPORTED_FORMAT;
+    }
+
+    if (file.size > FILE_CONSTANTS.PHOTO.MAX_SIZE) {
+      return FILE_CONSTANTS.PHOTO.ERROR_MESSAGES.SIZE_EXCEEDED;
+    }
+
+    return null;
+  }
+
+  function validateCVFile(file) {
+    if (!FILE_CONSTANTS.CV.ACCEPTED_TYPES.includes(file.type)) {
+      return FILE_CONSTANTS.CV.ERROR_MESSAGES.INVALID_TYPE;
+    }
+
+    if (file.size > FILE_CONSTANTS.CV.MAX_SIZE) {
+      return FILE_CONSTANTS.CV.ERROR_MESSAGES.SIZE_EXCEEDED;
+    }
+
+    return null;
+  }
+
+  // File handlers
   function handleFileChange(e) {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
 
-    // Check if file is an image
-    if (!selectedFile.type.startsWith("image/")) {
-      error = "Please upload an image file (JPG, PNG, GIF, WebP)";
-      // Reset the file input
-      if (fileInput) {
-        fileInput.value = "";
-      }
+    const validationError = validatePhotoFile(selectedFile);
+    if (validationError) {
+      error = validationError;
+      resetFileInput(fileInput);
       return;
     }
 
-    // Check for unsupported image formats (HEIC, HEIF, etc.)
-    const unsupportedTypes = ["image/heic", "image/heif"];
-    if (unsupportedTypes.includes(selectedFile.type.toLowerCase())) {
-      error =
-        "HEIC/HEIF files are not supported. Please convert to JPG or PNG first.";
-      // Reset the file input
-      if (fileInput) {
-        fileInput.value = "";
-      }
-      return;
-    }
-
-    // Check file size (2MB limit)
-    if (selectedFile.size > 2 * 1024 * 1024) {
-      error = "File size must be below 2MB";
-      // Reset the file input
-      if (fileInput) {
-        fileInput.value = "";
-      }
-      return;
-    }
-
-    // File is valid
-    file = selectedFile;
+    photoFile = selectedFile;
     error = null;
-    filePreviewUrl = URL.createObjectURL(selectedFile);
+    photoPreviewUrl = URL.createObjectURL(selectedFile);
   }
 
   function handleRemoveFile() {
-    if (filePreviewUrl) {
-      URL.revokeObjectURL(filePreviewUrl);
-    }
-    file = null;
-    filePreviewUrl = null;
-    if (fileInput) {
-      fileInput.value = "";
-    }
+    revokePhotoPreview();
+    photoFile = null;
+    photoPreviewUrl = null;
+    resetFileInput(fileInput);
   }
 
   function handleRemoveCurrentPhoto() {
-    // Set a flag to remove the current photo when saving
-    file = "REMOVE_PHOTO"; // Special flag to indicate photo removal
-    filePreviewUrl = null;
-    if (fileInput) {
-      fileInput.value = "";
-    }
+    photoFile = FILE_CONSTANTS.PHOTO.REMOVE_FLAG;
+    photoPreviewUrl = null;
+    resetFileInput(fileInput);
   }
 
   function handleCVChange(e) {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
 
-    // Check if file is a valid CV format
-    const validTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ];
-    
-    if (!validTypes.includes(selectedFile.type)) {
-      error = "Please upload a PDF, DOC, or DOCX file";
-      if (cvInput) {
-        cvInput.value = "";
-      }
+    const validationError = validateCVFile(selectedFile);
+    if (validationError) {
+      error = validationError;
+      resetFileInput(cvInput);
       return;
     }
 
-    // Check file size (5MB limit for CVs)
-    if (selectedFile.size > 5 * 1024 * 1024) {
-      error = "CV file size must be below 5MB";
-      if (cvInput) {
-        cvInput.value = "";
-      }
-      return;
-    }
-
-    // File is valid
     cvFile = selectedFile;
     error = null;
   }
 
   function handleRemoveCV() {
     cvFile = null;
-    if (cvInput) {
-      cvInput.value = "";
-    }
+    resetFileInput(cvInput);
   }
 
   function handleRemoveCurrentCV() {
-    // Set a flag to remove the current CV when saving
-    cvFile = "REMOVE_CV"; // Special flag to indicate CV removal
-    if (cvInput) {
-      cvInput.value = "";
-    }
+    cvFile = FILE_CONSTANTS.CV.REMOVE_FLAG;
+    resetFileInput(cvInput);
   }
 
   function handleCVHover(event) {
-    if (member?.cvURL && member?.cvFileName && cvFile !== "REMOVE_CV") {
+    if (hasCurrentCV) {
       showCVPreview = true;
       cvTargetElement = event.currentTarget;
     }
@@ -210,40 +221,68 @@
     }
   }
 
+  function formatFileSize(bytes) {
+    return (bytes / 1024 / 1024).toFixed(2);
+  }
+
+  function formatCVUploadDate(dateValue) {
+    if (!dateValue) return "Unknown";
+    
+    const date = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
+    return date.toLocaleDateString();
+  }
+
+  // Form handlers
+  function validateForm() {
+    if (!name.trim()) {
+      error = VALIDATION_MESSAGES.NAME_REQUIRED;
+      return false;
+    }
+    return true;
+  }
+
+  function determineFileUpdate() {
+    // Determine if we need to update the photo
+    let fileToUpdate = undefined; // undefined means don't change photo
+
+    if (photoFile === FILE_CONSTANTS.PHOTO.REMOVE_FLAG) {
+      fileToUpdate = null; // null means remove the photo
+    } else if (photoFile && photoFile !== FILE_CONSTANTS.PHOTO.REMOVE_FLAG) {
+      fileToUpdate = photoFile; // file object means upload new photo
+    }
+    // If photoFile is null/undefined and not "REMOVE_PHOTO", don't pass fileToUpdate (keep existing photo)
+
+    return fileToUpdate;
+  }
+
+  function determineCVUpdate() {
+    // Determine if we need to update the CV
+    let cvToUpdate = undefined; // undefined means don't change CV
+
+    if (cvFile === FILE_CONSTANTS.CV.REMOVE_FLAG) {
+      cvToUpdate = null; // null means remove the CV
+    } else if (cvFile && cvFile !== FILE_CONSTANTS.CV.REMOVE_FLAG) {
+      cvToUpdate = cvFile; // file object means upload new CV
+    }
+    // If cvFile is null/undefined and not "REMOVE_CV", don't pass cvToUpdate (keep existing CV)
+
+    return cvToUpdate;
+  }
+
   async function handleSubmit() {
     error = null;
+
+    if (!validateForm()) {
+      return;
+    }
+
     loading = true;
 
     try {
-      if (!name.trim()) {
-        error = "Name is required";
-        return;
-      }
-
-      // Determine if we need to update the photo
-      let fileToUpdate = undefined; // undefined means don't change photo
-
-      if (file === "REMOVE_PHOTO") {
-        fileToUpdate = null; // null means remove the photo
-      } else if (file && file !== "REMOVE_PHOTO") {
-        fileToUpdate = file; // file object means upload new photo
-      }
-      // If file is null/undefined and not "REMOVE_PHOTO", don't pass fileToUpdate (keep existing photo)
-
-      // Determine if we need to update the CV
-      let cvToUpdate = undefined; // undefined means don't change CV
-
-      if (cvFile === "REMOVE_CV") {
-        cvToUpdate = null; // null means remove the CV
-      } else if (cvFile && cvFile !== "REMOVE_CV") {
-        cvToUpdate = cvFile; // file object means upload new CV
-      }
-      // If cvFile is null/undefined and not "REMOVE_CV", don't pass cvToUpdate (keep existing CV)
-
-      // Convert startDate string to Date object
+      const fileToUpdate = determineFileUpdate();
+      const cvToUpdate = determineCVUpdate();
       const startDateObj = startDate ? new Date(startDate) : new Date();
 
-      // Update member with basic information only
       await membersStore.updateMember(
         member.id,
         { name, role, email, startDate: startDateObj, organizationId },
@@ -255,14 +294,33 @@
       console.error("EditMemberModal submit error:", err);
 
       if (err.code === "permission-denied") {
-        error =
-          "Permission denied. You need admin access to update members. Please contact the organization owner.";
+        error = VALIDATION_MESSAGES.PERMISSION_DENIED;
       } else {
-        error = err.message || "Failed to update member";
+        error = err.message || VALIDATION_MESSAGES.SUBMIT_ERROR;
       }
     } finally {
       loading = false;
     }
+  }
+
+  function resetForm() {
+    name = "";
+    role = "";
+    email = "";
+    startDate = "";
+    photoFile = null;
+    photoPreviewUrl = null;
+    cvFile = null;
+    error = null;
+    currentMemberId = null;
+    resetFileInput(fileInput);
+    resetFileInput(cvInput);
+  }
+
+  function close() {
+    revokePhotoPreview();
+    resetForm();
+    dispatch("close");
   }
 </script>
 
@@ -325,7 +383,7 @@
         <label class="input-label" for="edit-photo-upload">Photo</label>
         <div class="photo-upload-container">
           <div class="upload-area" on:click={() => fileInput.click()}>
-            {#if file === "REMOVE_PHOTO"}
+            {#if hasPhotoRemovalFlag}
               <div class="upload-placeholder">
                 <svg
                   class="upload-icon"
@@ -345,9 +403,9 @@
                   <span class="upload-hint">JPG, PNG, GIF, WebP up to 2MB</span>
                 </p>
               </div>
-            {:else if filePreviewUrl}
+            {:else if photoPreviewUrl}
               <div class="photo-preview">
-                <img src={filePreviewUrl} alt="Photo preview" />
+                <img src={photoPreviewUrl} alt="Photo preview" />
                 <div class="photo-overlay">
                   <svg
                     class="camera-icon"
@@ -371,7 +429,7 @@
                   <span>Click to change</span>
                 </div>
               </div>
-            {:else if member?.photoURL}
+            {:else if hasCurrentPhoto}
               <div class="photo-preview">
                 <img src={member.photoURL} alt="Current photo" />
                 <div class="photo-overlay">
@@ -421,7 +479,7 @@
           </div>
 
           <div class="photo-actions">
-            {#if filePreviewUrl}
+            {#if photoPreviewUrl}
               <button
                 type="button"
                 class="photo-action-btn remove"
@@ -438,7 +496,7 @@
                 </svg>
                 Cancel
               </button>
-            {:else if member?.photoURL && file !== "REMOVE_PHOTO"}
+            {:else if hasCurrentPhoto}
               <button
                 type="button"
                 class="photo-action-btn remove"
@@ -477,7 +535,7 @@
                   d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
                 />
               </svg>
-              {filePreviewUrl || (member?.photoURL && file !== "REMOVE_PHOTO")
+              {photoPreviewUrl || hasCurrentPhoto
                 ? "Change Photo"
                 : "Add Photo"}
             </button>
@@ -495,7 +553,7 @@
         <label class="input-label" for="edit-cv-upload">CV / Resume</label>
         <div class="cv-upload-container">
           <div class="upload-area cv-upload" on:click={() => cvInput.click()}>
-            {#if cvFile === "REMOVE_CV"}
+            {#if hasCVRemovalFlag}
               <div class="upload-placeholder">
                 <svg
                   class="upload-icon"
@@ -515,7 +573,7 @@
                   <span class="upload-hint">PDF, DOC, DOCX up to 5MB</span>
                 </p>
               </div>
-            {:else if cvFile && cvFile !== "REMOVE_CV"}
+            {:else if cvFile && !hasCVRemovalFlag}
               <div class="cv-preview">
                 <div class="cv-file-info">
                   <svg
@@ -533,7 +591,7 @@
                   </svg>
                   <div class="cv-details">
                     <div class="cv-filename">{cvFile.name}</div>
-                    <div class="cv-size">{(cvFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                    <div class="cv-size">{formatFileSize(cvFile.size)} MB</div>
                   </div>
                 </div>
                 <div class="cv-overlay">
@@ -553,7 +611,7 @@
                   <span>Click to change</span>
                 </div>
               </div>
-            {:else if member?.cvURL && member?.cvFileName}
+            {:else if hasCurrentCV}
               <div 
                 class="cv-preview"
                 on:mouseenter={handleCVHover}
@@ -576,7 +634,7 @@
                   <div class="cv-details">
                     <div class="cv-filename">{member.cvFileName}</div>
                     <div class="cv-uploaded">
-                      Uploaded {member.cvUploadedAt ? new Date(member.cvUploadedAt.toDate ? member.cvUploadedAt.toDate() : member.cvUploadedAt).toLocaleDateString() : 'Unknown'}
+                      Uploaded {formatCVUploadDate(member.cvUploadedAt)}
                     </div>
                   </div>
                 </div>
@@ -621,7 +679,7 @@
           </div>
 
           <div class="cv-actions">
-            {#if cvFile && cvFile !== "REMOVE_CV"}
+            {#if cvFile && !hasCVRemovalFlag}
               <button
                 type="button"
                 class="cv-action-btn remove"
@@ -638,7 +696,7 @@
                 </svg>
                 Cancel
               </button>
-            {:else if member?.cvURL && cvFile !== "REMOVE_CV"}
+            {:else if hasCurrentCV}
               <button
                 type="button"
                 class="cv-action-btn remove"
@@ -657,7 +715,7 @@
               </button>
             {/if}
 
-            {#if member?.cvURL && cvFile !== "REMOVE_CV"}
+            {#if hasCurrentCV}
               <button
                 type="button"
                 class="cv-action-btn download"
@@ -690,7 +748,7 @@
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-              {cvFile || member?.cvURL ? "Change CV" : "Upload CV"}
+              {cvFile || hasCurrentCV ? "Change CV" : "Upload CV"}
             </button>
           </div>
         </div>
