@@ -36,6 +36,7 @@ declare module '$env/static/private' {
 	export const NVM_BIN: string;
 	export const npm_package_json: string;
 	export const NVM_INC: string;
+	export const PS1: string;
 	export const npm_config_userconfig: string;
 	export const npm_config_local_prefix: string;
 	export const COLOR: string;
@@ -50,9 +51,9 @@ declare module '$env/static/private' {
 	export const PATH: string;
 	export const NODE: string;
 	export const npm_package_name: string;
+	export const DISPLAY: string;
 	export const LANG: string;
 	export const npm_lifecycle_script: string;
-	export const TEST_TEAM: string;
 	export const SHELL: string;
 	export const npm_package_version: string;
 	export const npm_lifecycle_event: string;
@@ -111,6 +112,7 @@ declare module '$env/dynamic/private' {
 		NVM_BIN: string;
 		npm_package_json: string;
 		NVM_INC: string;
+		PS1: string;
 		npm_config_userconfig: string;
 		npm_config_local_prefix: string;
 		COLOR: string;
@@ -125,9 +127,9 @@ declare module '$env/dynamic/private' {
 		PATH: string;
 		NODE: string;
 		npm_package_name: string;
+		DISPLAY: string;
 		LANG: string;
 		npm_lifecycle_script: string;
-		TEST_TEAM: string;
 		SHELL: string;
 		npm_package_version: string;
 		npm_lifecycle_event: string;

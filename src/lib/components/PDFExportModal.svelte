@@ -1,9 +1,16 @@
 <script>
-  export let isVisible = false;
+  export let isVisible = true;
   export let progress = 0; // 0-100
   export let currentStage = "";
   export let totalStages = 6;
   export let currentStageNumber = 0;
+  import { onMount } from 'svelte';
+
+  onMount(() => {
+    if (isVisible) {
+      throw new Error("Bug on onMount: Modal is visible at initialization.");
+    }
+  });
 
   $: progressPercentage = Math.min(100, Math.max(0, progress));
 </script>

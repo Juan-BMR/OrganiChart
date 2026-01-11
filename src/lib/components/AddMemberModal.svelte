@@ -2,12 +2,46 @@
   import { createEventDispatcher } from "svelte";
   import { membersStore } from "$lib/stores/members.js";
 
+  // Constants
+  const FILE_CONSTANTS = {
+    PHOTO: {
+      MAX_SIZE: 2 * 1024 * 1024, // 2MB
+      ACCEPTED_TYPES: ["image/"],
+      UNSUPPORTED_TYPES: ["image/heic", "image/heif"],
+      ERROR_MESSAGES: {
+        INVALID_TYPE: "Please upload an image file (JPG, PNG, GIF, WebP)",
+        UNSUPPORTED_FORMAT: "HEIC/HEIF files are not supported. Please convert to JPG or PNG first.",
+        SIZE_EXCEEDED: "File size must be below 2MB"
+      }
+    },
+    CV: {
+      MAX_SIZE: 5 * 1024 * 1024, // 5MB
+      ACCEPTED_TYPES: [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ],
+      ERROR_MESSAGES: {
+        INVALID_TYPE: "Please upload a PDF, DOC, or DOCX file",
+        SIZE_EXCEEDED: "CV file size must be below 5MB"
+      }
+    }
+  };
+
+  const VALIDATION_MESSAGES = {
+    NAME_REQUIRED: "Name is required",
+    ROLE_REQUIRED: "Role/Title is required",
+    SUBMIT_ERROR: "Failed to add member"
+  };
+
+  // Props
   export let open = false;
   export let organizationId;
   export let members = [];
 
   const dispatch = createEventDispatcher();
 
+  // State
   let name = "";
   let email = "";
   let role = "";
@@ -22,25 +56,28 @@
   let subordinateIds = [];
   let dropdownOpen = false;
   let managerDropdownOpen = false;
-  let startDate = new Date().toISOString().split("T")[0]; // Today's date in YYYY-MM-DD format
+  let startDate = getTodayDateString();
   let modalElement;
 
-  // Focus modal when it becomes visible
-  $: if (open && modalElement) {
-    modalElement.focus();
-  }
-
-  // Computed properties for subordinate functionality
+  // Computed values
   $: selectedSubordinates = subordinateIds
     .map((id) => members.find((m) => m.id === id))
     .filter(Boolean);
+
   $: willInsertBetween =
     selectedSubordinates.length > 0 && selectedSubordinates[0]?.managerId;
 
-  // If subordinates are selected and have a common manager, auto-set the manager
+  $: availableManagers = members.filter((m) => !subordinateIds.includes(m.id));
+
+  $: availableSubordinates = managerId
+    ? getDirectReports(managerId)
+    : members.filter((m) => !m.managerId);
+
+  $: selectedManager = members.find((m) => m.id === managerId);
+
+  // Auto-set manager when inserting between subordinates
   $: if (willInsertBetween && selectedSubordinates.length > 0) {
     const commonManagerId = selectedSubordinates[0].managerId;
-    // Verify all selected subordinates have the same manager
     const allHaveSameManager = selectedSubordinates.every(
       (s) => s.managerId === commonManagerId
     );
@@ -49,7 +86,33 @@
     }
   }
 
-  // Helper function to check if memberId is a descendant of potentialAncestorId
+  // Focus modal when it becomes visible
+  $: if (open && modalElement) {
+    modalElement.focus();
+  }
+
+  // Utility functions
+  function getTodayDateString() {
+    return new Date().toISOString().split("T")[0];
+  }
+
+  function resetFileInput(inputElement) {
+    if (inputElement) {
+      inputElement.value = "";
+    }
+  }
+
+  function revokePhotoPreview() {
+    if (photoPreviewUrl) {
+      URL.revokeObjectURL(photoPreviewUrl);
+    }
+  }
+
+  function getDirectReports(memberId) {
+    if (!memberId) return [];
+    return members.filter((m) => m.managerId === memberId);
+  }
+
   function isDescendantOf(potentialAncestorId, memberId) {
     if (!potentialAncestorId || !memberId) return false;
 
@@ -61,44 +124,44 @@
     return false;
   }
 
-  // Helper function to get direct reports of a member (one level down only)
-  function getDirectReports(memberId) {
-    if (!memberId) return [];
-    return members.filter((m) => m.managerId === memberId);
+  // File validation helpers
+  function validatePhotoFile(file) {
+    if (!file.type.startsWith("image/")) {
+      return FILE_CONSTANTS.PHOTO.ERROR_MESSAGES.INVALID_TYPE;
+    }
+
+    if (FILE_CONSTANTS.PHOTO.UNSUPPORTED_TYPES.includes(file.type.toLowerCase())) {
+      return FILE_CONSTANTS.PHOTO.ERROR_MESSAGES.UNSUPPORTED_FORMAT;
+    }
+
+    if (file.size > FILE_CONSTANTS.PHOTO.MAX_SIZE) {
+      return FILE_CONSTANTS.PHOTO.ERROR_MESSAGES.SIZE_EXCEEDED;
+    }
+
+    return null;
   }
 
-  // Handle file selection
+  function validateCVFile(file) {
+    if (!FILE_CONSTANTS.CV.ACCEPTED_TYPES.includes(file.type)) {
+      return FILE_CONSTANTS.CV.ERROR_MESSAGES.INVALID_TYPE;
+    }
+
+    if (file.size > FILE_CONSTANTS.CV.MAX_SIZE) {
+      return FILE_CONSTANTS.CV.ERROR_MESSAGES.SIZE_EXCEEDED;
+    }
+
+    return null;
+  }
+
+  // File handlers
   function handleFileChange(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      error = "Please upload an image file (JPG, PNG, GIF, WebP)";
-      // Reset the file input
-      if (fileInput) {
-        fileInput.value = "";
-      }
-      return;
-    }
-
-    // Check for unsupported image formats (HEIC, HEIF, etc.)
-    const unsupportedTypes = ["image/heic", "image/heif"];
-    if (unsupportedTypes.includes(file.type.toLowerCase())) {
-      error =
-        "HEIC/HEIF files are not supported. Please convert to JPG or PNG first.";
-      // Reset the file input
-      if (fileInput) {
-        fileInput.value = "";
-      }
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      error = "File size must be below 2MB";
-      // Reset the file input
-      if (fileInput) {
-        fileInput.value = "";
-      }
+    const validationError = validatePhotoFile(file);
+    if (validationError) {
+      error = validationError;
+      resetFileInput(fileInput);
       return;
     }
 
@@ -107,71 +170,52 @@
     photoPreviewUrl = URL.createObjectURL(file);
   }
 
-  // Handle removing selected photo
   function handleRemovePhoto() {
-    if (photoPreviewUrl) {
-      URL.revokeObjectURL(photoPreviewUrl);
-    }
+    revokePhotoPreview();
     photoFile = null;
     photoPreviewUrl = null;
-    // Reset the file input
-    if (fileInput) {
-      fileInput.value = "";
-    }
+    resetFileInput(fileInput);
   }
 
-  // Handle CV file selection
   function handleCVChange(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Check if file is a valid CV format
-    const validTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ];
-    
-    if (!validTypes.includes(file.type)) {
-      error = "Please upload a PDF, DOC, or DOCX file";
-      if (cvInput) {
-        cvInput.value = "";
-      }
+    const validationError = validateCVFile(file);
+    if (validationError) {
+      error = validationError;
+      resetFileInput(cvInput);
       return;
     }
 
-    // Check file size (5MB limit for CVs)
-    if (file.size > 5 * 1024 * 1024) {
-      error = "CV file size must be below 5MB";
-      if (cvInput) {
-        cvInput.value = "";
-      }
-      return;
-    }
-
-    // File is valid
     cvFile = file;
     error = "";
   }
 
-  // Handle removing selected CV
   function handleRemoveCV() {
     cvFile = null;
-    if (cvInput) {
-      cvInput.value = "";
+    resetFileInput(cvInput);
+  }
+
+  // Form handlers
+  function validateForm() {
+    if (!name.trim()) {
+      error = VALIDATION_MESSAGES.NAME_REQUIRED;
+      return false;
     }
+
+    if (!role.trim()) {
+      error = VALIDATION_MESSAGES.ROLE_REQUIRED;
+      return false;
+    }
+
+    return true;
   }
 
   async function handleSubmit() {
     error = "";
 
-    if (!name.trim()) {
-      error = "Name is required";
-      return;
-    }
-
-    if (!role.trim()) {
-      error = "Role/Title is required";
+    if (!validateForm()) {
       return;
     }
 
@@ -180,7 +224,6 @@
       const startDateObj = startDate ? new Date(startDate) : new Date();
 
       if (willInsertBetween && selectedSubordinates.length > 0) {
-        // Adding member "in between" - use special method with multiple subordinates
         await membersStore.addMemberBetweenMultiple(
           organizationId,
           name,
@@ -193,7 +236,6 @@
           cvFile
         );
       } else {
-        // Regular add member (now with subordinate support)
         await membersStore.addMember(
           organizationId,
           name,
@@ -210,19 +252,13 @@
       handleClose();
     } catch (err) {
       console.error(err);
-      error = err.message || "Failed to add member";
+      error = err.message || VALIDATION_MESSAGES.SUBMIT_ERROR;
     } finally {
       loading = false;
     }
   }
 
-  function handleClose() {
-    // Clean up photo URL to prevent memory leaks
-    if (photoPreviewUrl) {
-      URL.revokeObjectURL(photoPreviewUrl);
-    }
-
-    // Reset state
+  function resetForm() {
     name = "";
     email = "";
     role = "";
@@ -234,17 +270,15 @@
     photoPreviewUrl = null;
     cvFile = null;
     error = "";
-    startDate = new Date().toISOString().split("T")[0]; // Reset to today
+    startDate = getTodayDateString();
+    resetFileInput(fileInput);
+    resetFileInput(cvInput);
+  }
+
+  function handleClose() {
+    revokePhotoPreview();
+    resetForm();
     open = false;
-
-    // Reset file inputs
-    if (fileInput) {
-      fileInput.value = "";
-    }
-    if (cvInput) {
-      cvInput.value = "";
-    }
-
     dispatch("close");
   }
 
@@ -261,6 +295,23 @@
     if (event.key === "Escape") {
       handleClose();
     }
+  }
+
+  function toggleSubordinatesDropdown() {
+    dropdownOpen = !dropdownOpen;
+  }
+
+  function toggleManagerDropdown() {
+    managerDropdownOpen = !managerDropdownOpen;
+  }
+
+  function selectManager(id) {
+    managerId = id;
+    managerDropdownOpen = false;
+  }
+
+  function formatFileSize(bytes) {
+    return (bytes / 1024 / 1024).toFixed(2);
   }
 </script>
 
@@ -326,14 +377,14 @@
           <button
             type="button"
             class="dropdown-trigger"
-            on:click={() => (managerDropdownOpen = !managerDropdownOpen)}
+            on:click={toggleManagerDropdown}
             disabled={loading || willInsertBetween}
           >
             <span class="selected-text">
               {#if !managerId}
                 -- None (top) --
               {:else}
-                {members.find((m) => m.id === managerId)?.name || "Unknown"}
+                {selectedManager?.name || "Unknown"}
               {/if}
             </span>
             <svg
@@ -357,24 +408,18 @@
                 type="button"
                 class="dropdown-item"
                 class:selected={!managerId}
-                on:click={() => {
-                  managerId = "";
-                  managerDropdownOpen = false;
-                }}
+                on:click={() => selectManager("")}
               >
                 <span class="manager-name">-- None (top) --</span>
               </button>
 
               <!-- Manager options -->
-              {#each members.filter((m) => !subordinateIds.includes(m.id)) as member}
+              {#each availableManagers as member}
                 <button
                   type="button"
                   class="dropdown-item"
                   class:selected={managerId === member.id}
-                  on:click={() => {
-                    managerId = member.id;
-                    managerDropdownOpen = false;
-                  }}
+                  on:click={() => selectManager(member.id)}
                 >
                   <span class="manager-name">{member.name}</span>
                   <span class="manager-role">{member.role}</span>
@@ -399,7 +444,7 @@
           <button
             type="button"
             class="dropdown-trigger"
-            on:click={() => (dropdownOpen = !dropdownOpen)}
+            on:click={toggleSubordinatesDropdown}
             disabled={loading}
           >
             <span class="selected-text">
@@ -427,7 +472,8 @@
 
           {#if dropdownOpen}
             <div class="dropdown-menu">
-              {#each managerId ? getDirectReports(managerId) : members.filter((m) => !m.managerId) as member}
+              {#each availableSubordinates as member}
+                {@const currentManager = members.find((mgr) => mgr.id === member.managerId)}
                 <label class="checkbox-item">
                   <input
                     type="checkbox"
@@ -439,36 +485,30 @@
                     <span class="member-name">{member.name}</span>
                     <span class="member-status">
                       {member.managerId
-                        ? `currently reports to ${
-                            members.find((mgr) => mgr.id === member.managerId)
-                              ?.name || "Unknown"
-                          }`
+                        ? `currently reports to ${currentManager?.name || "Unknown"}`
                         : "top level"}
                     </span>
                   </div>
                 </label>
               {:else}
-                {#if managerId}
-                  <div class="no-options">
-                    No subordinates available in this branch
-                  </div>
-                {:else}
-                  <div class="no-options">
-                    No top-level employees available as subordinates
-                  </div>
-                {/if}
+                <div class="no-options">
+                  {managerId
+                    ? "No subordinates available in this branch"
+                    : "No top-level employees available as subordinates"}
+                </div>
               {/each}
             </div>
           {/if}
         </div>
 
         {#if willInsertBetween && selectedSubordinates.length > 0}
+          {@const previewManager = members.find(
+            (mgr) => mgr.id === selectedSubordinates[0].managerId
+          )}
           <div class="insert-preview">
             <p><strong>Hierarchy Preview:</strong></p>
             <p>
-              {members.find(
-                (mgr) => mgr.id === selectedSubordinates[0].managerId
-              )?.name || "Top Level"}
+              {previewManager?.name || "Top Level"}
               → <strong>{name || "New Member"}</strong>
               → {selectedSubordinates.map((s) => s.name).join(", ")}
             </p>
@@ -540,7 +580,7 @@
                   </svg>
                   <div class="cv-details">
                     <div class="cv-filename">{cvFile.name}</div>
-                    <div class="cv-size">{(cvFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                    <div class="cv-size">{formatFileSize(cvFile.size)} MB</div>
                   </div>
                 </div>
                 <div class="cv-overlay">
