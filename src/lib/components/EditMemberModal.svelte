@@ -69,7 +69,7 @@
   $: hasPhotoRemovalFlag = photoFile === FILE_CONSTANTS.PHOTO.REMOVE_FLAG;
   $: hasCVRemovalFlag = cvFile === FILE_CONSTANTS.CV.REMOVE_FLAG;
   $: hasCurrentPhoto = member?.photoURL && !hasPhotoRemovalFlag;
-  $: hasCurrentCV = member?.cvURL && member?.cvFileName && !hasCVRemovalFlag;
+  $: hasCurrentCV = member?.cvURL && !hasCVRemovalFlag;
 
   // Initialize form values when modal opens or when member changes
   $: if (open && member && member.id !== currentMemberId) {
@@ -632,7 +632,7 @@
                     />
                   </svg>
                   <div class="cv-details">
-                    <div class="cv-filename">{member.cvFileName}</div>
+                    <div class="cv-filename">{member.cvFileName || 'CV Document'}</div>
                     <div class="cv-uploaded">
                       Uploaded {formatCVUploadDate(member.cvUploadedAt)}
                     </div>

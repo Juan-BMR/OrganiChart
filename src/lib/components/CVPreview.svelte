@@ -154,7 +154,7 @@
           <path d={getFileIcon(fileType)} />
         </svg>
         <div class="file-details">
-          <div class="filename">{cvFileName}</div>
+          <div class="filename">{cvFileName || 'CV Document'}</div>
           <div class="filetype">{fileType.toUpperCase()} Document</div>
         </div>
       </div>

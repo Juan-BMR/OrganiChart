@@ -221,7 +221,7 @@
         </div>
 
         <!-- CV Section -->
-        {#if member?.cvURL && member?.cvFileName}
+        {#if member?.cvURL}
           <div class="info-section">
             <h4 class="section-title">CV / Resume</h4>
             <div class="cv-info-container">
@@ -241,7 +241,7 @@
                   </svg>
                 </div>
                 <div class="cv-details">
-                  <div class="cv-filename">{member.cvFileName}</div>
+                  <div class="cv-filename">{member.cvFileName || 'CV Document'}</div>
                   <div class="cv-uploaded-date">
                     Uploaded {member.cvUploadedAt ? new Date(member.cvUploadedAt.toDate ? member.cvUploadedAt.toDate() : member.cvUploadedAt).toLocaleDateString() : 'Unknown'}
                   </div>
